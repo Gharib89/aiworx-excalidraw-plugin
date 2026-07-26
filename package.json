@@ -1,0 +1,23 @@
+{
+  "name": "aiworx-excalidraw-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude Code plugin: author Excalidraw diagrams with real text metrics and headless visual verification",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "bundle": "node tools/bundle.js",
+    "setup": "npm install && npm run bundle",
+    "smoke": "node tools/render.js examples/smoke.excalidraw --out examples/smoke"
+  },
+  "dependencies": {
+    "playwright-core": "^1.56.0"
+  },
+  "devDependencies": {
+    "@excalidraw/excalidraw": "0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "2.2.2",
+    "esbuild": "^0.25.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

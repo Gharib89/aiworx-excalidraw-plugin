@@ -1,0 +1,15 @@
+{
+  "name": "aiworx",
+  "description": "AIWorx tooling for Claude Code. Diagram authoring with real text metrics and headless visual verification.",
+  "owner": {
+    "name": "Ahmed Gharib",
+    "url": "https://github.com/gharib89"
+  },
+  "plugins": [
+    {
+      "name": "aiworx-excalidraw",
+      "source": "./",
+      "description": "Author Excalidraw diagrams that argue visually, with real text metrics and a headless render-and-inspect loop."
+    }
+  ]
+}

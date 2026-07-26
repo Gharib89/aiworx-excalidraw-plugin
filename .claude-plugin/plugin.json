@@ -1,0 +1,14 @@
+{
+  "name": "aiworx-excalidraw",
+  "displayName": "AIWorx Excalidraw Diagrams",
+  "version": "0.1.0",
+  "description": "Author Excalidraw diagrams that argue visually, with real text metrics from the Excalidraw library and a headless render-and-inspect verification loop.",
+  "author": {
+    "name": "Ahmed Gharib",
+    "url": "https://github.com/gharib89"
+  },
+  "homepage": "https://github.com/gharib89/aiworx-excalidraw-plugin",
+  "repository": "https://github.com/gharib89/aiworx-excalidraw-plugin",
+  "license": "MIT",
+  "keywords": ["excalidraw", "diagrams", "visualization", "architecture", "teaching"]
+}

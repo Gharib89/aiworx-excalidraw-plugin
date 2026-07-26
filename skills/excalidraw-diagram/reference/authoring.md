@@ -38,8 +38,19 @@ a `line` or multi-point `arrow` that must stay angular needs `roundness: null`.
 
 ## Measuring
 
+A generator never hardcodes the plugin's install path — it differs per machine
+and per user, and a band's generator is committed. Load the tools through the
+environment instead, and run the script with the variable set (in a skill bash
+block `${CLAUDE_PLUGIN_ROOT}` already resolves):
+
+```bash
+CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT} node docs/diagrams/gen-thing.js
+```
+
 ```js
-import { authorDiagram } from "<plugin>/tools/author.js";
+const root = process.env.CLAUDE_PLUGIN_ROOT;
+if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const { authorDiagram } = await import(`${root}/tools/author.js`);
 
 await authorDiagram({
   out: "docs/diagrams/thing.excalidraw",
@@ -119,7 +130,7 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 ## Round-tripping a human-edited file
 
 ```js
-import { withExcalidraw } from "<plugin>/tools/browser.js";
+const { withExcalidraw } = await import(`${process.env.CLAUDE_PLUGIN_ROOT}/tools/browser.js`);
 
 await withExcalidraw(async (ex) => {
   const { elements } = await ex.restore(JSON.parse(readFileSync(file, "utf8")));

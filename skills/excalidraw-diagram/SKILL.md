@@ -49,7 +49,20 @@ measurement API, and the generator shape for a band.
 Done when the `.excalidraw` file exists and every card, column and frame size
 traces to a measurement or an explicit constant — with no character-width factors.
 
-## Step 4 — look at every frame
+## Step 4 — pass the gate
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/tools/check.js path/to/diagram.excalidraw
+```
+
+It is cheap and mechanical, so it runs before any render: duplicate ids,
+overlapping frames, bound text larger than its container, elements escaping
+their frame, elements sitting over a frame without belonging to it, and
+bindings pointing at deleted elements.
+
+Done when it exits 0.
+
+## Step 5 — look at every frame
 
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/tools/render.js path/to/diagram.excalidraw --out /tmp/dg
@@ -62,20 +75,8 @@ For each frame, check the composition against the claim from step 1, then the
 mechanics: text inside its box, arrows landing on their target, labels anchored
 to what they describe, even spacing, and no cramped panel next to an empty one.
 
-Done when every frame has been viewed and each defect found is either fixed or
-named as a deliberate choice.
-
-## Step 5 — pass the gate
-
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/tools/check.js path/to/diagram.excalidraw
-```
-
-It catches what eyes miss: duplicate ids, overlapping frames, bound text larger
-than its container, elements escaping their frame, elements sitting over a frame
-without belonging to it, and bindings pointing at deleted elements.
-
-Done when it exits 0.
+Done when every frame has been viewed, each defect found is either fixed or
+named as a deliberate choice, and any fix has re-passed the step 4 gate.
 
 ## Step 6 — ship the right files
 

@@ -2,4 +2,9 @@ node_modules/
 *.png
 !brand/*.png
 *.log
+
+# The browser bundle ships with the plugin so an install needs no build step.
+# ~/.gitignore_global ignores dist/, so un-ignore it here explicitly.
+!dist/
+!dist/excalidraw-page.js
 .DS_Store

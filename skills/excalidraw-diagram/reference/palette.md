@@ -31,6 +31,11 @@ in `fail` red — is not also used to fill a card. Gold prose on a gold card is
 the same colour twice for two different jobs, and the marker stops reading as a
 marker.
 
+A mark that means "picked by this thing" — a ring around a retrieved point, a
+highlight over a page region — takes the *picker's* colour, not the marked
+item's. In the item's own colour it disappears into it and stops reading as a
+mark at all.
+
 ## Where the values come from
 
 The strokes are the AIWorx brand's validated categorical slots, used verbatim.

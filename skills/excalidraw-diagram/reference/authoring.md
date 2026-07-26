@@ -73,6 +73,12 @@ const widest = Math.max(...(await measure(codeLines.map(
 const CARD_W = Math.ceil((widest + 2 * PAD + 20) / 20) * 20;
 ```
 
+Labels *on* a drawing collide with it. Regions of a mocked page, cells of a
+table, bars of a chart stack with no gap between them, so a label placed above
+one lands on its neighbour. Put the labels in a column beside the drawing, one
+slot each, and run a dashed leader to the thing each names — and route a leader
+that would cross a sibling around it, not through it.
+
 Free text wrapped to a width is the one thing no gate can check: `check.js` sees
 bound text overflowing its container and elements escaping their frame, but two
 siblings that merely sit on top of each other are legal geometry. So wrap to the
@@ -104,6 +110,11 @@ A band's panels have content-driven heights, so build in two passes:
 Keep the frames' `x` positions on a fixed pitch wide enough for the widest panel,
 and give each frame a `name` that states the claim it lands — the name shows in
 the app's frame list and in per-frame renders.
+
+An arrow that crosses from one panel to the next stays **unbound**. A frame's
+auto-fit counts anything bound to one of its children as its own, so binding
+across a panel boundary stretches both frames over the gap until they overlap —
+which `check.js` reports as overlapping frames, not as a binding problem.
 
 ## Round-tripping a human-edited file
 

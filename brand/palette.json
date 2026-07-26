@@ -1,0 +1,61 @@
+{
+  "$comment": "Diagram palette for the AIWorx Excalidraw plugin. Strokes are the brand's validated categorical slots; fills are derived by OKLCH lightness-snapping (L=0.965, C<=0.042) and verified for contrast by tools/palette.js.",
+  "canvas": "#FCFCFB",
+  "ink": "#1A1A19",
+  "fontFamily": {
+    "prose": 6,
+    "code": 3,
+    "$comment": "6 = Nunito, 3 = Cascadia; both ship with Excalidraw and embed on export"
+  },
+  "grey": {
+    "stroke": "#5B5B58",
+    "fill": "#F1F1EF",
+    "faint": "#B9B9B4",
+    "ink": "#1A1A19",
+    "canvas": "#FCFCFB"
+  },
+  "mark": {
+    "teal": "#00D9C6",
+    "blue": "#44ADFD",
+    "purple": "#B863FC",
+    "wordmark": "#00197F"
+  },
+  "roles": {
+    "local": {
+      "stroke": "#3A44D4",
+      "fill": "#EEF6FF",
+      "hue": "blue",
+      "means": "runs locally, on this machine"
+    },
+    "artifact": {
+      "stroke": "#0198CB",
+      "fill": "#E1FCFF",
+      "hue": "cyan",
+      "means": "an artifact or output"
+    },
+    "pass": {
+      "stroke": "#6E9A21",
+      "fill": "#F0FCE4",
+      "hue": "green",
+      "means": "a check that passed, a gate held"
+    },
+    "remote": {
+      "stroke": "#792A8E",
+      "fill": "#FFF0FF",
+      "hue": "purple",
+      "means": "leaves the machine — API, model call"
+    },
+    "decision": {
+      "stroke": "#A17E00",
+      "fill": "#FFF6DD",
+      "hue": "gold",
+      "means": "a decision, a threshold, a trap"
+    },
+    "fail": {
+      "stroke": "#B61E24",
+      "fill": "#FFEFEB",
+      "hue": "red",
+      "means": "what goes wrong"
+    }
+  }
+}

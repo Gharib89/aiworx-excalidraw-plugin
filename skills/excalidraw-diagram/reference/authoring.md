@@ -31,6 +31,11 @@ extents. A skeleton element needs only what makes it distinct.
 text sized and centred. A frame listing `children` computes its own extent with
 padding, so panel height follows content instead of a guessed constant.
 
+`roundness` is per shape kind: `{ type: 3 }` rounds a rectangle's corners,
+`{ type: 2 }` smooths a polyline's. Smoothing is wrong wherever the corner *is*
+the content — plot axes become a curve, a reading-order zigzag becomes an S — so
+a `line` or multi-point `arrow` that must stay angular needs `roundness: null`.
+
 ## Measuring
 
 ```js
@@ -67,6 +72,12 @@ const widest = Math.max(...(await measure(codeLines.map(
   (text) => ({ text, fontSize: 16, fontFamily: CODE })))).map((m) => m.width));
 const CARD_W = Math.ceil((widest + 2 * PAD + 20) / 20) * 20;
 ```
+
+Free text wrapped to a width is the one thing no gate can check: `check.js` sees
+bound text overflowing its container and elements escaping their frame, but two
+siblings that merely sit on top of each other are legal geometry. So wrap to the
+distance to the *next drawn thing* — a mock, an icon, a swatch — not to the card's
+inner width, and confirm it in the frame render.
 
 ## Why measurement happens in a browser
 

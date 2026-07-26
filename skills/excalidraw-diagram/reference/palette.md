@@ -1,0 +1,71 @@
+# Palette and mark
+
+`brand/palette.json` is the single source of truth. Import it rather than copying
+hex values into a generator:
+
+```js
+import { palette, PROSE, CODE, mark } from "<plugin>/tools/author.js";
+palette.roles.remote.stroke   // "#792A8E"
+palette.roles.remote.fill     // "#FFF0FF"
+```
+
+## Roles
+
+| role | stroke | fill | means |
+|---|---|---|---|
+| `local` | `#3A44D4` | `#EEF6FF` | runs locally, on this machine |
+| `artifact` | `#0198CB` | `#E1FCFF` | an artifact or output |
+| `pass` | `#6E9A21` | `#F0FCE4` | a check that passed, a gate held |
+| `remote` | `#792A8E` | `#FFF0FF` | leaves the machine — API or model call |
+| `decision` | `#A17E00` | `#FFF6DD` | a decision, a threshold, a trap |
+| `fail` | `#B61E24` | `#FFEFEB` | what goes wrong |
+
+Plus `palette.grey` for scaffolding (`stroke`, `fill`, `faint`, `ink`, `canvas`)
+and `palette.canvas` = `#FCFCFB` for `viewBackgroundColor`.
+
+One colour, one meaning, across every diagram: a reader who learns that purple
+means "this leaves the machine" in one diagram keeps that knowledge in the next.
+
+## Where the values come from
+
+The strokes are the AIWorx brand's validated categorical slots, used verbatim.
+The brand's own validation rejected the raw theme accents for marks — `accent1`
+too dark, `accent4` and `accent6` below 3:1 on white — so those are not used here.
+
+Fills are derived by one rule, not hand-picked: snap the stroke to `L = 0.975`,
+`C ≤ 0.034` in OKLCH. Cyan is the binding constraint; at `L = 0.965` its stroke
+made only 2.98:1 against its own fill.
+
+## Verifying
+
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/tools/palette.js           # print the table and the checks
+node ${CLAUDE_PLUGIN_ROOT}/tools/palette.js --write   # rewrite brand/palette.json
+```
+
+It refuses to write unless body text clears 4.5:1 on every fill, strokes clear
+3:1 on the canvas and on their own fill, and every fill stays ≥ 0.02 OKLab from
+the canvas and from the other fills. A contrast ratio cannot detect a chroma-only
+difference, which is why the distance check exists alongside it.
+
+Changing a role colour means re-running this and accepting whatever it says.
+
+## Fonts
+
+`fontFamily: 6` (Nunito) for prose and labels; `fontFamily: 3` (Cascadia) for
+code, JSON, paths and numbers-as-data. Both ship with Excalidraw and embed into
+exported SVG, so the diagram renders identically anywhere.
+
+Nunito also stands in for the brand's Century Gothic, which cannot be embedded.
+Families naming a system font — `2` is Helvetica — substitute per machine, so the
+same file reflows into a different layout on a different box.
+
+## The mark
+
+`mark({ x, y, scale })` returns the skeleton for the footer mark: three strokes in
+teal `#00D9C6`, blue `#44ADFD` and purple `#B863FC` approximating the logo's
+gradient, the dot, and `AIWORX` in wordmark `#00197F`. Excalidraw has no
+gradients, and embedding the logo PNG would add ~98 KB of base64 per file.
+
+Put one in each frame's footer: exported frames travel on their own into slides
+and messages.

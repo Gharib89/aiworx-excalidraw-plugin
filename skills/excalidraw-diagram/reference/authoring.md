@@ -58,6 +58,16 @@ await authorDiagram({
 `wrap` measures word widths, fills lines greedily, then measures the finished
 block so the caller sizes cards from the width the renderer will produce.
 
+Wrapping a code block breaks the snippet, so code is measured and never wrapped
+— which inverts the usual sizing: measure the widest code line first and let the
+card width follow it, then wrap the prose to what is left.
+
+```js
+const widest = Math.max(...(await measure(codeLines.map(
+  (text) => ({ text, fontSize: 16, fontFamily: CODE })))).map((m) => m.width));
+const CARD_W = Math.ceil((widest + 2 * PAD + 20) / 20) * 20;
+```
+
 ## Why measurement happens in a browser
 
 The Excalidraw library needs a DOM even for `convertToExcalidrawElements`, and

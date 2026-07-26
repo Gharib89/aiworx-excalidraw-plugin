@@ -7,7 +7,8 @@
   "type": "module",
   "scripts": {
     "bundle": "node tools/bundle.js",
-    "setup": "npm install && npm run bundle",
+    "setup": "npm install --omit=dev",
+    "dev": "npm install && npm run bundle",
     "smoke": "node tools/render.js examples/smoke.excalidraw --out examples/smoke"
   },
   "dependencies": {

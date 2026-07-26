@@ -26,6 +26,11 @@ and `palette.canvas` = `#FCFCFB` for `viewBackgroundColor`.
 One colour, one meaning, across every diagram: a reader who learns that purple
 means "this leaves the machine" in one diagram keeps that knowledge in the next.
 
+A role used to colour *text* — a `WHY ·` aside in `decision` gold, a `GOTCHA ·`
+in `fail` red — is not also used to fill a card. Gold prose on a gold card is
+the same colour twice for two different jobs, and the marker stops reading as a
+marker.
+
 ## Where the values come from
 
 The strokes are the AIWorx brand's validated categorical slots, used verbatim.
@@ -55,6 +60,11 @@ Changing a role colour means re-running this and accepting whatever it says.
 `fontFamily: 6` (Nunito) for prose and labels; `fontFamily: 3` (Cascadia) for
 code, JSON, paths and numbers-as-data. Both ship with Excalidraw and embed into
 exported SVG, so the diagram renders identically anywhere.
+
+Cascadia is a ligature font: `!=` renders as `≠`, `==` as `⩵`, `...` as `…`.
+Legible, but the glyph is no longer the character in the source — so keep ASCII
+where the point is what the file literally says (`->`, not `→`), and expect the
+operators to be reshaped.
 
 Nunito also stands in for the brand's Century Gothic, which cannot be embedded.
 Families naming a system font — `2` is Helvetica — substitute per machine, so the

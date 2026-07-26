@@ -53,7 +53,7 @@ node tools/render.js d.excalidraw # writes d.svg + one PNG per frame
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/              page.js (browser side), browser.js (driver), render.js, smoke.js, bundle.js
 dist/               committed browser bundle
-brand/              AIWorx palette and mark
+brand/              AIWorx palette
 ```
 
 ## License

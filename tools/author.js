@@ -6,7 +6,7 @@
  *
  *   await authorDiagram({
  *     out: "docs/diagrams/thing.excalidraw",
- *     build: async ({ measure, wrap, palette, mark }) => [ ...skeleton ],
+ *     build: async ({ measure, wrap, palette, PROSE, CODE }) => [ ...skeleton ],
  *   });
  */
 import { readFileSync, writeFileSync } from "node:fs";

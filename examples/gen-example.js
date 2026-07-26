@@ -2,7 +2,7 @@
 /**
  * Worked example: a small band panel exercising every authoring helper —
  * batch measurement, pixel wrapping, role colours, bound arrows, a
- * content-fitted frame, and the footer mark.
+ * and a content-fitted frame.
  *
  *   node examples/gen-example.js
  */

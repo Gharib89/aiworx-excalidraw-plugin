@@ -14,12 +14,6 @@
     "ink": "#1A1A19",
     "canvas": "#FCFCFB"
   },
-  "mark": {
-    "teal": "#00D9C6",
-    "blue": "#44ADFD",
-    "purple": "#B863FC",
-    "wordmark": "#00197F"
-  },
   "roles": {
     "local": {
       "stroke": "#3A44D4",

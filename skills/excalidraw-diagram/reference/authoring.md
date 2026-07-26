@@ -38,7 +38,7 @@ import { authorDiagram } from "<plugin>/tools/author.js";
 
 await authorDiagram({
   out: "docs/diagrams/thing.excalidraw",
-  build: async ({ measure, wrap, palette, mark, PROSE, CODE }) => {
+  build: async ({ measure, wrap, palette, PROSE, CODE }) => {
     // one call, many strings — each returns the real rendered size
     const [title, code] = await measure([
       { text: "the formula pass", fontSize: 28, fontFamily: PROSE },
@@ -49,7 +49,7 @@ await authorDiagram({
     const body = await wrap("Long explanatory prose …", 420, { fontSize: 18 });
 
     const cardHeight = 24 + title.height + 12 + body.height + 24;   // measured, not guessed
-    return [ /* skeleton using title.width, body.text, cardHeight, mark({...}) */ ];
+    return [ /* skeleton using title.width, body.text, cardHeight */ ];
   },
 });
 ```

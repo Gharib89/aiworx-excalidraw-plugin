@@ -91,7 +91,6 @@ const GREY = {
   ink: INK,
   canvas: CANVAS,
 };
-const MARK = { teal: "#00D9C6", blue: "#44ADFD", purple: "#B863FC", wordmark: "#00197F" };
 
 // ---------- derive fills ----------
 // Tuned so that every slot clears 3:1 stroke-on-own-fill; cyan is the binding
@@ -178,7 +177,6 @@ if (process.argv.includes("--write")) {
     ink: INK,
     fontFamily: { prose: 6, code: 3, $comment: "6 = Nunito, 3 = Cascadia; both ship with Excalidraw and embed on export" },
     grey: GREY,
-    mark: MARK,
     roles: Object.fromEntries(
       slots.map((s) => [s.role, { stroke: s.stroke, fill: s.fill, hue: s.hue, means: s.means }]),
     ),

@@ -1,10 +1,10 @@
-# Palette and mark
+# Palette
 
 `brand/palette.json` is the single source of truth. Import it rather than copying
 hex values into a generator:
 
 ```js
-import { palette, PROSE, CODE, mark } from "<plugin>/tools/author.js";
+import { palette, PROSE, CODE } from "<plugin>/tools/author.js";
 palette.roles.remote.stroke   // "#792A8E"
 palette.roles.remote.fill     // "#FFF0FF"
 ```

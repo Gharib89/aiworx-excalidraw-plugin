@@ -107,6 +107,6 @@ Prose and labels use `fontFamily: 6` (Nunito); code, JSON and file paths use
 diagram renders identically for anyone. A family naming a system font — Helvetica
 among them — substitutes per machine and reflows the layout.
 
-Every frame carries the AIWorx mark in its footer, so a single exported frame
-still identifies itself. See [reference/palette.md](reference/palette.md) for the
-exact values, the mark geometry, and how the palette is verified.
+Every frame carries `AIWORX` in its footer, so a single exported frame still
+identifies itself. See [reference/palette.md](reference/palette.md) for the exact
+values and how the palette is verified.

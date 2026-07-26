@@ -65,31 +65,32 @@ export function makeWrap(measure) {
 }
 
 /**
- * The AIWorx mark, drawn from primitives so it costs no embedded image and stays
- * crisp at any zoom. The three strokes approximate the logo's teal->blue->purple
- * gradient, which Excalidraw cannot render directly.
+ * Footer attribution: the wordmark as text, in brand navy.
+ *
+ * The logo's "Ai" mark is overlapping translucent gradient strokes, which
+ * Excalidraw cannot draw — it has no gradients and no stroke transparency. An
+ * approximation built from lines and an ellipse reads as a botched copy of the
+ * logo, which is worse for the brand than plain type. Embedding the PNG instead
+ * would add ~98 KB of base64 per diagram.
  */
 export function mark({ x, y, scale = 1, id = "mark" }) {
-  const s = (n) => n * scale;
-  const { teal, blue, purple, wordmark } = palette.mark;
   return [
-    // Each stroke's points start at [0,0] from its own origin, so the two halves
-    // of the chevron actually meet at the apex.
-    { type: "line", id: `${id}-a`, x, y: y + s(26), width: s(13), height: s(26), strokeColor: teal,
-      strokeWidth: s(4), points: [[0, 0], [s(13), -s(26)]], roughness: 0, opacity: 100 },
-    { type: "line", id: `${id}-b`, x: x + s(13), y, width: s(13), height: s(26), strokeColor: blue,
-      strokeWidth: s(4), points: [[0, 0], [s(13), s(26)]], roughness: 0, opacity: 100 },
-    { type: "line", id: `${id}-c`, x: x + s(30), y: y + s(10), width: 0, height: s(16), strokeColor: purple,
-      strokeWidth: s(4), points: [[0, 0], [0, s(16)]], roughness: 0, opacity: 100 },
-    { type: "ellipse", id: `${id}-d`, x: x + s(27), y, width: s(6), height: s(6), strokeColor: purple,
-      backgroundColor: purple, fillStyle: "solid", strokeWidth: 1, roughness: 0 },
-    { type: "text", id: `${id}-e`, x: x + s(42), y: y + s(6), text: "AIWORX", fontSize: s(16),
-      fontFamily: PROSE, strokeColor: wordmark },
+    {
+      type: "text",
+      id,
+      x,
+      y,
+      text: "AIWORX",
+      fontSize: 14 * scale,
+      fontFamily: PROSE,
+      strokeColor: palette.mark.wordmark,
+      opacity: 100,
+    },
   ];
 }
 
 /** The ids mark() assigns, for listing in a frame's children. */
-mark.ids = (id = "mark") => ["a", "b", "c", "d", "e"].map((s) => `${id}-${s}`);
+mark.ids = (id = "mark") => [id];
 
 /**
  * Bind every element that sits inside a frame to that frame.

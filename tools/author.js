@@ -65,34 +65,6 @@ export function makeWrap(measure) {
 }
 
 /**
- * Footer attribution: the wordmark as text, in brand navy.
- *
- * The logo's "Ai" mark is overlapping translucent gradient strokes, which
- * Excalidraw cannot draw — it has no gradients and no stroke transparency. An
- * approximation built from lines and an ellipse reads as a botched copy of the
- * logo, which is worse for the brand than plain type. Embedding the PNG instead
- * would add ~98 KB of base64 per diagram.
- */
-export function mark({ x, y, scale = 1, id = "mark" }) {
-  return [
-    {
-      type: "text",
-      id,
-      x,
-      y,
-      text: "AIWORX",
-      fontSize: 14 * scale,
-      fontFamily: PROSE,
-      strokeColor: palette.mark.wordmark,
-      opacity: 100,
-    },
-  ];
-}
-
-/** The ids mark() assigns, for listing in a frame's children. */
-mark.ids = (id = "mark") => [id];
-
-/**
  * Bind every element that sits inside a frame to that frame.
  *
  * A frame decides membership by frameId, not by geometry: an element merely
@@ -148,7 +120,6 @@ export async function authorDiagram({ out, build, svg = true, background }) {
       measure: ex.measureText,
       wrap,
       palette,
-      mark,
       PROSE,
       CODE,
     });

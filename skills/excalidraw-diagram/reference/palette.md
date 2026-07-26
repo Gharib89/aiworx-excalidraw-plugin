@@ -60,15 +60,12 @@ Nunito also stands in for the brand's Century Gothic, which cannot be embedded.
 Families naming a system font — `2` is Helvetica — substitute per machine, so the
 same file reflows into a different layout on a different box.
 
-## Footer attribution
+## No logo on the diagram
 
-`mark({ x, y, scale })` returns `AIWORX` as text in wordmark navy `#00197F`. Put
-one in each frame's footer: exported frames travel on their own into slides and
-messages, and should say where they came from.
+Diagrams carry no mark. The logo's "Ai" is overlapping translucent gradient
+strokes, and Excalidraw has neither gradients nor stroke transparency, so a
+drawn approximation reads as a botched copy of the brand mark. Embedding
+`brand/AIWorx_logo.png` costs ~98 KB of base64 per file, because Excalidraw has
+no external image references.
 
-Type, not a drawn logo. The logo's "Ai" mark is overlapping translucent gradient
-strokes, and Excalidraw has neither gradients nor stroke transparency — a
-lines-and-ellipse approximation reads as a botched copy of the brand mark, which
-is worse than plain type. Embedding `brand/AIWorx_logo.png` is the other option
-and costs ~98 KB of base64 in every diagram file, since Excalidraw has no external
-image references.
+The palette and the fonts carry the brand instead.

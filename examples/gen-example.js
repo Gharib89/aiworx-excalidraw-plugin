@@ -10,7 +10,7 @@ import { authorDiagram } from "../tools/author.js";
 
 await authorDiagram({
   out: new URL("./example.excalidraw", import.meta.url).pathname,
-  build: async ({ measure, wrap, palette: p, mark, PROSE, CODE }) => {
+  build: async ({ measure, wrap, palette: p, PROSE, CODE }) => {
     const X = 0;
     const Y = 0;
     const CARD_W = 320;
@@ -66,13 +66,10 @@ await authorDiagram({
       strokeColor: p.grey.stroke, strokeWidth: 2,
     });
 
-    els.push(...mark({ x: X, y: cardBottom + 24, scale: 0.8 }));
-
     els.push({
       type: "frame",
       name: "2 · two lanes, and the key that guards one",
-      // the mark is listed so the frame grows to include its own footer
-      children: ["title", "cpu", "api", ...mark.ids()],
+      children: ["title", "cpu", "api"],
     });
     return els;
   },

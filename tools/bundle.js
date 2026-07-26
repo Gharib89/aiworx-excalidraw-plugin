@@ -8,6 +8,7 @@
  * silently produce diagrams with substituted fonts.
  */
 import * as esbuild from "esbuild";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -37,7 +38,28 @@ const result = await esbuild.build({
   },
 });
 
+// The published Excalidraw chunks carry their own collaboration config — the
+// public excalidraw-room-persistence Firebase web key. We never initialise
+// Firebase (headless export does no collaboration), and committing another
+// project's key trips secret scanners, so strip it from our output.
+const outFile = join(root, "dist/excalidraw-page.js");
+const src = readFileSync(outFile, "utf8");
+const scrubbed = src
+  .replace(/AIza[0-9A-Za-z_-]{35}/g, "")
+  .replace(/https:\/\/[a-z-]+\.firebaseio\.com/g, "")
+  .replace(/[a-z-]+\.firebaseapp\.com/g, "");
+if (scrubbed !== src) writeFileSync(outFile, scrubbed);
+
+const leftover = scrubbed.match(/AIza[0-9A-Za-z_-]{35}/g);
+if (leftover) {
+  console.error(`ERROR: ${leftover.length} API key(s) remain in the bundle`);
+  process.exit(1);
+}
+
 const out = Object.entries(result.metafile.outputs);
 for (const [file, meta] of out) {
   console.log(`${file}  ${(meta.bytes / 1024 / 1024).toFixed(2)} MB`);
 }
+console.log(
+  src === scrubbed ? "no third-party keys found" : "stripped third-party collab config",
+);

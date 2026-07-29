@@ -4,66 +4,164 @@
  * frame for visual inspection.
  *
  * Usage:
- *   node tools/render.js diagram.excalidraw [--out DIR] [--scale 2] [--no-frames]
+ *   node tools/render.js diagram.excalidraw
+ *     [--out DIR] [--scale N] [--no-frames]
+ *     [--frame N]          render only frame N (reading order), skip the band
+ *     [--dark]             export with Excalidraw's dark theme filter
+ *     [--padding N]        export padding in px
+ *     [--background COLOR] override the canvas colour (e.g. "#121212", "transparent")
  *
  * The per-frame PNGs are the point: a wide multi-frame diagram is unreadable as
  * a single image, and frame-by-frame is how layout defects actually get caught.
+ * PNGs are numbered in reading order — rows top to bottom, left to right within
+ * a row — so frame numbers match the review order, not element-array accidents.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname } from "node:path";
 import { withExcalidraw } from "./browser.js";
 
-const args = process.argv.slice(2);
-const input = args.find((a) => !a.startsWith("--"));
-if (!input) {
-  console.error("usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames]");
-  process.exit(2);
+class UsageError extends Error {
+  name = "UsageError";
 }
-const flag = (name, fallback) => {
-  const i = args.indexOf(`--${name}`);
-  return i === -1 ? fallback : args[i + 1];
+
+const USAGE =
+  "usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames] " +
+  "[--frame N] [--dark] [--padding N] [--background COLOR]";
+
+const VALUE_FLAGS = new Set(["out", "scale", "frame", "padding", "background"]);
+const BOOL_FLAGS = new Set(["no-frames", "dark"]);
+
+function parseArgs(argv) {
+  const opts = { _: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith("--")) {
+      opts._.push(a);
+      continue;
+    }
+    const name = a.slice(2);
+    if (BOOL_FLAGS.has(name)) {
+      opts[name] = true;
+    } else if (VALUE_FLAGS.has(name)) {
+      const v = argv[++i];
+      if (v === undefined || v.startsWith("--")) {
+        throw new UsageError(`--${name} needs a value\n${USAGE}`);
+      }
+      opts[name] = v;
+    } else {
+      throw new UsageError(`unknown flag --${name}\n${USAGE}`);
+    }
+  }
+  return opts;
+}
+
+const numeric = (name, raw, { min, integer = false } = {}) => {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || (integer && !Number.isInteger(n)) || (min !== undefined && n < min)) {
+    throw new UsageError(
+      `--${name} must be ${integer ? "an integer" : "a number"}${min !== undefined ? ` >= ${min}` : ""}, got "${raw}"`,
+    );
+  }
+  return n;
 };
-const outDir = flag("out", dirname(input));
-const scale = Number(flag("scale", 2));
-const doFrames = !args.includes("--no-frames");
-const stem = basename(input, extname(input));
 
-const data = JSON.parse(readFileSync(input, "utf8"));
-if (!Array.isArray(data.elements) || data.elements.length === 0) {
-  console.error(`ERROR: ${input} has no elements`);
-  process.exit(1);
+/**
+ * Frames in reading order: rows top to bottom, left to right within a row.
+ *
+ * Not a comparator on purpose — pairwise "same row" (vertical overlap) is not
+ * transitive, so sorting with it makes the result depend on element order.
+ * Instead frames are swept top-to-bottom into rows, where a frame joins a row
+ * when its vertical span overlaps the row's running span.
+ */
+function readingOrder(frames) {
+  const rows = [];
+  for (const f of [...frames].sort((a, b) => a.y - b.y || a.x - b.x)) {
+    const row = rows.find((r) => f.y < r.y2 && r.y1 < f.y + f.height);
+    if (row) {
+      row.frames.push(f);
+      row.y1 = Math.min(row.y1, f.y);
+      row.y2 = Math.max(row.y2, f.y + f.height);
+    } else {
+      rows.push({ y1: f.y, y2: f.y + f.height, frames: [f] });
+    }
+  }
+  return rows.flatMap((r) => r.frames.sort((a, b) => a.x - b.x));
 }
 
-mkdirSync(outDir, { recursive: true });
+try {
+  const opts = parseArgs(process.argv.slice(2));
+  const input = opts._[0];
+  if (!input) throw new UsageError(USAGE);
 
-await withExcalidraw(async (ex) => {
-  const restored = await ex.restore(data);
-  const elements = restored.elements;
-  const appState = { viewBackgroundColor: data.appState?.viewBackgroundColor ?? "#ffffff" };
-  const files = data.files ?? {};
-
-  const whole = await ex.exportSvg({ elements, appState, files });
-  const svgPath = join(outDir, `${stem}.svg`);
-  writeFileSync(svgPath, whole.svg);
-  console.log(`${svgPath}  ${whole.width}x${whole.height}`);
-
-  if (!doFrames) return;
-
-  const frames = elements.filter((e) => e.type === "frame" && !e.isDeleted);
-  for (const [i, frame] of frames.entries()) {
-    const out = await ex.exportSvg({
-      elements,
-      appState,
-      files,
-      exportingFrame: frame,
-    });
-    const png = join(outDir, `${stem}-frame${String(i + 1).padStart(2, "0")}.png`);
-    await ex.svgToPng(out.svg, png);
-    console.log(`${png}  ${out.width}x${out.height}  ${frame.name ?? "(unnamed)"}`);
+  const outDir = opts.out ?? dirname(input);
+  const scale = numeric("scale", opts.scale, { min: 0.1 }) ?? 2;
+  const padding = numeric("padding", opts.padding, { min: 0 });
+  const frameNo = numeric("frame", opts.frame, { min: 1, integer: true });
+  const doFrames = !opts["no-frames"];
+  if (frameNo !== undefined && !doFrames) {
+    throw new UsageError("--frame and --no-frames contradict each other");
   }
-  if (frames.length === 0) {
-    const png = join(outDir, `${stem}.png`);
-    await ex.svgToPng(whole.svg, png);
-    console.log(`${png}  (no frames — whole canvas)`);
+  if (opts.background !== undefined && !/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(opts.background)) {
+    throw new UsageError(`--background must be a hex colour or CSS colour name, got "${opts.background}"`);
   }
-}, { scale });
+  const stem = basename(input, extname(input));
+
+  const data = JSON.parse(readFileSync(input, "utf8"));
+  if (!Array.isArray(data.elements) || data.elements.length === 0) {
+    console.error(`ERROR: ${input} has no elements`);
+    process.exit(1);
+  }
+  const frameCount = data.elements.filter((e) => e.type === "frame" && !e.isDeleted).length;
+  if (frameNo !== undefined && frameNo > frameCount) {
+    throw new UsageError(`--frame ${frameNo} requested but ${input} has ${frameCount} frame(s)`);
+  }
+
+  mkdirSync(outDir, { recursive: true });
+
+  await withExcalidraw(async (ex) => {
+    const restored = await ex.restore(data);
+    const base = {
+      elements: restored.elements,
+      appState: {
+        viewBackgroundColor: opts.background ?? data.appState?.viewBackgroundColor ?? "#ffffff",
+        ...(opts.dark ? { exportWithDarkMode: true } : {}),
+      },
+      files: data.files ?? {},
+      ...(padding !== undefined ? { exportPadding: padding } : {}),
+    };
+
+    if (frameNo === undefined) {
+      const whole = await ex.exportSvg(base);
+      const svgPath = join(outDir, `${stem}.svg`);
+      writeFileSync(svgPath, whole.svg);
+      console.log(`${svgPath}  ${whole.width}x${whole.height}`);
+      if (!doFrames) return;
+    }
+
+    const frames = readingOrder(
+      base.elements.filter((e) => e.type === "frame" && !e.isDeleted),
+    );
+    const targets = frames
+      .map((frame, i) => ({ frame, n: i + 1 }))
+      .filter(({ n }) => frameNo === undefined || n === frameNo);
+    for (const { frame, n } of targets) {
+      const out = await ex.exportSvg({ ...base, exportingFrame: frame });
+      const png = join(outDir, `${stem}-frame${String(n).padStart(2, "0")}.png`);
+      await ex.svgToPng(out.svg, png);
+      console.log(`${png}  ${out.width}x${out.height}  ${frame.name ?? "(unnamed)"}`);
+    }
+    if (frames.length === 0) {
+      const whole = await ex.exportSvg(base);
+      const png = join(outDir, `${stem}.png`);
+      await ex.svgToPng(whole.svg, png);
+      console.log(`${png}  (no frames — whole canvas)`);
+    }
+  }, { scale });
+} catch (err) {
+  if (err.name === "UsageError") {
+    console.error(`UsageError: ${err.message}`);
+    process.exit(2);
+  }
+  throw err;
+}

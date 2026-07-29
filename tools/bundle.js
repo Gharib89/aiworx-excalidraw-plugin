@@ -8,9 +8,10 @@
  * silently produce diagrams with substituted fonts.
  */
 import * as esbuild from "esbuild";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { FINGERPRINT_MARKER, expectedFingerprint } from "./fingerprint.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -55,6 +56,10 @@ if (leftover) {
   console.error(`ERROR: ${leftover.length} API key(s) remain in the bundle`);
   process.exit(1);
 }
+
+// Stamp the bundle with a fingerprint of its inputs so browser.js can refuse
+// to run a committed bundle that no longer matches the sources.
+appendFileSync(outFile, `\n${FINGERPRINT_MARKER}${expectedFingerprint()}\n`);
 
 const out = Object.entries(result.metafile.outputs);
 for (const [file, meta] of out) {

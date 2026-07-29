@@ -9,6 +9,7 @@
  *   4. exportToSvg embeds the fonts, so diagrams are portable
  *   5. exportingFrame crops to a single frame
  *   6. SVG rasterises to a non-empty PNG
+ *   7. text metrics are unchanged after rasterising every frame
  *
  * Exits non-zero on any failure, with the measured values printed.
  */
@@ -34,12 +35,13 @@ const check = (name, cond, detail) => {
 
 await withExcalidraw(async (ex) => {
   // 1. measurement
-  const m = await ex.measureText([
+  const ITEMS = [
     { text: "convert()", fontSize: 20, fontFamily: NUNITO },
     { text: "convert()", fontSize: 20, fontFamily: CASCADIA },
     { text: "convert()\nsecond line", fontSize: 20, fontFamily: NUNITO },
     { text: "convert()", fontSize: 20, fontFamily: EXCALIFONT },
-  ]);
+  ];
+  const m = await ex.measureText(ITEMS);
   check("text is measured", m[0].width > 0 && m[0].height > 0,
     `Nunito 20 "convert()" = ${m[0].width}x${m[0].height}`);
   check("multiline height scales", m[2].height > m[0].height * 1.5,
@@ -73,14 +75,19 @@ await withExcalidraw(async (ex) => {
       label: { text: "layout", fontSize: 20, fontFamily: NUNITO } },
     { type: "arrow", x: 190, y: 40, start: { id: "a" }, end: { id: "b" } },
     { type: "frame", children: ["a", "b"], name: "1 · stages" },
+    // a second frame, so the raster loop below exercises the multi-frame path
+    // that single-frame examples never did — which is how the font-loss bug survived
+    { type: "rectangle", id: "c", x: 700, y: 0, width: 180, height: 80,
+      label: { text: "verify", fontSize: 20, fontFamily: NUNITO } },
+    { type: "frame", children: ["c"], name: "2 · verify" },
   ]);
   const byType = (t) => converted.filter((e) => e.type === t);
   const labels = byType("text");
   const arrow = byType("arrow")[0];
-  const frame = byType("frame")[0];
+  const [frame, frame2] = byType("frame");
   const rects = byType("rectangle");
 
-  check("labels become bound text", labels.length === 2 && labels.every((t) => t.containerId),
+  check("labels become bound text", labels.length === 3 && labels.every((t) => t.containerId),
     `${labels.length} text els, containerIds ${labels.map((t) => t.containerId).join(",")}`);
   check("label is sized by the library", labels[0].width > 0 && labels[0].height > 0,
     `${labels[0].width}x${labels[0].height}`);
@@ -91,8 +98,11 @@ await withExcalidraw(async (ex) => {
   check("frame auto-fits children",
     frame && frame.width >= 580 && frame.height >= 80,
     `frame ${frame?.x},${frame?.y} ${frame?.width}x${frame?.height}`);
-  check("children are bound to the frame",
-    rects.every((r) => r.frameId === frame?.id));
+  check("children are bound to their frames",
+    rects.filter((r) => r.frameId === frame?.id).length === 2 &&
+      rects.filter((r) => r.frameId === frame2?.id).length === 1,
+    `frame1 has ${rects.filter((r) => r.frameId === frame?.id).length}, ` +
+      `frame2 has ${rects.filter((r) => r.frameId === frame2?.id).length}`);
 
   // 4. font embedding
   const appState = { viewBackgroundColor: "#FCFCFB" };
@@ -124,6 +134,19 @@ await withExcalidraw(async (ex) => {
   await ex.svgToPng(whole.svg, pngPath);
   check("PNG is written and non-trivial", statSync(pngPath).size > 2000,
     `${statSync(pngPath).size} bytes`);
+
+  // 7. measurement survives rasterisation. Rasterising used to rewrite the
+  // document and drop the warmed fonts, so every measurement after the first
+  // PNG silently fell back — invisible in single-frame runs, fatal in bands.
+  for (const [i, f] of [frame, frame2].entries()) {
+    const cropped = await ex.exportSvg({ elements, appState, exportingFrame: f });
+    await ex.svgToPng(cropped.svg, join(outDir, `smoke-frame0${i + 1}.png`));
+  }
+  const m2 = await ex.measureText(ITEMS);
+  const dims = (r) => r.map((x) => `${x.width}x${x.height}`).join(", ");
+  check("metrics are identical after rasterising every frame",
+    JSON.stringify(m2) === JSON.stringify(m),
+    `before ${dims(m)} — after ${dims(m2)}`);
 });
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall checks passed");

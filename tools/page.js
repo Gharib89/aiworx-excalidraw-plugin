@@ -122,9 +122,10 @@ async function exportSvg({ elements, appState, files, exportingFrame, exportPadd
       viewBackgroundColor: "#ffffff",
       exportWithDarkMode: false,
       ...appState,
-      ...(exportPadding !== undefined ? { exportPadding } : {}),
     },
     files: files || {},
+    // exportPadding is a top-level option of exportToSvg; inside appState it is ignored
+    ...(exportPadding !== undefined ? { exportPadding } : {}),
     ...(exportingFrame ? { exportingFrame } : {}),
   });
   return {

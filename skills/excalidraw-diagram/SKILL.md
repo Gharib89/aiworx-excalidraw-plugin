@@ -68,8 +68,13 @@ Done when it exits 0.
 node ${CLAUDE_PLUGIN_ROOT}/tools/render.js path/to/diagram.excalidraw --out /tmp/dg
 ```
 
-This writes the SVG plus one PNG per frame. **Read every frame PNG**, one at a
-time. JSON hides overlap, clipping and crowding; the picture shows them.
+This writes the SVG plus one PNG per frame, numbered in reading order. **Read
+every frame PNG**, one at a time. JSON hides overlap, clipping and crowding;
+the picture shows them.
+
+When iterating on one frame, re-render just it instead of the whole band:
+`--frame 3`. Other knobs: `--dark` (dark-theme export), `--padding N`,
+`--background COLOR`. Invalid values fail loudly with a `UsageError`.
 
 For each frame, check the composition against the claim from step 1, then hunt
 the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — the

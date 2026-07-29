@@ -1,0 +1,115 @@
+#!/usr/bin/env node
+/**
+ * Contract suite for the render CLI (tools/render.js).
+ *
+ * Two halves:
+ *   1. argument validation — every invalid invocation exits 2 with a named
+ *      UsageError, so a typo can never silently degrade output
+ *   2. rendering knobs — dark mode, export padding, background override,
+ *      single-frame-by-number, and reading-order PNG numbering, proven
+ *      against real browser renders
+ *
+ * Exits non-zero on any mismatch.
+ */
+import { spawnSync } from "node:child_process";
+import { readFileSync, existsSync, readdirSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const renderJs = join(root, "tools/render.js");
+const example = join(root, "examples/example.excalidraw");
+const orderFixture = join(root, "tests/fixtures/render-order.excalidraw");
+
+const fail = [];
+const check = (name, cond, detail) => {
+  console.log(`${cond ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
+  if (!cond) fail.push(name);
+};
+
+const render = (...args) =>
+  spawnSync(process.execPath, [renderJs, ...args], { encoding: "utf8" });
+
+// ---- 1. validation: invalid arguments are rejected with a named error ----
+
+const INVALID = [
+  { name: "non-numeric scale", args: [example, "--scale", "abc"] },
+  { name: "zero scale", args: [example, "--scale", "0"] },
+  { name: "non-numeric padding", args: [example, "--padding", "abc"] },
+  { name: "negative padding", args: [example, "--padding", "-5"] },
+  { name: "non-integer frame", args: [example, "--frame", "1.5"] },
+  { name: "zero frame", args: [example, "--frame", "0"] },
+  { name: "out-of-range frame", args: [example, "--frame", "99"] },
+  { name: "unknown flag", args: [example, "--bogus"] },
+  { name: "missing input", args: [] },
+  { name: "contradictory --frame and --no-frames", args: [example, "--frame", "1", "--no-frames"] },
+  { name: "malformed background", args: [example, "--background", "12;3456"] },
+];
+
+for (const c of INVALID) {
+  const r = render(...c.args);
+  check(`${c.name}: exits 2`, r.status === 2, `got ${r.status}`);
+  check(`${c.name}: names UsageError`, /UsageError/.test(r.stderr),
+    r.stderr.trim().split("\n")[0]);
+}
+
+// ---- 2. rendering knobs, against real renders ----
+
+const svgWidth = (path) => {
+  const m = readFileSync(path, "utf8").match(/<svg[^>]*\swidth="([\d.]+)"/);
+  return m ? Number(m[1]) : NaN;
+};
+
+// baseline: no padding. --scale 1 because the SVG width attribute carries the
+// device scale (crisp PNGs), which would double the padding delta below.
+const outA = mkdtempSync(join(tmpdir(), "render-cli-a-"));
+const a = render(example, "--out", outA, "--no-frames", "--scale", "1", "--padding", "0");
+check("baseline render exits 0", a.status === 0, a.stderr.trim());
+const svgA = join(outA, "example.svg");
+check("baseline writes the SVG", existsSync(svgA));
+
+// dark + background + padding in one pass
+const outB = mkdtempSync(join(tmpdir(), "render-cli-b-"));
+const b = render(example, "--out", outB, "--no-frames", "--scale", "1",
+  "--padding", "40", "--dark", "--background", "#123456");
+check("knobbed render exits 0", b.status === 0, b.stderr.trim());
+const svgB = join(outB, "example.svg");
+if (b.status === 0) {
+  const svgText = readFileSync(svgB, "utf8");
+  check("--dark applies the dark theme filter", /invert\(/.test(svgText));
+  check("--background overrides the canvas colour", /123456/i.test(svgText));
+  check("--padding 40 widens the export by 80",
+    Math.abs(svgWidth(svgB) - svgWidth(svgA) - 80) < 1,
+    `${svgWidth(svgA)} → ${svgWidth(svgB)}`);
+}
+
+// single frame by number: only that PNG, no band re-render
+const outC = mkdtempSync(join(tmpdir(), "render-cli-c-"));
+const c = render(orderFixture, "--out", outC, "--frame", "1");
+check("--frame render exits 0", c.status === 0, c.stderr.trim());
+if (c.status === 0) {
+  const files = readdirSync(outC).sort();
+  check("--frame 1 writes exactly one PNG",
+    files.filter((f) => f.endsWith(".png")).length === 1, files.join(", "));
+  check("--frame does not re-render the band SVG",
+    !files.includes("render-order.svg"), files.join(", "));
+  // frames are listed below-right-left in the file; reading order must win
+  check("frame 1 is the top-left frame, not the first in the file",
+    files.includes("render-order-frame01.png") && /left/.test(c.stdout),
+    c.stdout.trim());
+}
+
+// full render: PNG numbering follows reading order — rows top to bottom,
+// left to right within a row — not the scrambled element order in the file
+const outD = mkdtempSync(join(tmpdir(), "render-cli-d-"));
+const d = render(orderFixture, "--out", outD);
+check("full render exits 0", d.status === 0, d.stderr.trim());
+if (d.status === 0) {
+  const order = [...d.stdout.matchAll(/frame\d+\.png.*  (\S+)$/gm)].map((m) => m[1]);
+  check("frames are numbered in reading order",
+    order.join(",") === "left,right,below", order.join(","));
+}
+
+console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nrender CLI behaves");
+process.exit(fail.length ? 1 : 0);

@@ -1,0 +1,15 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw render fixture — frames listed in scrambled order (below, right, left) to prove reading-order numbering",
+  "elements": [
+    { "id": "f-below", "type": "frame", "x": 0, "y": 400, "width": 300, "height": 160, "name": "below" },
+    { "id": "r3", "type": "rectangle", "x": 40, "y": 440, "width": 140, "height": 80, "frameId": "f-below" },
+    { "id": "f-right", "type": "frame", "x": 500, "y": 0, "width": 300, "height": 160, "name": "right" },
+    { "id": "r2", "type": "rectangle", "x": 540, "y": 40, "width": 140, "height": 80, "frameId": "f-right" },
+    { "id": "f-left", "type": "frame", "x": 0, "y": 0, "width": 300, "height": 160, "name": "left" },
+    { "id": "r1", "type": "rectangle", "x": 40, "y": 40, "width": 140, "height": 80, "frameId": "f-left" }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

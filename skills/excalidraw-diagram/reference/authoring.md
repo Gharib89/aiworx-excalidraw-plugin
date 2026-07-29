@@ -59,7 +59,7 @@ const { authorDiagram } = await import(`${root}/tools/author.js`);
 
 await authorDiagram({
   out: "docs/diagrams/thing.excalidraw",
-  build: async ({ measure, wrap, palette, PROSE, CODE }) => {
+  build: async ({ measure, wrap, palette, PROSE, CODE, row, column, box, arrowBetween }) => {
     // one call, many strings — each returns the real rendered size
     const [title, code] = await measure([
       { text: "the formula pass", fontSize: 28, fontFamily: PROSE },
@@ -69,15 +69,57 @@ await authorDiagram({
     // wrap to a pixel width and get the height the block will occupy
     const body = await wrap("Long explanatory prose …", 420, { fontSize: 18 });
 
-    const cardHeight = 24 + title.height + 12 + body.height + 24;   // measured, not guessed
-    return [ /* skeleton using title.width, body.text, cardHeight */ ];
+    return [ /* skeleton or layout groups using the measurements */ ];
   },
 });
 ```
 
 `measure` batches: pass every string at once rather than calling per string.
-`wrap` measures word widths, fills lines greedily, then measures the finished
-block so the caller sizes cards from the width the renderer will produce.
+`wrap` measures word widths, fills lines greedily, then re-measures every line
+and repairs any that render wider — a word that alone exceeds the width is
+broken mid-word — so the returned block **never exceeds the requested width**.
+
+`authorDiagram` is hardened at the door and at the exit. A build that returns
+nothing, a non-array, or an element of an unknown type is rejected with a
+`SkeletonError` before any conversion. The finished document then runs through
+the same rules as `check.js` **in-process, before the file is written**: a
+defective build throws a `GateError` listing every defect and writes nothing.
+The output directory is created for you.
+
+## Composing layout
+
+Hand-accumulated pixel offsets (`y + title.height + 28 + body.height + …`)
+silently drift as panels gain elements. Compose placement instead
+(tools/layout.js, all passed into `build`):
+
+```js
+// items are skeletons carrying width/height — measure text first
+const card = box(                       // rectangle padded around content
+  column([head, bodyText, codeText], { gap: [12, 14] }),
+  { padding: 20, id: "cpu", strokeColor: p.roles.local.stroke,
+    backgroundColor: p.roles.local.fill, roundness: { type: 3 } },
+);
+const band = column([titleEl, row([cardA, cardB], { gap: 60 })], { gap: 28 });
+
+// the arrow owns the gap: it leaves cardA 10px out, stops 10px short of cardB,
+// with explicit points — the converter does not run the app's elbow router
+const link = arrowBetween(cardA, cardB, { standoff: 10, strokeColor: p.grey.stroke });
+
+return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }];
+```
+
+- `column` / `row` / `stack` place items along one axis: `gap` is a number or a
+  per-pair array, `align` is `start | center | end` across the other axis.
+  Helpers return a group that places like an element, so rows nest in columns;
+  `authorDiagram` flattens groups back into elements.
+- `box` sizes a rectangle from its content plus padding and exposes the
+  rectangle as `.shape`, so `arrowBetween` can bind boxes directly.
+- `arrowBetween` needs *placed* shapes — call it after the stacks that move
+  them. Where the two shapes' cross ranges overlap the arrow runs level through
+  the overlap's centre. A routed path goes in as `via: [[x, y], …]` waypoints
+  (absolute) and keeps its corners with `roundness: null` set for you.
+- Malformed input — empty items, a gap array of the wrong length, an item
+  without measured width/height — throws a `LayoutError` naming the problem.
 
 Wrapping a code block breaks the snippet, so code is measured and never wrapped
 — which inverts the usual sizing: measure the widest code line first and let the
@@ -120,7 +162,8 @@ glyphs — arrows, check marks, box drawing — are therefore safe to use.
 
 A band's panels have content-driven heights, so build in two passes:
 
-1. Emit each panel's contents at a known `x`, tracking the lowest `y` reached.
+1. Compose each panel's contents with the layout helpers — measured text into
+   `column`/`box` cards, cards into a `row` — so heights follow content.
 2. Create each frame afterwards with `children`, letting it fit what it contains.
 
 Keep the frames' `x` positions on a fixed pitch wide enough for the widest panel,
@@ -135,14 +178,16 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 ## Round-tripping a human-edited file
 
 ```js
-const { withExcalidraw } = await import(`${process.env.CLAUDE_PLUGIN_ROOT}/tools/browser.js`);
+const { reviseDiagram } = await import(`${process.env.CLAUDE_PLUGIN_ROOT}/tools/author.js`);
 
-await withExcalidraw(async (ex) => {
-  const { elements } = await ex.restore(JSON.parse(readFileSync(file, "utf8")));
-  // elements now have refreshed text dimensions and repaired bindings
-});
+await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
 ```
 
-`restore` runs with `refreshDimensions` and `repairBindings`, which recomputes
-text sizes and reconnects arrows after hand edits. Use it before programmatic
-edits to a file a human has touched.
+One call re-enters the pipeline: the file is restored with `refreshDimensions`
+and `repairBindings` (text metrics recomputed with the real fonts, dangling
+arrow bindings dropped), frame membership the geometry no longer supports is
+cleared and re-inferred, the human's `appState` is preserved, and the same
+in-process gate runs before the file — and its refreshed SVG — is rewritten in
+place. A file that isn't a parseable Excalidraw document is rejected with a
+`DocumentError`; a revision that would fail the gate throws a `GateError` and
+writes nothing.

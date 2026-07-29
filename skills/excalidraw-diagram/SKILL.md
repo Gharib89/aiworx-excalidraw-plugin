@@ -44,7 +44,8 @@ guess produces layouts that overflow only once the real font renders. Card and
 frame sizes derive from those measurements.
 
 See [reference/authoring.md](reference/authoring.md) for the skeleton format, the
-measurement API, and the generator shape for a band.
+measurement API, the layout helpers (`column`/`row`/`box`/`arrowBetween` — no
+hand-accumulated pixel offsets), and the generator shape for a band.
 
 Done when the `.excalidraw` file exists and every card, column and frame size
 traces to a measurement or an explicit constant — with no character-width factors.
@@ -55,7 +56,10 @@ traces to a measurement or an explicit constant — with no character-width fact
 node ${CLAUDE_PLUGIN_ROOT}/tools/check.js path/to/diagram.excalidraw
 ```
 
-It is cheap and mechanical, so it runs before any render. Structure: a file
+`authorDiagram` and `reviseDiagram` already run these rules in-process and
+refuse to write a failing file, so a generator's output arrives pre-gated; the
+CLI is for files that got here another way, and as the proof after hand edits.
+Structure: a file
 that isn't an Excalidraw document, unknown or degenerate elements, duplicate
 ids, bindings pointing at deleted elements, images whose bytes are missing.
 Geometry (rotation included): overlapping frames, bound text larger than its
@@ -102,9 +106,9 @@ GitHub renders SVG, so the diagram is viewable in the browser. A **sketch**
 commits the `.excalidraw` and its `.svg`. Frame PNGs stay local; they are review
 output.
 
-When a human has edited a committed file, reopen it through `restore` (see
-[reference/authoring.md](reference/authoring.md)) so metrics and bindings are
-repaired before further edits.
+When a human has edited a committed file, run it through `reviseDiagram` (see
+[reference/authoring.md](reference/authoring.md)): one call restores metrics
+and bindings, re-gates, and rewrites the file and its SVG.
 
 ## House style
 

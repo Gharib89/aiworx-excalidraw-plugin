@@ -41,7 +41,7 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ## Commands
 
 ```bash
-npm test                          # gate fixtures + failure paths + render CLI + palette + browser smoke
+npm test                          # layout + gate fixtures + failure paths + render CLI + palette + author API + browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
@@ -69,8 +69,10 @@ directory — verification never touches tracked files.
 .claude-plugin/     plugin + marketplace manifests
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
-  author.js         authoring API: measured wrapping, frame binding, build-and-write
-  check.js          mechanical gate: file integrity, geometry (rotation-aware), arrows, contrast, fonts
+  author.js         authoring API: measured wrapping, frame binding, in-process gate, revise round-trip
+  layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap
+  check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect
+  verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
   geometry.js       one bounds definition shared by the gate and the frame binder
   color.js          colour maths shared by the gate's contrast rule and palette.js
   page.js           browser-side Excalidraw entry (measure, convert, export)
@@ -80,7 +82,7 @@ tools/
   palette.js        derives brand/palette.json and verifies every contrast claim
   bundle.js         builds the committed dist/ bundle, fonts inlined, stamped with a source fingerprint
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
-tests/              gate fixtures + failure-path suite + render CLI suite
+tests/              layout units, gate fixtures, failure paths, render CLI, author API suites
 dist/               committed browser bundle
 brand/              AIWorx palette
 examples/           worked generator (gen-example.js) and its committed output

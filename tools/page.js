@@ -146,12 +146,17 @@ window.__ex = {
     glyphs: warmChars.size,
   }),
   measureText,
-  restore: (data, opts) =>
-    restore(data, null, null, {
+  // refreshDimensions re-measures every text element, so the fonts must be
+  // warmed for the document's glyphs first or the refreshed sizes come from
+  // the fallback face — exactly the drift restore exists to remove
+  restore: async (data, opts) => {
+    await ensureFonts((data?.elements ?? []).map((e) => e?.text).filter((t) => typeof t === "string"));
+    return restore(data, null, null, {
       refreshDimensions: true,
       repairBindings: true,
       ...opts,
-    }),
+    });
+  },
   exportSvg,
 };
 window.__exReady = true;

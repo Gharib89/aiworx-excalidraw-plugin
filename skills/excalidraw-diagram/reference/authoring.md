@@ -36,6 +36,11 @@ padding, so panel height follows content instead of a guessed constant.
 the content — plot axes become a curve, a reading-order zigzag becomes an S — so
 a `line` or multi-point `arrow` that must stay angular needs `roundness: null`.
 
+The app's elbow router does not run in the converter: an arrow given
+`elbowed: true` keeps the flag but stays a straight two-point line. An
+orthogonal route is therefore written out as explicit `points`, with
+`roundness: null` to keep its corners.
+
 ## Measuring
 
 A generator never hardcodes the plugin's install path — it differs per machine
@@ -141,16 +146,3 @@ await withExcalidraw(async (ex) => {
 `restore` runs with `refreshDimensions` and `repairBindings`, which recomputes
 text sizes and reconnects arrows after hand edits. Use it before programmatic
 edits to a file a human has touched.
-
-## Mermaid for genuine graphs
-
-For a flowchart or sequence diagram where auto-layout is adequate, generate the
-elements from Mermaid instead of placing them:
-
-```js
-import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
-const { elements } = await parseMermaidToExcalidraw("flowchart LR\n A[PDF] --> B[Docling]");
-```
-
-The result is a uniform box-and-arrow grid — right for a graph, wrong for a
-teaching panel, which is the whole reason bands are laid out deliberately.

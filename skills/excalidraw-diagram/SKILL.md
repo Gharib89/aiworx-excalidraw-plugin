@@ -1,6 +1,6 @@
 ---
 name: excalidraw-diagram
-description: Author and revise .excalidraw diagrams that argue visually, with measured text and per-frame visual verification. Use when the user wants a diagram, architecture picture, flow, or visual explainer; asks to change, restyle or extend an existing .excalidraw file; or wants one rendered to SVG or PNG.
+description: Author and revise .excalidraw diagrams that argue visually, with measured text and per-frame visual verification. Use whenever the user wants something drawn or visualized — a diagram, architecture picture, flow, whiteboard sketch, or visual explainer — even if they never say "Excalidraw"; when they ask to change, restyle or extend an existing .excalidraw file; or when they want one rendered to SVG or PNG.
 ---
 
 # Excalidraw diagrams
@@ -71,9 +71,16 @@ node ${CLAUDE_PLUGIN_ROOT}/tools/render.js path/to/diagram.excalidraw --out /tmp
 This writes the SVG plus one PNG per frame. **Read every frame PNG**, one at a
 time. JSON hides overlap, clipping and crowding; the picture shows them.
 
-For each frame, check the composition against the claim from step 1, then the
-mechanics: text inside its box, arrows landing on their target, labels anchored
-to what they describe, even spacing, and no cramped panel next to an empty one.
+For each frame, check the composition against the claim from step 1, then hunt
+the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — the
+defects there are legal geometry the gate cannot see.
+
+You have been staring at the coordinates, so you will see what you meant, not
+what renders. For a band beyond a few frames, hand the PNGs and the step 1
+panel list to a fresh subagent: *"For each frame, name the claim you read from
+the picture alone, then list mechanical defects — overlap, clipping, crowding,
+arrows missing their target."* A frame whose read-back claim differs from the
+panel list fails step 2, not step 5.
 
 Done when every frame has been viewed, each defect found is either fixed or
 named as a deliberate choice, and any fix has re-passed the step 4 gate.
@@ -107,6 +114,9 @@ Prose and labels use `fontFamily: 6` (Nunito); code, JSON and file paths use
 `fontFamily: 3` (Cascadia). Both ship with Excalidraw and embed on export, so the
 diagram renders identically for anyone. A family naming a system font — Helvetica
 among them — substitutes per machine and reflows the layout.
+
+Finish — roughness, fill style, arrowheads, opacity as depth — is a register
+chosen once per diagram; see [reference/patterns.md](reference/patterns.md).
 
 See [reference/palette.md](reference/palette.md) for the exact values and how the
 palette is verified.

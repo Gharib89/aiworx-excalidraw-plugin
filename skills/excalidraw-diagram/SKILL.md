@@ -45,7 +45,9 @@ frame sizes derive from those measurements.
 
 See [reference/authoring.md](reference/authoring.md) for the skeleton format, the
 measurement API, the layout helpers (`column`/`row`/`box`/`arrowBetween` — no
-hand-accumulated pixel offsets), and the generator shape for a band.
+hand-accumulated pixel offsets), real assets (`image` embeds bytes in the files
+dictionary; `spliceLibraryItem` inserts a community `.excalidrawlib` item with
+fresh ids), and the generator shape for a band.
 
 Done when the `.excalidraw` file exists and every card, column and frame size
 traces to a measurement or an explicit constant — with no character-width factors.

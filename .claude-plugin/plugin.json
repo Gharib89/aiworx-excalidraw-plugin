@@ -1,7 +1,7 @@
 {
   "name": "aiworx-excalidraw",
   "displayName": "AIWorx Excalidraw Diagrams",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Author Excalidraw diagrams that argue visually, with real text metrics from the Excalidraw library and a headless render-and-inspect verification loop.",
   "author": {
     "name": "Ahmed Gharib",

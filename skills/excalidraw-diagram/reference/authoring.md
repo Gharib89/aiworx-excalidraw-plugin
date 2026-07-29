@@ -143,6 +143,43 @@ legal (labels sit on shapes all the time) and only the render shows it. So wrap
 to the distance to the *next drawn thing* — a mock, an icon, a swatch — not to
 the card's inner width, and confirm it in the frame render.
 
+## Real assets: images and library items
+
+An image element renders from bytes in the document's `files` dictionary, not
+from a path — a diagram travels as one file. The `image` helper (in `build`)
+reads the bytes, stores them as a data URL keyed by content hash (the same file
+placed twice travels once), and returns a placeable skeleton element:
+
+```js
+const logo = image(`${root}/brand/AIWorx_logo.png`, { id: "logo", width: 180 });
+// PNG sizes itself from its header: give width OR height to scale
+// proportionally, both to force, neither for intrinsic size. Other formats
+// (.jpg, .gif, .webp, .svg) need explicit width AND height.
+```
+
+An unreadable file or unsupported format is an `AssetError` before anything is
+written; the gate independently rejects any image whose bytes are missing from
+the files dictionary.
+
+Community library items — cloud icons, stick figures, UI kits from
+[libraries.excalidraw.com](https://libraries.excalidraw.com) — splice in
+programmatically (also exported from `tools/author.js` for use outside `build`):
+
+```js
+const figure = spliceLibraryItem(`${root}/examples/stick-figure.excalidrawlib`,
+  { item: 0, at: [0, 0] });   // item: index or name; at: top-left corner
+row([logo, figure], { gap: 56, align: "end" });          // places like any item
+frame.children = ["logo", ...figure.ids];                // fresh ids, per splice
+```
+
+Every id — element and group — is regenerated per splice, so one item can be
+placed twice without collision; bindings and `boundElements` that point outside
+the item are dropped rather than left dangling for the gate to reject. The
+helper accepts v1 and v2 `.excalidrawlib` files and throws a `LibraryError`
+naming what's wrong (unparseable file, no such item). Items containing text
+still face the gate: fonts outside the house pair and low-contrast text fail,
+by design.
+
 ## Why measurement happens in a browser
 
 The Excalidraw library needs a DOM even for `convertToExcalidrawElements`, and

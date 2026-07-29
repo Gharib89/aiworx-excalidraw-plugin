@@ -41,7 +41,7 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ## Commands
 
 ```bash
-npm test                          # layout + gate fixtures + failure paths + render CLI + palette + author API + browser smoke
+npm test                          # layout + gate fixtures + failure paths + render CLI + palette + author API + assets + browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
@@ -69,7 +69,7 @@ directory — verification never touches tracked files.
 .claude-plugin/     plugin + marketplace manifests
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
-  author.js         authoring API: measured wrapping, frame binding, in-process gate, revise round-trip
+  author.js         authoring API: measured wrapping, frame binding, images, library splicing, in-process gate, revise round-trip
   layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts

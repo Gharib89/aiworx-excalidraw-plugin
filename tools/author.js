@@ -17,8 +17,9 @@
  * repaired bindings) and the same gate.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { bounds, contains } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
@@ -44,6 +45,10 @@ export class GateError extends NamedError {}
 export class WrapError extends NamedError {}
 /** The input file is not a parseable Excalidraw document. */
 export class DocumentError extends NamedError {}
+/** An image asset cannot be read, recognised, or sized. */
+export class AssetError extends NamedError {}
+/** A library file cannot be read, parsed, or the requested item found. */
+export class LibraryError extends NamedError {}
 
 /**
  * Wrap text to a pixel width using real measurements.
@@ -123,6 +128,136 @@ export function makeWrap(measure) {
     const joined = lines.join("\n");
     const [boxM] = await measure([{ text: joined, fontSize, fontFamily }]);
     return { text: joined, width: boxM.width, height: boxM.height, lines };
+  };
+}
+
+const IMAGE_MIME = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+};
+
+/** Intrinsic pixel size from a PNG's IHDR chunk; null for anything else. */
+function pngSize(buf) {
+  if (buf.length < 24 || buf.readUInt32BE(0) !== 0x89504e47 || buf.toString("latin1", 12, 16) !== "IHDR") {
+    return null;
+  }
+  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+}
+
+/**
+ * Place a real image: the bytes go into the document's files dictionary as a
+ * data URL (keyed by content hash, so the same file placed twice travels once)
+ * and the returned skeleton element references them by fileId. PNG sizes
+ * itself from its header — give `width` or `height` to scale, both to force;
+ * other formats need both explicitly.
+ */
+function makeImage(files) {
+  return function image(path, { width, height, ...props } = {}) {
+    let buf;
+    try {
+      buf = readFileSync(path);
+    } catch (err) {
+      throw new AssetError(`${path}: cannot read image — ${err.message}`);
+    }
+    const mimeType = IMAGE_MIME[extname(path).toLowerCase()];
+    if (!mimeType) {
+      throw new AssetError(
+        `${path}: unsupported image format — known: ${Object.keys(IMAGE_MIME).join(", ")}`,
+      );
+    }
+    const intrinsic = pngSize(buf);
+    if (width === undefined || height === undefined) {
+      if (!intrinsic) {
+        throw new AssetError(`${path}: needs explicit width and height (intrinsic size is only read from PNG)`);
+      }
+      if (width !== undefined) height = (width * intrinsic.height) / intrinsic.width;
+      else if (height !== undefined) width = (height * intrinsic.width) / intrinsic.height;
+      else ({ width, height } = intrinsic);
+    }
+    const fileId = createHash("sha1").update(buf).digest("hex");
+    files[fileId] ??= {
+      mimeType,
+      id: fileId,
+      dataURL: `data:${mimeType};base64,${buf.toString("base64")}`,
+      created: Date.now(),
+    };
+    return { type: "image", x: 0, y: 0, width, height, fileId, status: "saved", ...props };
+  };
+}
+
+/**
+ * Splice one item of an .excalidrawlib (v1 or v2) into a scene. Every id —
+ * element ids, group ids — is regenerated per splice, so the same item can be
+ * placed twice and neither collides with the scene; references that point
+ * outside the item (bindings, boundElements, frame membership) are dropped
+ * rather than left dangling for the gate to reject. The item lands with its
+ * top-left corner at `at` and comes back as a layout group, so it places like
+ * any other item; `ids` lists the fresh element ids for a frame's `children`.
+ */
+export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
+  let data;
+  try {
+    data = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new LibraryError(`${path}: cannot read library — ${err.message}`);
+  }
+  const items = data?.libraryItems ?? data?.library?.map((elements) => ({ elements }));
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new LibraryError(`${path}: no library items found (type ${JSON.stringify(data?.type)})`);
+  }
+  const picked =
+    typeof item === "string" ? items.find((it) => it.name === item) : items[item];
+  if (!picked || !Array.isArray(picked.elements) || picked.elements.length === 0) {
+    const names = items.map((it, i) => it.name ?? `#${i}`).join(", ");
+    throw new LibraryError(`${path}: no item ${JSON.stringify(item)} — has ${items.length}: ${names}`);
+  }
+
+  const source = picked.elements.filter((e) => !e.isDeleted);
+  const freshId = () => randomBytes(12).toString("base64url");
+  const idMap = new Map(source.map((e) => [e.id, freshId()]));
+  const groupMap = new Map();
+
+  const elements = source.map((e) => {
+    const el = structuredClone(e);
+    el.id = idMap.get(e.id);
+    el.groupIds = (el.groupIds ?? []).map((g) => {
+      if (!groupMap.has(g)) groupMap.set(g, freshId());
+      return groupMap.get(g);
+    });
+    el.frameId = idMap.get(el.frameId) ?? null;
+    if (el.containerId) el.containerId = idMap.get(el.containerId) ?? null;
+    for (const end of ["startBinding", "endBinding"]) {
+      if (el[end]) el[end] = idMap.has(el[end].elementId)
+        ? { ...el[end], elementId: idMap.get(el[end].elementId) }
+        : null;
+    }
+    if (Array.isArray(el.boundElements)) {
+      el.boundElements = el.boundElements
+        .filter((b) => idMap.has(b.id))
+        .map((b) => ({ ...b, id: idMap.get(b.id) }));
+    }
+    return el;
+  });
+
+  const boxes = elements.map(bounds);
+  const x1 = Math.min(...boxes.map((b) => b.x1));
+  const y1 = Math.min(...boxes.map((b) => b.y1));
+  for (const el of elements) {
+    el.x += at[0] - x1;
+    el.y += at[1] - y1;
+  }
+  return {
+    kind: "layout-group",
+    x: at[0],
+    y: at[1],
+    width: Math.max(...boxes.map((b) => b.x2)) - x1,
+    height: Math.max(...boxes.map((b) => b.y2)) - y1,
+    children: elements,
+    ids: elements.map((e) => e.id),
   };
 }
 
@@ -208,7 +343,7 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
   return { elements, frames, out, svgOut };
 }
 
-const buildContext = (ex) => ({
+const buildContext = (ex, files) => ({
   measure: ex.measureText,
   wrap: makeWrap(ex.measureText),
   palette,
@@ -219,18 +354,21 @@ const buildContext = (ex) => ({
   column,
   box,
   arrowBetween,
+  image: makeImage(files),
+  spliceLibraryItem,
 });
 
 /** Build, verify in-process, and write a diagram from a skeleton. */
 export async function authorDiagram({ out, build, svg = true, background }) {
   return withExcalidraw(async (ex) => {
-    const skeleton = validateSkeleton(await build(buildContext(ex)));
+    const files = {};
+    const skeleton = validateSkeleton(await build(buildContext(ex, files)));
     const elements = bindToFrames(await ex.convert(skeleton));
     const appState = {
       viewBackgroundColor: background ?? palette.canvas,
       gridSize: 20,
     };
-    return gateAndWrite(ex, { out, elements, appState, files: {}, svg });
+    return gateAndWrite(ex, { out, elements, appState, files, svg });
   });
 }
 

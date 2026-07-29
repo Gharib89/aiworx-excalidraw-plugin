@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Worked example: a small band panel exercising every authoring helper —
+ * Worked example: a small band exercising every authoring helper —
  * batch measurement, pixel wrapping, layout composition (column/row/box),
- * role colours, a bound arrow owning the gap, and a content-fitted frame.
+ * role colours, a bound arrow owning the gap, content-fitted frames, an
+ * image travelling in the files dictionary, and a spliced library item.
  *
  *   CLAUDE_PLUGIN_ROOT="$PWD" node examples/gen-example.js
  *
@@ -15,7 +16,7 @@ const { authorDiagram } = await import(`${root}/tools/author.js`);
 
 await authorDiagram({
   out: new URL("./example.excalidraw", import.meta.url).pathname,
-  build: async ({ measure, wrap, row, column, box, arrowBetween, palette: p, PROSE, CODE }) => {
+  build: async ({ measure, wrap, row, column, box, arrowBetween, image, spliceLibraryItem, palette: p, PROSE, CODE }) => {
     const CARD_W = 320;
     const PAD = 20;
 
@@ -56,12 +57,30 @@ await authorDiagram({
 
     const band = column([titleEl, row(cards, { gap: 60 })], { gap: 28 });
 
+    // Real assets: the logo's bytes travel in the files dictionary, the
+    // figure is spliced from a community-format library with fresh ids.
+    const [assetsTitle] = await measure([{ text: "real assets", fontSize: 28, fontFamily: PROSE }]);
+    const assetsTitleEl = {
+      type: "text", id: "assets-title", text: "real assets", fontSize: 28, fontFamily: PROSE,
+      strokeColor: p.grey.ink, width: assetsTitle.width, height: assetsTitle.height,
+    };
+    const logo = image(new URL("../brand/AIWorx_logo.png", import.meta.url).pathname,
+      { id: "logo", width: 180 });
+    const figure = spliceLibraryItem(new URL("./stick-figure.excalidrawlib", import.meta.url).pathname);
+    const assets = column(
+      [assetsTitleEl, row([logo, figure], { gap: 56, align: "end" })],
+      { gap: 28, x: band.width + 200 },
+    );
+
     return [
       band,
+      assets,
       // the arrow owns the gap: it leaves cpu 10px out and stops 10px short of api
       arrowBetween(cards[0], cards[1], { standoff: 10, strokeColor: p.grey.stroke, strokeWidth: 2 }),
       { type: "frame", children: ["title", "cpu", "api"],
         name: "2 · two lanes, and the key that guards one" },
+      { type: "frame", children: ["assets-title", "logo", ...figure.ids],
+        name: "3 · real assets: logo bytes in the file, a figure spliced from a library" },
     ];
   },
 });

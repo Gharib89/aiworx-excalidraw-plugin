@@ -1,0 +1,11 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: bound text whose container does not exist",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 10, "y": 10, "width": 90, "height": 25, "text": "orphan",
+      "containerId": "ghost" }
+  ],
+  "appState": {},
+  "files": {}
+}

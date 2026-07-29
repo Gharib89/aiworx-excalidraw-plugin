@@ -1,0 +1,18 @@
+name: CI
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Runtime deps only (playwright-core); the browser bundle is committed and
+      # the smoke suite drives the runner's preinstalled system Chrome.
+      - run: npm install --omit=dev
+      - run: npm test
+      - name: verification must not dirty the repo
+        run: test -z "$(git status --porcelain)"

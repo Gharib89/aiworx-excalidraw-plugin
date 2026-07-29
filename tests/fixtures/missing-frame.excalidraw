@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: element bound to a frame that does not exist",
+  "elements": [
+    { "id": "r1", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 60, "frameId": "ghost" }
+  ],
+  "appState": {},
+  "files": {}
+}

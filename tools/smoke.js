@@ -3,7 +3,7 @@
  * Verification gate for the toolchain. Proves, against the real library in a real
  * browser, that each capability the skill depends on actually works:
  *
- *   1. text is measured (not estimated) and Nunito/Cascadia differ as expected
+ *   1. text is measured (not estimated) and the house families measure distinctly
  *   2. convertToExcalidrawElements sizes label containers and binds arrows
  *   3. frames auto-fit around their children
  *   4. exportToSvg embeds the fonts, so diagrams are portable
@@ -12,17 +12,19 @@
  *
  * Exits non-zero on any failure, with the measured values printed.
  */
-import { writeFileSync, mkdirSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { writeFileSync, mkdtempSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { withExcalidraw } from "./browser.js";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const outDir = join(root, "examples");
-mkdirSync(outDir, { recursive: true });
+// Verification output is throwaway: elements carry random seeds, so writing
+// under version control would dirty the repo on every run.
+const outDir = mkdtempSync(join(tmpdir(), "aiworx-smoke-"));
+console.log(`artifacts: ${outDir}`);
 
 const NUNITO = 6;
 const CASCADIA = 3;
+const EXCALIFONT = 5;
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -36,24 +38,27 @@ await withExcalidraw(async (ex) => {
     { text: "convert()", fontSize: 20, fontFamily: NUNITO },
     { text: "convert()", fontSize: 20, fontFamily: CASCADIA },
     { text: "convert()\nsecond line", fontSize: 20, fontFamily: NUNITO },
+    { text: "convert()", fontSize: 20, fontFamily: EXCALIFONT },
   ]);
   check("text is measured", m[0].width > 0 && m[0].height > 0,
     `Nunito 20 "convert()" = ${m[0].width}x${m[0].height}`);
-  check("families measure differently", m[0].width !== m[1].width,
-    `Nunito ${m[0].width} vs Cascadia ${m[1].width}`);
   check("multiline height scales", m[2].height > m[0].height * 1.5,
     `1 line ${m[0].height} vs 2 lines ${m[2].height}`);
 
   // The fallback trap: if fonts aren't registered every family measures the same
-  // serif width, layouts get computed against the wrong metrics, and text
-  // overflows only once the real font renders.
+  // fallback width, layouts get computed against the wrong metrics, and text
+  // overflows only once the real font renders. The tell is relative — distinct
+  // registered families collapsing to one width — not any particular fallback
+  // value, which is the browser's to choose and changes across Chrome releases.
   const fonts = await ex.fontStatus();
-  check("fonts are registered with the page", fonts.registered >= 4,
+  const HOUSE = ["Nunito", "Cascadia", "Excalifont"];
+  check("house families are registered with the page",
+    HOUSE.every((f) => fonts.families.some((name) => name.includes(f))),
     `${fonts.registered} faces: ${fonts.families.join(", ")}; ${fonts.glyphs} glyphs warmed`);
-  const SERIF_FALLBACK = 73.291015625;
-  check("measurement is not the serif fallback",
-    Math.abs(m[0].width - SERIF_FALLBACK) > 0.01 && Math.abs(m[1].width - SERIF_FALLBACK) > 0.01,
-    `fallback would be ${SERIF_FALLBACK}`);
+  const familyWidths = [m[0].width, m[1].width, m[3].width];
+  check("no two families collapse to one fallback width",
+    new Set(familyWidths).size === familyWidths.length,
+    `Nunito ${familyWidths[0]}, Cascadia ${familyWidths[1]}, Excalifont ${familyWidths[2]}`);
   const glyphProbe = await ex.measureText([
     { text: "→ ✓ ·", fontSize: 20, fontFamily: NUNITO },
   ]);

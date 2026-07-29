@@ -1,5 +1,5 @@
 {
-  "$comment": "Diagram palette for the AIWorx Excalidraw plugin. Strokes are the brand's validated categorical slots; fills are derived by OKLCH lightness-snapping (L=0.965, C<=0.042) and verified for contrast by tools/palette.js.",
+  "$comment": "Diagram palette for the AIWorx Excalidraw plugin. Strokes are the brand's validated categorical slots; fills are derived by OKLCH lightness-snapping (L=0.975, C<=0.034) and verified for contrast by tools/palette.js.",
   "canvas": "#FCFCFB",
   "ink": "#1A1A19",
   "fontFamily": {

@@ -108,7 +108,7 @@ text metrics are only right when a real browser measures them. Two traps the
 toolchain already handles, both covered by `tools/smoke.js`:
 
 - `exportToSvg` inlines `@font-face` rules but never registers them with
-  `document.fonts`, so every family measures as the serif fallback and all
+  `document.fonts`, so every family measures as one fallback face and all
   families measure *identically*.
 - Those inlined fonts are subset to the glyphs actually rendered, so a short
   warm-up leaves most characters falling back.

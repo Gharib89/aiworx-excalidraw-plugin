@@ -1,0 +1,19 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture",
+  "elements": [
+    { "id": "title", "type": "text", "x": 0, "y": -60, "width": 200, "height": 35, "text": "clean fixture" },
+    { "id": "f1", "type": "frame", "x": 0, "y": 0, "width": 420, "height": 160, "name": "clean" },
+    { "id": "r1", "type": "rectangle", "x": 20, "y": 40, "width": 140, "height": 80, "frameId": "f1",
+      "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": 45, "y": 67.5, "width": 90, "height": 25, "text": "parse",
+      "containerId": "r1", "frameId": "f1" },
+    { "id": "r2", "type": "rectangle", "x": 260, "y": 40, "width": 140, "height": 80, "frameId": "f1" },
+    { "id": "a1", "type": "arrow", "x": 165, "y": 80, "width": 90, "height": 0,
+      "points": [[0, 0], [90, 0]], "frameId": "f1",
+      "startBinding": { "elementId": "r1" }, "endBinding": { "elementId": "r2" } }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

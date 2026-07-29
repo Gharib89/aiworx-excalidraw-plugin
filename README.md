@@ -31,8 +31,8 @@ real browser, and lays out from those measurements.
 Two traps it handles, both verified in `tools/smoke.js`:
 
 1. **Fonts are not registered on import.** `exportToSvg` inlines `@font-face`
-   rules but never adds them to `document.fonts`, so every family measures as the
-   serif fallback and all families measure *identically*. Layout computed that way
+   rules but never adds them to `document.fonts`, so every family measures as one
+   fallback face and all families measure *identically*. Layout computed that way
    overflows the moment the real font renders.
 2. **Embedded fonts are subset to the rendered glyphs.** Warming with a short
    sample leaves most characters still falling back. The warm-up therefore covers
@@ -41,19 +41,34 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ## Commands
 
 ```bash
-npm run bundle    # rebuild dist/excalidraw-page.js from node_modules
-node tools/smoke.js               # verification gate — 18 checks, exits non-zero on failure
+npm test                          # gate fixtures + palette checks + browser smoke suite
+npm run smoke                     # browser smoke suite alone
+npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
+node tools/check.js d.excalidraw  # geometry gate — exits non-zero listing every defect
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame
 ```
+
+`npm test` runs on every push via GitHub Actions and writes only to a temporary
+directory — verification never touches tracked files.
 
 ## Layout
 
 ```
 .claude-plugin/     plugin + marketplace manifests
 skills/excalidraw-diagram/   SKILL.md and reference material
-tools/              page.js (browser side), browser.js (driver), render.js, smoke.js, bundle.js
+tools/
+  author.js         authoring API: measured wrapping, frame binding, build-and-write
+  check.js          geometry gate: duplicate ids, frame overlap/escape, text overflow, dead bindings
+  page.js           browser-side Excalidraw entry (measure, convert, export)
+  browser.js        headless-Chromium driver around page.js
+  render.js         .excalidraw → SVG + per-frame PNGs
+  smoke.js          browser smoke suite proving measurement, conversion and export
+  palette.js        derives brand/palette.json and verifies every contrast claim
+  bundle.js         builds the committed dist/ bundle, fonts inlined
+tests/              gate fixture suite: planted-defect files + tests/gate.js runner
 dist/               committed browser bundle
 brand/              AIWorx palette
+examples/           worked generator (gen-example.js) and its committed output
 ```
 
 ## License

@@ -1,0 +1,11 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: element sits over a frame without frameId",
+  "elements": [
+    { "id": "f1", "type": "frame", "x": 0, "y": 0, "width": 200, "height": 100, "name": "host" },
+    { "id": "r1", "type": "rectangle", "x": 40, "y": 20, "width": 80, "height": 50 }
+  ],
+  "appState": {},
+  "files": {}
+}

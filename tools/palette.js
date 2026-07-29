@@ -172,7 +172,7 @@ console.log("\nall contrast checks passed");
 if (process.argv.includes("--write")) {
   const out = {
     $comment:
-      "Diagram palette for the AIWorx Excalidraw plugin. Strokes are the brand's validated categorical slots; fills are derived by OKLCH lightness-snapping (L=0.965, C<=0.042) and verified for contrast by tools/palette.js.",
+      `Diagram palette for the AIWorx Excalidraw plugin. Strokes are the brand's validated categorical slots; fills are derived by OKLCH lightness-snapping (L=${FILL_L}, C<=${FILL_C_MAX}) and verified for contrast by tools/palette.js.`,
     canvas: CANVAS,
     ink: INK,
     fontFamily: { prose: 6, code: 3, $comment: "6 = Nunito, 3 = Cascadia; both ship with Excalidraw and embed on export" },

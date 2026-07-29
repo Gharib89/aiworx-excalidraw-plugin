@@ -4,9 +4,14 @@
  * batch measurement, pixel wrapping, role colours, bound arrows, a
  * and a content-fitted frame.
  *
- *   node examples/gen-example.js
+ *   CLAUDE_PLUGIN_ROOT="$PWD" node examples/gen-example.js
+ *
+ * Imports through CLAUDE_PLUGIN_ROOT — the same form a committed generator uses
+ * (reference/authoring.md), since an install path differs per machine.
  */
-import { authorDiagram } from "../tools/author.js";
+const root = process.env.CLAUDE_PLUGIN_ROOT;
+if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const { authorDiagram } = await import(`${root}/tools/author.js`);
 
 await authorDiagram({
   out: new URL("./example.excalidraw", import.meta.url).pathname,

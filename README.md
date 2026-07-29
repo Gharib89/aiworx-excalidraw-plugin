@@ -44,7 +44,7 @@ Two traps it handles, both verified in `tools/smoke.js`:
 npm test                          # gate fixtures + failure paths + render CLI + palette + browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
-node tools/check.js d.excalidraw  # geometry gate — exits non-zero listing every defect
+node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
 ```
 
@@ -70,7 +70,9 @@ directory — verification never touches tracked files.
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, build-and-write
-  check.js          geometry gate: duplicate ids, frame overlap/escape, text overflow, dead bindings
+  check.js          mechanical gate: file integrity, geometry (rotation-aware), arrows, contrast, fonts
+  geometry.js       one bounds definition shared by the gate and the frame binder
+  color.js          colour maths shared by the gate's contrast rule and palette.js
   page.js           browser-side Excalidraw entry (measure, convert, export)
   browser.js        headless-Chromium driver around page.js
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs

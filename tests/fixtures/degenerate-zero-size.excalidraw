@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: rectangle with zero width",
+  "elements": [
+    { "id": "r1", "type": "rectangle", "x": 0, "y": 0, "width": 0, "height": 80 }
+  ],
+  "appState": {},
+  "files": {}
+}

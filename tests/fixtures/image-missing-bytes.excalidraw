@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: image whose bytes are not in the files dictionary",
+  "elements": [
+    { "id": "i1", "type": "image", "x": 0, "y": 0, "width": 100, "height": 100, "fileId": "ghost" }
+  ],
+  "appState": {},
+  "files": {}
+}

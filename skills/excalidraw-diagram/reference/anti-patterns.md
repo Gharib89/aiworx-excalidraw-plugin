@@ -1,26 +1,17 @@
 # Anti-patterns
 
-What to hunt in the frame renders. The gate (`check.js`) sees geometry that is
-*illegal*; everything below is legal geometry that is still wrong — which is why
-step 5 exists. Each entry: the symptom as it appears in the PNG, then the fix.
+What to hunt in the frame renders. The gate (`check.js`) catches what a rule
+can decide — geometry, contrast, fonts, file integrity; everything below is a
+judgment call that passes every rule and is still wrong — which is why step 5
+exists. Each entry: the symptom as it appears in the PNG, then the fix.
 
 ## Gate-blind — only the picture shows these
 
-**Two free texts sitting on each other.** Siblings that overlap are legal
-geometry. Wrap prose to the distance to the *next drawn thing*, not the card's
-inner width (see [authoring.md](authoring.md), free-text wrapping).
-
-**A label on top of the drawing it names.** Stacked regions, table cells and
-bars leave no room above themselves. Labels go in a column beside the drawing
-with dashed leaders — and a leader routes around a sibling, not through it.
-
-**An arrow slicing through an unrelated shape.** A bound two-point arrow takes
-the straight line, whatever is in the way. Route around with explicit `points`
-(the elbow flag does not route — see [authoring.md](authoring.md)).
-
-**An arrowhead buried inside its target.** The head should stop at the edge;
-landing on the target's label reads as a strike-through. End a multi-point
-arrow short of the shape and let the binding gap hold.
+**A label on top of the drawing it names.** Text over a shape is often exactly
+right, so no rule can forbid it — but stacked regions, table cells and bars
+leave no room above themselves, and a label placed there lands on its
+neighbour. Labels go in a column beside the drawing with dashed leaders — and
+a leader routes around a sibling, not through it.
 
 **A cramped panel beside an empty one.** Both pass every check; together they
 read as an accident. Rebalance the content, or split the dense panel in two.

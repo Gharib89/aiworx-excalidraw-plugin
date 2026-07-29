@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: pale grey text on the near-white canvas",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 0, "y": 0, "width": 150, "height": 25, "text": "ghost grey", "strokeColor": "#BBBBBB", "fontFamily": 6 }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

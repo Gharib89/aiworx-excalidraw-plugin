@@ -95,11 +95,11 @@ one lands on its neighbour. Put the labels in a column beside the drawing, one
 slot each, and run a dashed leader to the thing each names — and route a leader
 that would cross a sibling around it, not through it.
 
-Free text wrapped to a width is the one thing no gate can check: `check.js` sees
-bound text overflowing its container and elements escaping their frame, but two
-siblings that merely sit on top of each other are legal geometry. So wrap to the
-distance to the *next drawn thing* — a mock, an icon, a swatch — not to the card's
-inner width, and confirm it in the frame render.
+Free text wrapped to the wrong width collides with its neighbours: `check.js`
+flags two free texts sitting on each other, but text landing on a drawing is
+legal (labels sit on shapes all the time) and only the render shows it. So wrap
+to the distance to the *next drawn thing* — a mock, an icon, a swatch — not to
+the card's inner width, and confirm it in the frame render.
 
 ## Why measurement happens in a browser
 

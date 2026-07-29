@@ -16,15 +16,30 @@ const gate = join(root, "tools/check.js");
 const fixture = (name) => join(root, "tests/fixtures", `${name}.excalidraw`);
 
 const CASES = [
-  { name: "clean", exit: 0, expect: "geometry clean" },
+  { name: "clean", exit: 0, expect: "no mechanical defects" },
   { name: "duplicate-id", exit: 1, expect: "duplicate id dup" },
   { name: "frames-overlap", exit: 1, expect: "frames overlap" },
   { name: "missing-container", exit: 1, expect: "references missing container ghost" },
   { name: "text-overflows-container", exit: 1, expect: "text overflows container" },
   { name: "missing-frame", exit: 1, expect: "references missing frame ghost" },
   { name: "escapes-frame", exit: 1, expect: "escapes frame" },
+  { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame" },
   { name: "unbound-over-frame", exit: 1, expect: "without being bound to it" },
   { name: "arrow-binding-missing", exit: 1, expect: "points at missing element ghost" },
+  { name: "empty", exit: 1, expect: "empty file" },
+  { name: "invalid-json", exit: 1, expect: "not valid JSON" },
+  { name: "foreign-json", exit: 1, expect: "not an Excalidraw document" },
+  { name: "does-not-exist", exit: 2, expect: "cannot read" },
+  { name: "degenerate-zero-size", exit: 1, expect: "zero size" },
+  { name: "degenerate-non-finite", exit: 1, expect: "non-finite geometry" },
+  { name: "unknown-type", exit: 1, expect: 'unknown element type "widget"' },
+  { name: "free-texts-overlap", exit: 1, expect: "free texts overlap" },
+  { name: "arrow-crosses-shape", exit: 1, expect: "crosses rectangle r1" },
+  { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target" },
+  { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray" },
+  { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1" },
+  { name: "foreign-font", exit: 1, expect: "outside the house pair" },
+  { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary" },
 ];
 
 const fail = [];

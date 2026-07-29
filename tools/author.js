@@ -13,6 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withExcalidraw } from "./browser.js";
+import { bounds, contains } from "./geometry.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
@@ -76,16 +77,6 @@ export function bindToFrames(elements) {
   const frames = elements.filter((e) => e.type === "frame" && !e.isDeleted);
   if (frames.length === 0) return elements;
 
-  const span = (e) =>
-    (e.type === "arrow" || e.type === "line") && Array.isArray(e.points)
-      ? {
-          x1: Math.min(...e.points.map((p) => e.x + p[0])),
-          y1: Math.min(...e.points.map((p) => e.y + p[1])),
-          x2: Math.max(...e.points.map((p) => e.x + p[0])),
-          y2: Math.max(...e.points.map((p) => e.y + p[1])),
-        }
-      : { x1: e.x, y1: e.y, x2: e.x + Math.abs(e.width ?? 0), y2: e.y + Math.abs(e.height ?? 0) };
-
   const byId = new Map(elements.map((e) => [e.id, e]));
   for (const e of elements) {
     if (e.type === "frame" || e.frameId) continue;
@@ -95,11 +86,8 @@ export function bindToFrames(elements) {
       if (host?.frameId) e.frameId = host.frameId;
       continue;
     }
-    const b = span(e);
-    const f = frames.find((fr) => {
-      const s = span(fr);
-      return b.x1 >= s.x1 - 0.5 && b.y1 >= s.y1 - 0.5 && b.x2 <= s.x2 + 0.5 && b.y2 <= s.y2 + 0.5;
-    });
+    const b = bounds(e);
+    const f = frames.find((fr) => contains(bounds(fr), b));
     if (f) e.frameId = f.id;
   }
   // second pass so bound text picks up a container bound in the first

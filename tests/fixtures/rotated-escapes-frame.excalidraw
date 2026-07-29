@@ -1,0 +1,11 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: unrotated box fits its frame, rotated box does not",
+  "elements": [
+    { "id": "f1", "type": "frame", "x": 0, "y": 0, "width": 200, "height": 100, "name": "tight" },
+    { "id": "r1", "type": "rectangle", "x": 110, "y": 10, "width": 80, "height": 80, "angle": 0.6, "frameId": "f1" }
+  ],
+  "appState": {},
+  "files": {}
+}

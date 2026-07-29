@@ -55,10 +55,15 @@ traces to a measurement or an explicit constant — with no character-width fact
 node ${CLAUDE_PLUGIN_ROOT}/tools/check.js path/to/diagram.excalidraw
 ```
 
-It is cheap and mechanical, so it runs before any render: duplicate ids,
-overlapping frames, bound text larger than its container, elements escaping
-their frame, elements sitting over a frame without belonging to it, and
-bindings pointing at deleted elements.
+It is cheap and mechanical, so it runs before any render. Structure: a file
+that isn't an Excalidraw document, unknown or degenerate elements, duplicate
+ids, bindings pointing at deleted elements, images whose bytes are missing.
+Geometry (rotation included): overlapping frames, bound text larger than its
+container, elements escaping their frame or sitting over one without belonging
+to it, free texts on top of each other, arrows crossing shapes they aren't
+bound to, arrowheads buried inside their target, off-canvas strays. Style:
+text failing 4.5:1 contrast against the fill it sits on, fonts outside the
+house pair.
 
 Done when it exits 0.
 

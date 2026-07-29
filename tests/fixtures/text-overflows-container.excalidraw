@@ -5,7 +5,7 @@
   "elements": [
     { "id": "r1", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 40,
       "boundElements": [{ "id": "t1", "type": "text" }] },
-    { "id": "t1", "type": "text", "x": 10, "y": 8, "width": 200, "height": 25, "text": "far too wide",
+    { "id": "t1", "type": "text", "x": 10, "y": 8, "width": 200, "height": 25, "text": "far too wide", "fontFamily": 6,
       "containerId": "r1" }
   ],
   "appState": {},

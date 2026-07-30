@@ -120,6 +120,49 @@ async function measureText(items) {
   return els.map((e) => ({ width: e.width, height: e.height }));
 }
 
+/**
+ * Intrinsic size of an SVG, read from its own markup.
+ *
+ * An `<img>` is the wrong instrument here: a viewBox-only SVG has an intrinsic
+ * *ratio* but no intrinsic size, so the element reports CSS's default 300x150 and
+ * every such placement would be sized from a number the file never stated.
+ * Width and height in absolute units win; otherwise the viewBox supplies both the
+ * ratio and a sane pixel size. Neither present means the caller must say.
+ */
+async function svgSize(dataURL) {
+  // fetch decodes the base64 and honours the charset, which atob does not
+  const text = await (await fetch(dataURL)).text();
+  const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+  const svg = doc.documentElement;
+  if (doc.querySelector("parsererror") || svg?.tagName !== "svg") {
+    throw new Error("not parseable SVG markup");
+  }
+  const ABSOLUTE = new Set([SVGLength.SVG_LENGTHTYPE_NUMBER, SVGLength.SVG_LENGTHTYPE_PX]);
+  const px = (len) => (ABSOLUTE.has(len?.unitType) && len.value > 0 ? len.value : null);
+  const width = px(svg.width?.baseVal);
+  const height = px(svg.height?.baseVal);
+  if (width && height) return { width, height };
+  const box = svg.viewBox?.baseVal;
+  if (box?.width > 0 && box?.height > 0) return { width: box.width, height: box.height };
+  return null;
+}
+
+/**
+ * Intrinsic size of image bytes, decoded by the same engine that will render
+ * them — so any format Chrome can draw can be placed from one dimension.
+ * Throws on bytes that cannot be decoded; returns null when the bytes decode but
+ * state no size of their own.
+ */
+async function imageSize({ dataURL, mimeType }) {
+  if (mimeType === "image/svg+xml") return svgSize(dataURL);
+  const img = new Image();
+  img.src = dataURL;
+  await img.decode(); // EncodingError for bytes Chrome cannot read
+  return img.naturalWidth > 0 && img.naturalHeight > 0
+    ? { width: img.naturalWidth, height: img.naturalHeight }
+    : null;
+}
+
 async function exportSvg({ elements, appState, files, exportingFrame, exportPadding }) {
   const svg = await exportToSvg({
     elements,
@@ -152,6 +195,7 @@ window.__ex = {
     glyphs: warmChars.size,
   }),
   measureText,
+  imageSize,
   // refreshDimensions re-measures every text element, so the fonts must be
   // warmed for the document's glyphs first or the refreshed sizes come from
   // the fallback face — exactly the drift restore exists to remove

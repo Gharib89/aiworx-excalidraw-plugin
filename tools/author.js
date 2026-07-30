@@ -151,12 +151,16 @@ function pngSize(buf) {
 /**
  * Place a real image: the bytes go into the document's files dictionary as a
  * data URL (keyed by content hash, so the same file placed twice travels once)
- * and the returned skeleton element references them by fileId. PNG sizes
- * itself from its header — give `width` or `height` to scale, both to force;
- * other formats need both explicitly.
+ * and the returned skeleton element references them by fileId.
+ *
+ * Intrinsic size comes from the bytes for every supported format, so `width`
+ * alone (or `height` alone, or neither) is enough to place any of them; passing
+ * both forces the size and skips the decode entirely. PNG reads its own header;
+ * everything else is decoded by the page's browser — the same engine that will
+ * render it — which is why this is async.
  */
-function makeImage(files) {
-  return function image(path, { width, height, ...props } = {}) {
+function makeImage(ex, files) {
+  return async function image(path, { width, height, ...props } = {}) {
     let buf;
     try {
       buf = readFileSync(path);
@@ -169,15 +173,6 @@ function makeImage(files) {
         `${path}: unsupported image format — known: ${Object.keys(IMAGE_MIME).join(", ")}`,
       );
     }
-    const intrinsic = pngSize(buf);
-    if (width === undefined || height === undefined) {
-      if (!intrinsic) {
-        throw new AssetError(`${path}: needs explicit width and height (intrinsic size is only read from PNG)`);
-      }
-      if (width !== undefined) height = (width * intrinsic.height) / intrinsic.width;
-      else if (height !== undefined) width = (height * intrinsic.width) / intrinsic.height;
-      else ({ width, height } = intrinsic);
-    }
     const fileId = createHash("sha1").update(buf).digest("hex");
     files[fileId] ??= {
       mimeType,
@@ -185,6 +180,24 @@ function makeImage(files) {
       dataURL: `data:${mimeType};base64,${buf.toString("base64")}`,
       created: Date.now(),
     };
+    if (width === undefined || height === undefined) {
+      let intrinsic = pngSize(buf);
+      if (!intrinsic) {
+        try {
+          intrinsic = await ex.imageSize(files[fileId]);
+        } catch (err) {
+          throw new AssetError(`${path}: cannot decode image bytes — ${err.message}`);
+        }
+      }
+      if (!intrinsic) {
+        throw new AssetError(
+          `${path}: states no intrinsic size (an SVG needs width and height, or a viewBox) — give explicit width and height`,
+        );
+      }
+      if (width !== undefined) height = (width * intrinsic.height) / intrinsic.width;
+      else if (height !== undefined) width = (height * intrinsic.width) / intrinsic.height;
+      else ({ width, height } = intrinsic);
+    }
     return { type: "image", x: 0, y: 0, width, height, fileId, status: "saved", ...props };
   };
 }
@@ -383,7 +396,7 @@ const buildContext = (ex, files) => ({
   column,
   box,
   arrowBetween,
-  image: makeImage(files),
+  image: makeImage(ex, files),
   spliceLibraryItem,
 });
 

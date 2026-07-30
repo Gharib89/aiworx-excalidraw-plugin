@@ -124,6 +124,8 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
         guard("convert", () => page.evaluate((s) => window.__ex.convert(s), skeleton)),
       measureText: (items) =>
         guard("measureText", () => page.evaluate((i) => window.__ex.measureText(i), items)),
+      imageSize: (file) =>
+        guard("imageSize", () => page.evaluate((f) => window.__ex.imageSize(f), file)),
       restore: (data, opts) =>
         guard("restore", () =>
           page.evaluate(([d, o]) => window.__ex.restore(d, o), [data, opts ?? null]),

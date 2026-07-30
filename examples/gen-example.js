@@ -8,14 +8,20 @@
  *   CLAUDE_PLUGIN_ROOT="$PWD" node examples/gen-example.js
  *
  * Imports through CLAUDE_PLUGIN_ROOT — the same form a committed generator uses
- * (reference/authoring.md), since an install path differs per machine.
+ * (reference/authoring.md), since an install path differs per machine. Paths
+ * cross the URL boundary through node:url, never `URL.pathname`, which keeps
+ * `%20` in a path with a space and prefixes a Windows drive with a slash.
  */
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
 const root = process.env.CLAUDE_PLUGIN_ROOT;
 if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
-const { authorDiagram } = await import(`${root}/tools/author.js`);
+const { authorDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await authorDiagram({
-  out: new URL("./example.excalidraw", import.meta.url).pathname,
+  out: join(here, "example.excalidraw"),
   build: async ({ measure, wrap, row, column, box, arrowBetween, image, spliceLibraryItem, palette: p, PROSE, CODE }) => {
     const CARD_W = 320;
     const PAD = 20;
@@ -64,9 +70,8 @@ await authorDiagram({
       type: "text", id: "assets-title", text: "real assets", fontSize: 28, fontFamily: PROSE,
       strokeColor: p.grey.ink, width: assetsTitle.width, height: assetsTitle.height,
     };
-    const logo = image(new URL("../brand/AIWorx_logo.png", import.meta.url).pathname,
-      { id: "logo", width: 180 });
-    const figure = spliceLibraryItem(new URL("./stick-figure.excalidrawlib", import.meta.url).pathname);
+    const logo = image(join(here, "../brand/AIWorx_logo.png"), { id: "logo", width: 180 });
+    const figure = spliceLibraryItem(join(here, "stick-figure.excalidrawlib"));
     const assets = column(
       [assetsTitleEl, row([logo, figure], { gap: 56, align: "end" })],
       { gap: 28, x: band.width + 200 },

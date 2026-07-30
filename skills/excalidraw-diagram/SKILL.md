@@ -55,7 +55,7 @@ traces to a measurement or an explicit constant — with no character-width fact
 ## Step 4 — pass the gate
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/tools/check.js path/to/diagram.excalidraw
+node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" path/to/diagram.excalidraw
 ```
 
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
@@ -76,7 +76,7 @@ Done when it exits 0.
 ## Step 5 — look at every frame
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/tools/render.js path/to/diagram.excalidraw --out /tmp/dg
+node "${CLAUDE_PLUGIN_ROOT}/tools/render.js" path/to/diagram.excalidraw --out /tmp/dg
 ```
 
 This writes the SVG plus one PNG per frame, numbered in reading order. **Read

@@ -49,13 +49,22 @@ environment instead, and run the script with the variable set (in a skill bash
 block `${CLAUDE_PLUGIN_ROOT}` already resolves):
 
 ```bash
-CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT} node docs/diagrams/gen-thing.js
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" node docs/diagrams/gen-thing.js
 ```
 
+An install path is also allowed to contain spaces and to start with a Windows
+drive letter, so paths cross the URL boundary through `node:url` — `pathToFileURL`
+going out to an import specifier, `fileURLToPath(import.meta.url)` coming back to
+a filesystem path. `URL.pathname` is not a path: it keeps `%20` for a space and
+prefixes `C:` with a slash, and the read fails later, somewhere else.
+
 ```js
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 const root = process.env.CLAUDE_PLUGIN_ROOT;
 if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
-const { authorDiagram } = await import(`${root}/tools/author.js`);
+const { authorDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await authorDiagram({
   out: "docs/diagrams/thing.excalidraw",
@@ -215,7 +224,12 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 ## Round-tripping a human-edited file
 
 ```js
-const { reviseDiagram } = await import(`${process.env.CLAUDE_PLUGIN_ROOT}/tools/author.js`);
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const root = process.env.CLAUDE_PLUGIN_ROOT;
+if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const { reviseDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
 ```

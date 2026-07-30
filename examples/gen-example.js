@@ -70,7 +70,7 @@ await authorDiagram({
       type: "text", id: "assets-title", text: "real assets", fontSize: 28, fontFamily: PROSE,
       strokeColor: p.grey.ink, width: assetsTitle.width, height: assetsTitle.height,
     };
-    const logo = image(join(here, "../brand/AIWorx_logo.png"), { id: "logo", width: 180 });
+    const logo = await image(join(here, "../brand/AIWorx_logo.png"), { id: "logo", width: 180 });
     const figure = spliceLibraryItem(join(here, "stick-figure.excalidrawlib"));
     const assets = column(
       [assetsTitleEl, row([logo, figure], { gap: 56, align: "end" })],

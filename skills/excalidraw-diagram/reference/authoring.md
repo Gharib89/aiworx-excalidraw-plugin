@@ -160,15 +160,18 @@ reads the bytes, stores them as a data URL keyed by content hash (the same file
 placed twice travels once), and returns a placeable skeleton element:
 
 ```js
-const logo = image(`${root}/brand/AIWorx_logo.png`, { id: "logo", width: 180 });
-// PNG sizes itself from its header: give width OR height to scale
-// proportionally, both to force, neither for intrinsic size. Other formats
-// (.jpg, .gif, .webp, .svg) need explicit width AND height.
+const logo = await image(`${root}/brand/AIWorx_logo.png`, { id: "logo", width: 180 });
+// Every supported format sizes itself from its bytes: give width OR height to
+// scale proportionally, both to force, neither for intrinsic size. PNG reads its
+// own header; .jpg, .gif, .webp and .svg are decoded by the page's browser,
+// which is why `image` is async and must be awaited.
 ```
 
 An unreadable file or unsupported format is an `AssetError` before anything is
-written; the gate independently rejects any image whose bytes are missing from
-the files dictionary.
+written, as are bytes the browser cannot decode and an SVG that states no size
+of its own (no width/height, no `viewBox` — give both dimensions for those). The
+gate independently rejects any image whose bytes are missing from the files
+dictionary.
 
 Community library items — cloud icons, stick figures, UI kits from
 [libraries.excalidraw.com](https://libraries.excalidraw.com) — splice in

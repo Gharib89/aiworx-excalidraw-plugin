@@ -13,6 +13,8 @@
  *      nothing is written
  *   5. revise prunes the bytes no live image references any more, and leaves
  *      the ones that are still referenced untouched
+ *   6. intrinsic size comes from the bytes for every supported format, not just
+ *      PNG, so one dimension is enough to place any of them
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -25,6 +27,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = mkdtempSync(join(tmpdir(), "assets-"));
 const LIB = join(root, "examples/stick-figure.excalidrawlib");
 const LOGO = join(root, "brand/AIWorx_logo.png");
+/**
+ * 40x20 swatches, one per non-PNG format. The SVG carries a viewBox and no
+ * width/height — the shape an `<img>` reports as Chrome's default 300x150,
+ * so it is the case that proves the size comes from the markup.
+ */
+const SWATCH = (ext) => join(root, `tests/fixtures/swatch.${ext}`);
 console.log(`artifacts: ${outDir}`);
 
 const fail = [];
@@ -139,8 +147,8 @@ const demoOut = join(outDir, "assets.excalidraw");
   const result = await authorDiagram({
     out: demoOut,
     build: async ({ image, spliceLibraryItem, row }) => {
-      const logo = image(LOGO, { id: "logo", width: 180 });
-      const badge = image(LOGO, { id: "badge", width: 60, height: 60 });
+      const logo = await image(LOGO, { id: "logo", width: 180 });
+      const badge = await image(LOGO, { id: "badge", width: 60, height: 60 });
       const fig = spliceLibraryItem(LIB);
       const band = row([logo, badge, fig], { gap: 48, align: "end" });
       return [band, { type: "frame", children: ["logo", "badge", ...fig.ids], name: "assets" }];
@@ -175,7 +183,7 @@ const demoOut = join(outDir, "assets.excalidraw");
   const out = join(outDir, "missing-image.excalidraw");
   const r = await rejectsWith("AssetError", authorDiagram({
     out,
-    build: async ({ image }) => [image(join(outDir, "nope.png"), { width: 100 })],
+    build: async ({ image }) => [await image(join(outDir, "nope.png"), { width: 100 })],
   }));
   check("a missing image file is an AssetError", r.ok, r.detail);
   check("a missing image writes nothing", !existsSync(out));
@@ -184,7 +192,7 @@ const demoOut = join(outDir, "assets.excalidraw");
   writeFileSync(bmp, "not really a bitmap");
   const r2 = await rejectsWith("AssetError", authorDiagram({
     out,
-    build: async ({ image }) => [image(bmp, { width: 100, height: 100 })],
+    build: async ({ image }) => [await image(bmp, { width: 100, height: 100 })],
   }));
   check("an unsupported image format is an AssetError", r2.ok, r2.detail);
 
@@ -193,10 +201,72 @@ const demoOut = join(outDir, "assets.excalidraw");
     build: async ({ image }) => {
       const svgFile = join(outDir, "icon.svg");
       writeFileSync(svgFile, "<svg xmlns='http://www.w3.org/2000/svg'/>");
-      return [image(svgFile)];
+      return [await image(svgFile)];
     },
   }));
   check("a non-PNG without explicit size is an AssetError", noSize.ok, noSize.detail);
+}
+
+// ---- intrinsic size for every supported format, not just PNG ----
+{
+  // one authoring pass places every format twice: scaled from a single
+  // dimension, and unscaled, so both readings of the intrinsic size are proven
+  const FORMATS = ["jpg", "webp", "gif", "svg"];
+  const out = join(outDir, "intrinsic.excalidraw");
+  await authorDiagram({
+    out,
+    svg: false,
+    build: async ({ image, row }) =>
+      [row(
+        await Promise.all(
+          FORMATS.flatMap((ext) => [
+            image(SWATCH(ext), { id: `scaled-${ext}`, width: 80 }),
+            image(SWATCH(ext), { id: `intrinsic-${ext}` }),
+          ]),
+        ),
+        { gap: 20, align: "start" },
+      )],
+  });
+  const doc = JSON.parse(readFileSync(out, "utf8"));
+  const images = doc.elements.filter((e) => e.type === "image");
+  check("every format placed", images.length === FORMATS.length * 2, `${images.length} images`);
+  // the swatches are 40x20, so a width of 80 must come back 40 high
+  const scaled = images.filter((e) => Math.abs(e.width - 80) < 0.5);
+  check("one dimension keeps the aspect ratio for jpeg, webp, gif and svg",
+    scaled.length === FORMATS.length && scaled.every((e) => Math.abs(e.height - 40) < 0.5),
+    scaled.map((e) => `${Math.round(e.width)}x${Math.round(e.height)}`).join(" "));
+  const natural = images.filter((e) => Math.abs(e.width - 40) < 0.5);
+  check("no dimensions places at the intrinsic size",
+    natural.length === FORMATS.length && natural.every((e) => Math.abs(e.height - 20) < 0.5),
+    natural.map((e) => `${Math.round(e.width)}x${Math.round(e.height)}`).join(" "));
+  check("one entry per format in the files dictionary",
+    Object.keys(doc.files ?? {}).length === FORMATS.length,
+    `${Object.keys(doc.files ?? {}).length} file(s)`);
+
+  // an SVG sized in absolute units other than px: 2in x 1in is 192x96
+  const inches = join(outDir, "inches.svg");
+  writeFileSync(inches, `<svg xmlns="http://www.w3.org/2000/svg" width="2in" height="1in"><rect width="100%" height="100%" fill="#d62c2c"/></svg>`);
+  const inchOut = join(outDir, "inches.excalidraw");
+  await authorDiagram({
+    out: inchOut,
+    svg: false,
+    build: async ({ image }) => [await image(inches, { width: 96 })],
+  });
+  const inchImage = JSON.parse(readFileSync(inchOut, "utf8")).elements[0];
+  check("absolute units other than px resolve (2in x 1in)",
+    Math.abs(inchImage.width - 96) < 0.5 && Math.abs(inchImage.height - 48) < 0.5,
+    `${inchImage.width}x${inchImage.height}`);
+
+  // bytes Chrome cannot decode are still a named AssetError with nothing written
+  const lying = join(outDir, "lying.jpg");
+  writeFileSync(lying, "JFIF is not enough to make this a JPEG");
+  const badOut = join(outDir, "undecodable.excalidraw");
+  const bad = await rejectsWith("AssetError", authorDiagram({
+    out: badOut,
+    build: async ({ image }) => [await image(lying, { width: 100 })],
+  }));
+  check("undecodable bytes are a named AssetError", bad.ok, bad.detail);
+  check("undecodable bytes write nothing", !existsSync(badOut));
 }
 
 // ---- revise prunes the bytes nothing references any more ----
@@ -214,8 +284,8 @@ const demoOut = join(outDir, "assets.excalidraw");
       row(
         [
           { type: "rectangle", x: 0, y: 0, width: 80, height: 80 },
-          image(LOGO, { id: "img-a", width: 120 }),
-          image(LOGO, { id: "img-b", width: 120 }),
+          await image(LOGO, { id: "img-a", width: 120 }),
+          await image(LOGO, { id: "img-b", width: 120 }),
         ],
         { gap: 40, align: "start" },
       ),

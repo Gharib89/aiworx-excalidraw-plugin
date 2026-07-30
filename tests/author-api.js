@@ -228,7 +228,13 @@ const oneLine = (text) => async ({ measure, PROSE }) => {
 /**
  * A copy of the plugin whose tools/browser.js is replaced by `source` — a stub
  * that delegates to the real driver, so convert, the gate and playwright stay
- * real and only the one seam under test changes.
+ * real and only the one seam under test changes. The stub imports the real
+ * driver by absolute URL, which is also how the copy resolves playwright: through
+ * the real plugin root, where node_modules lives.
+ *
+ * Returns the copy's directory; `moduleIn` builds an import specifier for a file
+ * inside it, and importing the same specifier twice gets the same module
+ * instance, so a stub can expose state the test reads back.
  */
 function pluginCopyWith(label, source) {
   const dir = mkdtempSync(join(tmpdir(), `author-${label}-`));
@@ -238,8 +244,9 @@ function pluginCopyWith(label, source) {
   // only Node's ESM syntax detection saves them — carry the manifest instead
   cpSync(join(root, "package.json"), join(dir, "package.json"));
   writeFileSync(join(dir, "tools/browser.js"), source);
-  return pathToFileURL(join(dir, "tools/author.js")).href;
+  return dir;
 }
+const moduleIn = (dir, file) => pathToFileURL(join(dir, file)).href;
 const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js")).href);
 
 // ---- 7. a failing SVG export leaves the output directory clean ----
@@ -256,7 +263,7 @@ const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js"))
       `  } }), opts);\n` +
       `}\n`,
   );
-  const { authorDiagram: brokenAuthor } = await import(brokenPlugin);
+  const { authorDiagram: brokenAuthor } = await import(moduleIn(brokenPlugin, "tools/author.js"));
 
   const out = join(outDir, "export-fails.excalidraw");
   const r = await rejectsWith("PageError", brokenAuthor({ out, build: oneLine("the export will fail") }));
@@ -330,12 +337,14 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
 }
 
 // ---- 10. one browser session authors many diagrams ----
-// The three claims a session has to make: N diagrams cost one launch, a gate
-// failure in the middle leaves the session usable, and accumulated font warming
-// measures every glyph the same as a fresh browser would — the drift this whole
-// pipeline exists to prevent.
+// The claims a session has to make: N diagrams cost one launch, a gate failure
+// in the middle leaves the session usable, and accumulated font warming measures
+// every glyph the same as a fresh browser would — including after an SVG export
+// and across a concurrent batch, which is the drift this whole pipeline exists
+// to prevent. The single-shot API keeps launching per call.
 {
   const RARE = "→ ∑ é ✓ warmed late";
+  const RARER = ["ł ø ð œ first", "ħ ŋ ĸ þ second", "ə ʒ ʧ ʤ third"];
   const ASCII = "plain ascii line";
   const widths = {};
   /** Record the measured width of `text` under `key`, and draw it. */
@@ -350,54 +359,82 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     { type: "text", x: 4, y: 4, text: "two", fontSize: 18, fontFamily: PROSE },
   ];
 
-  // a fresh single-shot browser measures the rare glyphs with nothing warmed before them
-  await authorDiagram({
-    out: join(outDir, "fresh-rare.excalidraw"), svg: false, build: measuring("freshRare", RARE),
-  });
+  // fresh single-shot browsers measure each string with nothing warmed before it —
+  // the reference every in-session measurement has to match
+  for (const [i, text] of [RARE, ...RARER].entries()) {
+    await authorDiagram({
+      out: join(outDir, `fresh-${i}.excalidraw`), svg: false, build: measuring(`fresh${i}`, text),
+    });
+  }
 
   const countingPlugin = pluginCopyWith(
     "launch-count",
     `import { withExcalidraw as real } from ${realBrowser};\n` +
-      `export let launches = 0;\n` +
+      `let launches = 0;\n` +
       `export const launchCount = () => launches;\n` +
       `export function withExcalidraw(fn, opts) {\n` +
       `  launches++;\n` +
       `  return real(fn, opts);\n` +
       `}\n`,
   );
-  const { authorDiagram: countedAuthor, withAuthoring } = await import(countingPlugin);
-  const { launchCount } = await import(
-    countingPlugin.replace(/author\.js$/, "browser.js")
+  const { authorDiagram: countedAuthor, withAuthoring } = await import(
+    moduleIn(countingPlugin, "tools/author.js")
   );
+  // the same specifier the copied author.js imports, so this reads that stub's
+  // own counter rather than a second instance of the module
+  const { launchCount } = await import(moduleIn(countingPlugin, "tools/browser.js"));
 
-  const outs = ["s1", "s2", "s3"].map((n) => join(outDir, `session-${n}.excalidraw`));
+  const outs = ["s1", "s2", "s3", "s4"].map((n) => join(outDir, `session-${n}.excalidraw`));
   const gateOut = join(outDir, "session-gated.excalidraw");
   const session = await withAuthoring(async (author) => {
     const first = await author({ out: outs[0], svg: false, build: measuring("sessionAscii", ASCII) });
     const gated = await rejectsWith("GateError", author({ out: gateOut, build: overlapping }));
     const rare = await author({ out: outs[1], svg: false, build: measuring("sessionRare", RARE) });
-    const again = await author({ out: outs[2], svg: false, build: measuring("sessionAsciiAgain", ASCII) });
-    return { first, gated, rare, again };
+    // the default path: an SVG export between one diagram's measurements and the
+    // next's. Export is what warms the fonts, and the rules it emits are subset
+    // to the glyphs it just rendered — so this is where a session could drift.
+    const exported = await author({ out: outs[2], build: measuring("sessionExported", RARE) });
+    const again = await author({ out: outs[3], svg: false, build: measuring("sessionAsciiAgain", ASCII) });
+    return { first, gated, rare, exported, again };
   });
 
   check("a session authors every diagram", outs.every(existsSync), outs.map(existsSync).join(","));
   check("a session costs one browser launch, not one per diagram", launchCount() === 1,
-    `${launchCount()} launches for a session of 3 diagrams`);
+    `${launchCount()} launches for a session of ${outs.length} diagrams`);
+  check("a session still writes the SVG beside the document",
+    existsSync(session.exported.svgOut), session.exported.svgOut);
   check("a gate failure inside a session is a GateError that writes nothing",
     session.gated.ok && !existsSync(gateOut), session.gated.detail);
   check("the session survives a failed diagram",
-    session.again.elements.length > 0 && existsSync(outs[2]), `then wrote ${outs[2]}`);
-  check("no measurement drift across a session",
+    session.again.elements.length > 0 && existsSync(outs[3]), `then wrote ${outs[3]}`);
+  check("no measurement drift across a session, export included",
     widths.sessionAscii === widths.sessionAsciiAgain,
     `${widths.sessionAscii?.toFixed(2)} then ${widths.sessionAsciiAgain?.toFixed(2)}`);
   check("late glyphs measure as they do in a fresh browser",
-    Math.abs(widths.sessionRare - widths.freshRare) < 0.01,
-    `session ${widths.sessionRare?.toFixed(2)} vs fresh ${widths.freshRare?.toFixed(2)}`);
+    Math.abs(widths.sessionRare - widths.fresh0) < 0.01,
+    `session ${widths.sessionRare?.toFixed(2)} vs fresh ${widths.fresh0?.toFixed(2)}`);
+
+  // A batch generator's natural shape is Promise.all over its panels, and the
+  // page's font warming assumes one call in flight at a time (tools/page.js):
+  // overlap the warms and a measurement lands on the fallback face, silently.
+  // Each of these three carries glyphs the others do not, so all three re-warm.
+  await withAuthoring(async (author) =>
+    Promise.all(RARER.map((text, i) =>
+      author({ out: join(outDir, `batch-${i}.excalidraw`), svg: false,
+        build: measuring(`batch${i}`, text) }))),
+  );
+  const drifted = RARER
+    .map((_, i) => ({ i, batch: widths[`batch${i}`], fresh: widths[`fresh${i + 1}`] }))
+    .filter(({ batch, fresh }) => Math.abs(batch - fresh) >= 0.01);
+  check("a concurrent batch measures like a fresh browser", drifted.length === 0,
+    drifted.map(({ i, batch, fresh }) =>
+      `#${i} batch ${batch?.toFixed(2)} vs fresh ${fresh?.toFixed(2)}`).join("; ") ||
+      `${RARER.length} concurrent diagrams, no drift`);
 
   // the single-shot API still opens and closes its own browser
   const solo = join(outDir, "still-single-shot.excalidraw");
   await countedAuthor({ out: solo, svg: false, build: measuring("solo", ASCII) });
-  check("the single-shot API still launches per call", launchCount() === 2, `${launchCount()} launches`);
+  check("the single-shot API still launches per call", launchCount() === 3, `${launchCount()} launches`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

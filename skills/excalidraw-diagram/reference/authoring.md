@@ -119,6 +119,12 @@ first appears in the last diagram re-warms the page, and everything measured
 before it still measures the same. Use `authorDiagram` for a single diagram; it
 is the same code path with the session opened for you.
 
+`Promise.all(panels.map(...))` is safe but buys nothing: the diagrams are queued
+and run one at a time, because the page's font warming is only correct with a
+single call in flight — concurrent warms leave a measurement on the fallback
+face, which is the drift the measuring exists to avoid. The saving is the launch,
+not parallelism.
+
 ## Composing layout
 
 Hand-accumulated pixel offsets (`y + title.height + 28 + body.height + …`)

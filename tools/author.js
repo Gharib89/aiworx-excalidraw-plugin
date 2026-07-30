@@ -435,9 +435,25 @@ export async function authorDiagram(options) {
  * usable for the next. Font warming accumulates across the session: a glyph
  * first seen in the fifth diagram re-warms the page, and the strings measured
  * before it still measure the same.
+ *
+ * Diagrams run one at a time even when the caller fires them together. The page
+ * warms fonts for the glyphs it has been asked about and re-warms when a new one
+ * appears, which is only correct while a single call is in flight (see
+ * tools/page.js): overlap two and one of them measures against the fallback face,
+ * silently. `Promise.all` over a batch of panels is the natural thing to write, so
+ * the calls queue here rather than the invariant resting on the caller.
  */
 export async function withAuthoring(fn) {
-  return withExcalidraw((ex) => fn((options) => authorInto(ex, options)));
+  return withExcalidraw((ex) => {
+    let queue = Promise.resolve();
+    return fn((options) => {
+      const done = queue.then(() => authorInto(ex, options));
+      // one diagram's failure is its caller's; the queue later calls chain on
+      // must stay resolved or the whole batch fails with the first defect
+      queue = done.catch(() => {});
+      return done;
+    });
+  });
 }
 
 /**

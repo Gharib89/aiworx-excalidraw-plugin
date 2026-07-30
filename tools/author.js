@@ -269,7 +269,7 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
  * from review. Listing every child id by hand is the alternative, and it silently
  * rots as panels gain elements — so infer it from the geometry that is already there.
  */
-export function bindToFrames(elements) {
+function bindToFrames(elements) {
   const frames = elements.filter((e) => e.type === "frame" && !e.isDeleted);
   if (frames.length === 0) return elements;
 

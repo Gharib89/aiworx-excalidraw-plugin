@@ -5,6 +5,9 @@
   "description": "Claude Code plugin: author Excalidraw diagrams with real text metrics and headless visual verification",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "bundle": "node tools/bundle.js",
     "setup": "npm install --omit=dev",

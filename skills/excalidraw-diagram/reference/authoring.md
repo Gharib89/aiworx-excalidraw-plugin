@@ -230,7 +230,8 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" docs/diagrams/thing.excalidraw   # 
 One command re-enters the pipeline: the file is restored with `refreshDimensions`
 and `repairBindings` (text metrics recomputed with the real fonts, dangling
 arrow bindings dropped), frame membership the geometry no longer supports is
-cleared and re-inferred, the human's `appState` is preserved, and the same
+cleared and re-inferred, the human's `appState` is preserved, image bytes no live
+element references are pruned from the `files` dictionary, and the same
 in-process gate runs before the file — and its refreshed SVG — is rewritten in
 place. A file that isn't a parseable Excalidraw document is rejected with a
 `DocumentError`; a revision that would fail the gate throws a `GateError`. Both

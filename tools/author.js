@@ -436,12 +436,22 @@ export async function reviseDiagram({ file, svg = true }) {
       if (!f || f.type !== "frame" || !contains(bounds(f), bounds(e))) e.frameId = null;
     }
     bindToFrames(elements);
+    // Deleting an image by hand leaves its bytes behind — the whole data URL,
+    // committed forever, because the files dictionary is append-only. Keep only
+    // what a live image still points at. Two images sharing one entry (same
+    // bytes, same content hash) therefore keep it until the last one goes.
+    const referenced = new Set(
+      elements.filter((e) => e.type === "image" && e.fileId).map((e) => e.fileId),
+    );
+    const files = Object.fromEntries(
+      Object.entries(data.files ?? {}).filter(([id]) => referenced.has(id)),
+    );
     // the human's appState survives the round-trip; defaults fill only the gaps
     const appState = {
       viewBackgroundColor: palette.canvas,
       gridSize: 20,
       ...data.appState,
     };
-    return gateAndWrite(ex, { out: file, elements, appState, files: data.files ?? {}, svg });
+    return gateAndWrite(ex, { out: file, elements, appState, files, svg });
   });
 }

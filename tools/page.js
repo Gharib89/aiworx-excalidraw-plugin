@@ -45,6 +45,12 @@ async function ensureFonts(texts = []) {
       if (c !== "\n" && c !== "\r" && c !== "\t") need.add(c);
     }
   }
+  // Already warm for every glyph asked for, so nothing to await. This early
+  // return is only safe because Node drives the page one call at a time
+  // (tools/browser.js awaits every page.evaluate): a prior ensureFonts has
+  // therefore already settled, and there is no in-flight `warming` to join.
+  // Fire two page calls concurrently and a caller could return here while the
+  // first warm is still loading faces — measure against the fallback font.
   if (styleEl && need.size === warmChars.size) return;
 
   warmChars = need;

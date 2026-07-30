@@ -56,6 +56,8 @@ traces to a measurement or an explicit constant — with no character-width fact
 
 ```bash
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" path/to/diagram.excalidraw
+node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw b.excalidraw   # batch: worst exit code wins
+node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --json         # one machine-readable report
 ```
 
 `authorDiagram` and `reviseDiagram` already run these rules in-process and

@@ -60,6 +60,10 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw b.excalidraw   # batch:
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --json         # one machine-readable report
 ```
 
+Add `--dark` when the diagram also ships as a dark export: the dark theme is a
+CSS filter over the same colours and it does not preserve contrast ratios, so a
+pair can clear 4.5:1 light and fail it dark.
+
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
 refuse to write a failing file, so a generator's output arrives pre-gated; the
 CLI is for files that got here another way, and as the proof after hand edits.
@@ -140,6 +144,10 @@ Colour encodes one meaning each, from `brand/palette.json`:
 | `decision` | a decision, a threshold, a trap |
 | `fail` | what goes wrong |
 | `grey` | scaffolding, structure, labels |
+
+The dark export applies `invert(93%) hue-rotate(180deg)` to the whole picture, so
+the palette holds there too — every check in `palette.js` runs against both themes.
+Off-palette colours have no such guarantee; gate them with `check.js --dark`.
 
 Prose and labels use `fontFamily: 6` (Nunito); code, JSON and file paths use
 `fontFamily: 3` (Cascadia). Both ship with Excalidraw and embed on export, so the

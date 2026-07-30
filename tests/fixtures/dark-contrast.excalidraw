@@ -1,0 +1,11 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — dark green label on a pale salmon card: 4.84:1 in the light export, 4.20:1 once the dark-theme filter has run",
+  "elements": [
+    { "id": "card", "type": "rectangle", "x": 0, "y": 0, "width": 220, "height": 60, "strokeColor": "#145A32", "backgroundColor": "#F5B7B1", "fillStyle": "solid", "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": 35, "y": 18, "width": 150, "height": 25, "text": "pale salmon card", "strokeColor": "#145A32", "fontFamily": 6, "containerId": "card" }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

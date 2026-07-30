@@ -65,6 +65,40 @@ export const contrast = (a, b) => {
   return (x + 0.05) / (y + 0.05);
 };
 
+// Excalidraw's dark export is not a second palette: exportToSvg puts one CSS
+// filter chain on the root <svg> — invert(93%) hue-rotate(180deg) — and every
+// pixel, background rect included, goes through it. So a dark colour is a pure
+// function of its light one, and dark contrast is computable from the light
+// values. Images carry a counter-filter so photographs survive; shapes do not.
+// The shorthand filter functions operate on non-linear sRGB (filter-effects §8),
+// which is why this works on the hex values directly.
+const DARK_INVERT = 0.93;
+const HUE_ROTATE = 180;
+
+const invert = (rgb, amount) => rgb.map((c) => c * (1 - amount) + (1 - c) * amount);
+
+// filter-effects §8.6: the luminance-preserving hue rotation matrix.
+function hueRotate(rgb, degrees) {
+  const rad = (degrees * Math.PI) / 180;
+  const [cos, sin] = [Math.cos(rad), Math.sin(rad)];
+  const m = [
+    [0.213 + cos * 0.787 - sin * 0.213, 0.715 - cos * 0.715 - sin * 0.715, 0.072 - cos * 0.072 + sin * 0.928],
+    [0.213 - cos * 0.213 + sin * 0.143, 0.715 + cos * 0.285 + sin * 0.14, 0.072 - cos * 0.072 - sin * 0.283],
+    [0.213 - cos * 0.213 - sin * 0.787, 0.715 - cos * 0.715 + sin * 0.715, 0.072 + cos * 0.928 + sin * 0.072],
+  ];
+  return m.map((row) => row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2]);
+}
+
+/**
+ * A colour as it renders in a dark-theme export. Null for anything that isn't a
+ * hex — "transparent" has no dark form. Verified against Chrome in tests/dark.js.
+ */
+export function toDarkTheme(color) {
+  const hex = normalizeHex(color);
+  if (!hex) return null;
+  return rgbToHex(hueRotate(invert(hexToRgb(hex), DARK_INVERT), HUE_ROTATE));
+}
+
 export const oklabDist = (a, b) => {
   const [p, q] = [rgbToOklab(hexToRgb(a)), rgbToOklab(hexToRgb(b))];
   return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);

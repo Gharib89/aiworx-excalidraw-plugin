@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { bounds, outline, overlap, contains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
-import { contrast, normalizeHex } from "./color.js";
+import { contrast, normalizeHex, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
@@ -25,8 +25,13 @@ export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
 /**
  * Run every element-level rule over a parsed Excalidraw document.
  * Returns the defects found and the counts the CLI prints as a summary.
+ *
+ * `theme: "dark"` scores the contrast rule on the colours a dark export actually
+ * renders, not the authored ones. Geometry is theme-independent, so nothing else
+ * changes. A pair can clear 4.5:1 light and fail it dark — the filter compresses
+ * some hue pairs toward each other — so a diagram meant for both is checked twice.
  */
-export function verifyDocument(data) {
+export function verifyDocument(data, { theme = "light" } = {}) {
   const problems = [];
   const note = (msg) => problems.push(msg);
 
@@ -208,10 +213,12 @@ export function verifyDocument(data) {
   //     mostly canvas behind the glyphs, so only solid fills count as the ground.
   //     An image is a ground no ratio can measure — its pixels are unknown — so
   //     text over one is flagged instead of scored against whatever lies below.
-  const canvas = normalizeHex(data.appState?.viewBackgroundColor) ?? palette.canvas;
-  const fillOf = (s) => ((s?.fillStyle ?? "solid") === "solid" ? normalizeHex(s?.backgroundColor) : null);
+  const themed = theme === "dark" ? (c) => toDarkTheme(c) : (c) => c;
+  const where = theme === "dark" ? " under the dark theme" : "";
+  const canvas = themed(normalizeHex(data.appState?.viewBackgroundColor) ?? palette.canvas);
+  const fillOf = (s) => ((s?.fillStyle ?? "solid") === "solid" ? themed(normalizeHex(s?.backgroundColor)) : null);
   for (const t of texts) {
-    const ink = normalizeHex(t.strokeColor) ?? palette.ink;
+    const ink = themed(normalizeHex(t.strokeColor) ?? palette.ink);
     let ground = null; // the element the glyphs sit on; null means bare canvas
     if (t.containerId) {
       ground = byId.get(t.containerId);
@@ -234,7 +241,7 @@ export function verifyDocument(data) {
     const needs = (t.fontSize ?? 20) >= 24 ? 3 : 4.5;
     const c = contrast(ink, bg);
     if (c < needs) {
-      note(`text "${preview(t.text)}" contrast ${c.toFixed(2)}:1 (${ink} on ${bg}, needs ${needs}:1)`);
+      note(`text "${preview(t.text)}" contrast ${c.toFixed(2)}:1${where} (${ink} on ${bg}, needs ${needs}:1)`);
     }
   }
 

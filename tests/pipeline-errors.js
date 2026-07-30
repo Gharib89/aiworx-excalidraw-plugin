@@ -17,9 +17,21 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+/**
+ * A module specifier is a URL, not a path. `C:\…\browser.js` reads as a `C:`
+ * scheme and the loader refuses it with ERR_UNSUPPORTED_ESM_URL_SCHEME, so every
+ * probe below crosses the boundary through node:url before it interpolates.
+ */
+const specifier = (...parts) => pathToFileURL(join(...parts)).href;
+/**
+ * A cold Chromium launch plus the bundle load is ~20 s on a slow machine, so a
+ * probe budget near that turns a passing assertion into a coin flip. The
+ * fail-fast claims are timed by their own assertions, not by this ceiling.
+ */
+const PROBE_TIMEOUT = 90_000;
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -46,10 +58,10 @@ const probe = (dir) =>
   spawnSync(
     process.execPath,
     ["--input-type=module", "-e",
-      `import { withExcalidraw } from "${join(dir, "tools/browser.js")}";
+      `import { withExcalidraw } from "${specifier(dir, "tools/browser.js")}";
        await withExcalidraw(async () => {});
        console.log("ran");`],
-    { encoding: "utf8", timeout: 25_000 },
+    { encoding: "utf8", timeout: PROBE_TIMEOUT },
   );
 
 // ---- 1. stale bundle: sources changed after the bundle was stamped ----
@@ -69,7 +81,7 @@ const probe = (dir) =>
 // ---- 2. broken bundle with a valid stamp: page error surfaces, fast ----
 {
   const dir = makeCopy();
-  const { FINGERPRINT_MARKER, expectedFingerprint } = await import(join(dir, "tools/fingerprint.js"));
+  const { FINGERPRINT_MARKER, expectedFingerprint } = await import(specifier(dir, "tools/fingerprint.js"));
   writeFileSync(
     join(dir, "dist/excalidraw-page.js"),
     `throw new Error("boom: bundle exploded");\n${FINGERPRINT_MARKER}${expectedFingerprint()}\n`,
@@ -91,9 +103,9 @@ const probe = (dir) =>
   const r = spawnSync(
     process.execPath,
     ["--input-type=module", "-e",
-      `import { withExcalidraw } from "${join(root, "tools/browser.js")}";
+      `import { withExcalidraw } from "${specifier(root, "tools/browser.js")}";
        await withExcalidraw((ex) => ex.measureText("not an array"));`],
-    { encoding: "utf8", timeout: 25_000 },
+    { encoding: "utf8", timeout: PROBE_TIMEOUT },
   );
   check("bad page call: exits non-zero", r.status !== 0, `exit ${r.status}`);
   check("bad page call: names PageError", /PageError/.test(r.stderr),

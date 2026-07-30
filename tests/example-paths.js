@@ -9,9 +9,12 @@
  *   2. no `URL.pathname` is used as a filesystem path in the examples or in the
  *      skill's docs templates — the form that leaves `%20` in a path with a
  *      space and yields `/C:/…` on Windows
+ *   3. no ESM `import` specifier anywhere under tests/ or tools/ is built from a
+ *      raw filesystem path — the other side of the same boundary, which fails
+ *      on Windows with ERR_UNSUPPORTED_ESM_URL_SCHEME
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,6 +89,36 @@ const check = (name, cond, detail) => {
     .map(([f]) => f);
   check("no URL.pathname in the example or the docs templates",
     offenders.length === 0, offenders.join(", ") || `${sources.length} files clean`);
+}
+
+// ---- 3. no ESM import specifier built from a raw filesystem path ----
+{
+  // The mirror image of section 2: there, a URL was used as a path; here, a path
+  // is used as a URL. `import "C:\x\y.js"` is not a legal specifier — the default
+  // loader reads `C:` as a scheme and refuses with ERR_UNSUPPORTED_ESM_URL_SCHEME.
+  // A specifier assembled at runtime must therefore cross back through node:url,
+  // so the guard is: every interpolation inside a specifier names pathToFileURL.
+  // A line builds a specifier when `from` is followed by an interpolation, or
+  // `import(` by anything other than a literal module name. Such a line that
+  // reaches for `join` without `pathToFileURL` is handing a path to the loader.
+  const buildsSpecifier = (line) => /\bfrom\s*["'`]?\$\{/.test(line) || /\bimport\(\s*(?!["'`])/.test(line);
+  const raw = (line) => /\bjoin\(/.test(line) && !/pathToFileURL/.test(line) && buildsSpecifier(line);
+
+  const jsFiles = (dir) =>
+    readdirSync(join(root, dir), { withFileTypes: true })
+      .filter((e) => e.isFile() && e.name.endsWith(".js"))
+      .map((e) => `${dir}/${e.name}`);
+
+  const offenders = [];
+  for (const f of [...jsFiles("tests"), ...jsFiles("tools"), ...jsFiles("examples")]) {
+    readFileSync(join(root, f), "utf8")
+      .split("\n")
+      .forEach((line, i) => {
+        if (raw(line)) offenders.push(`${f}:${i + 1} ${line.trim()}`);
+      });
+  }
+  check("every runtime import specifier goes through pathToFileURL",
+    offenders.length === 0, offenders.join(" | ") || "no raw-path specifiers");
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall checks passed");

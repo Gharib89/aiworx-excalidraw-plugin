@@ -223,6 +223,21 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 
 ## Round-tripping a human-edited file
 
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" docs/diagrams/thing.excalidraw   # [--no-svg]
+```
+
+One command re-enters the pipeline: the file is restored with `refreshDimensions`
+and `repairBindings` (text metrics recomputed with the real fonts, dangling
+arrow bindings dropped), frame membership the geometry no longer supports is
+cleared and re-inferred, the human's `appState` is preserved, and the same
+in-process gate runs before the file — and its refreshed SVG — is rewritten in
+place. A file that isn't a parseable Excalidraw document is rejected with a
+`DocumentError`; a revision that would fail the gate throws a `GateError`. Both
+exit 1 and write nothing; a bad invocation exits 2 with a `UsageError`.
+
+From inside a generator, the same round-trip is one call:
+
 ```js
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -233,12 +248,3 @@ const { reviseDiagram } = await import(pathToFileURL(join(root, "tools/author.js
 
 await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
 ```
-
-One call re-enters the pipeline: the file is restored with `refreshDimensions`
-and `repairBindings` (text metrics recomputed with the real fonts, dangling
-arrow bindings dropped), frame membership the geometry no longer supports is
-cleared and re-inferred, the human's `appState` is preserved, and the same
-in-process gate runs before the file — and its refreshed SVG — is rewritten in
-place. A file that isn't a parseable Excalidraw document is rejected with a
-`DocumentError`; a revision that would fail the gate throws a `GateError` and
-writes nothing.

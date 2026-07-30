@@ -109,9 +109,19 @@ GitHub renders SVG, so the diagram is viewable in the browser. A **sketch**
 commits the `.excalidraw` and its `.svg`. Frame PNGs stay local; they are review
 output.
 
-When a human has edited a committed file, run it through `reviseDiagram` (see
-[reference/authoring.md](reference/authoring.md)): one call restores metrics
-and bindings, re-gates, and rewrites the file and its SVG.
+When a human has edited a committed file, run it back through the pipeline —
+one command restores metrics and bindings, re-gates, and rewrites the file and
+its SVG:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" path/to/diagram.excalidraw
+```
+
+`--no-svg` rewrites the `.excalidraw` alone. A file that isn't a parseable
+Excalidraw document is rejected with a `DocumentError`, a revision that would
+fail the gate with a `GateError`, and neither writes anything. From inside a
+generator, call `reviseDiagram` directly (see
+[reference/authoring.md](reference/authoring.md)).
 
 ## House style
 

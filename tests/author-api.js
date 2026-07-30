@@ -224,6 +224,9 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   const pluginCopy = mkdtempSync(join(tmpdir(), "author-export-fail-"));
   cpSync(join(root, "tools"), join(pluginCopy, "tools"), { recursive: true });
   cpSync(join(root, "brand"), join(pluginCopy, "brand"), { recursive: true });
+  // outside the repo the copied .js files have no nearest "type": "module", and
+  // only Node's ESM syntax detection saves them — carry the manifest instead
+  cpSync(join(root, "package.json"), join(pluginCopy, "package.json"));
   const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js")).href);
   writeFileSync(
     join(pluginCopy, "tools/browser.js"),

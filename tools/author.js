@@ -321,7 +321,12 @@ function validateSkeleton(built) {
   return skeleton;
 }
 
-/** Gate in-process, then write the .excalidraw and its SVG; a gate failure throws before anything is written. */
+/**
+ * Gate in-process, then write the .excalidraw and its SVG; a gate failure throws
+ * before anything is written. The SVG is rendered before either file is written,
+ * so an export that throws leaves both files untouched instead of dropping a
+ * fresh .excalidraw next to a stale or missing .svg.
+ */
 async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
   const doc = { type: "excalidraw", version: 2, source: "aiworx-excalidraw", elements, appState, files };
   const { problems } = verifyDocument(doc);
@@ -330,14 +335,11 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
       `refusing to write ${out} — ${problems.length} defect(s):\n  ${problems.join("\n  ")}`,
     );
   }
+  const svgOut = svg ? out.replace(/\.excalidraw$/, "") + ".svg" : null;
+  const rendered = svgOut ? await ex.exportSvg({ elements, appState, files }) : null;
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, JSON.stringify(doc, null, 2) + "\n");
-  let svgOut = null;
-  if (svg) {
-    const rendered = await ex.exportSvg({ elements, appState, files });
-    svgOut = out.replace(/\.excalidraw$/, "") + ".svg";
-    writeFileSync(svgOut, rendered.svg);
-  }
+  if (svgOut) writeFileSync(svgOut, rendered.svg);
   const frames = elements.filter((e) => e.type === "frame");
   console.log(`${out}  ${elements.length} elements, ${frames.length} frames${svgOut ? `\n${svgOut}` : ""}`);
   return { elements, frames, out, svgOut };

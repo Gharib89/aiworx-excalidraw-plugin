@@ -11,12 +11,14 @@
  *   4. the output directory is created
  *   5. reviseDiagram round-trips a hand-edited file: the mangled file fails
  *      the gate, the revised file passes it
+ *   6. the same round-trip on the committed example
+ *   7. a failing SVG export leaves both files unwritten
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { withExcalidraw } from "../tools/browser.js";
 import { authorDiagram, reviseDiagram, makeWrap, PROSE } from "../tools/author.js";
 
@@ -143,6 +145,7 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   });
   check("helpers author a band into a created directory", existsSync(bandOut),
     `${result.elements.length} elements`);
+  check("the happy path writes both files", existsSync(result.svgOut), result.svgOut);
   const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), bandOut], { encoding: "utf8" });
   check("the helper-built band passes the CLI gate", gate.status === 0,
     (gate.stdout + gate.stderr).trim().split("\n").pop());
@@ -209,6 +212,47 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   writeFileSync(foreign, JSON.stringify({ type: "not-excalidraw" }));
   const r2 = await rejectsWith("DocumentError", reviseDiagram({ file: foreign }));
   check("revise names a foreign document", r2.ok, r2.detail);
+}
+
+// ---- 7. a failing SVG export leaves the output directory clean ----
+// A copy of the plugin whose browser layer delegates to the real one but
+// sabotages the export step: convert and the gate stay real, only the renderer
+// breaks — which is the window where a half-written pair used to appear. The
+// stub throws the PageError the real driver would, so the failure has the shape
+// production produces; it resolves playwright through the real plugin root.
+{
+  const pluginCopy = mkdtempSync(join(tmpdir(), "author-export-fail-"));
+  cpSync(join(root, "tools"), join(pluginCopy, "tools"), { recursive: true });
+  cpSync(join(root, "brand"), join(pluginCopy, "brand"), { recursive: true });
+  const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js")).href);
+  writeFileSync(
+    join(pluginCopy, "tools/browser.js"),
+    `import { withExcalidraw as real, PageError } from ${realBrowser};\n` +
+      `export function withExcalidraw(fn, opts) {\n` +
+      `  return real((ex) => fn({ ...ex, exportSvg: async () => {\n` +
+      `    throw new PageError("exportSvg failed in the page: induced export failure");\n` +
+      `  } }), opts);\n` +
+      `}\n`,
+  );
+  const { authorDiagram: brokenAuthor } = await import(
+    pathToFileURL(join(pluginCopy, "tools/author.js")).href
+  );
+
+  const out = join(outDir, "export-fails.excalidraw");
+  const r = await rejectsWith("PageError", brokenAuthor({
+    out,
+    build: async ({ measure, PROSE }) => {
+      const text = "the export will fail";
+      const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
+      return [{ type: "text", x: 0, y: 0, text, fontSize: 18, fontFamily: PROSE,
+        width: m.width, height: m.height }];
+    },
+  }));
+  check("a failing SVG export propagates", r.ok && /induced export failure/.test(r.message ?? ""),
+    r.detail);
+  const svgOut = out.replace(/\.excalidraw$/, ".svg");
+  check("a failing SVG export writes neither file", !existsSync(out) && !existsSync(svgOut),
+    `${existsSync(out) ? "excalidraw written " : ""}${existsSync(svgOut) ? "svg written" : ""}`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

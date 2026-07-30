@@ -11,13 +11,15 @@
  *      travel in the file, the SVG embeds them, and the gate passes
  *   4. unreadable or unsupported image input is a named AssetError and
  *      nothing is written
+ *   5. revise prunes the bytes no live image references any more, and leaves
+ *      the ones that are still referenced untouched
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { authorDiagram, spliceLibraryItem } from "../tools/author.js";
+import { authorDiagram, reviseDiagram, spliceLibraryItem } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = mkdtempSync(join(tmpdir(), "assets-"));
@@ -195,6 +197,78 @@ const demoOut = join(outDir, "assets.excalidraw");
     },
   }));
   check("a non-PNG without explicit size is an AssetError", noSize.ok, noSize.detail);
+}
+
+// ---- revise prunes the bytes nothing references any more ----
+{
+  /**
+   * Two placements of one image plus a plain shape. Both images share a single
+   * files entry (keyed by content hash), so the entry outlives the first
+   * deletion and dies with the second.
+   */
+  const authored = join(outDir, "prune.excalidraw");
+  await authorDiagram({
+    out: authored,
+    svg: false,
+    build: async ({ image, row }) => [
+      row(
+        [
+          { type: "rectangle", x: 0, y: 0, width: 80, height: 80 },
+          image(LOGO, { id: "img-a", width: 120 }),
+          image(LOGO, { id: "img-b", width: 120 }),
+        ],
+        { gap: 40, align: "start" },
+      ),
+    ],
+  });
+  const base = JSON.parse(readFileSync(authored, "utf8"));
+  const fileId = Object.keys(base.files ?? {})[0];
+  check("the fixture shares one files entry between two images",
+    Object.keys(base.files ?? {}).length === 1 &&
+      base.elements.filter((e) => e.type === "image").every((e) => e.fileId === fileId),
+    `${Object.keys(base.files ?? {}).length} file(s)`);
+  const entryBefore = JSON.stringify(base.files[fileId]);
+
+  /**
+   * Write a copy of the authored doc with `drop` of its image elements
+   * hand-deleted — the converter assigns image ids itself, so they are picked by
+   * position rather than by the ids the build asked for.
+   */
+  const copyWithoutImages = (name, drop) => {
+    const path = join(outDir, `${name}.excalidraw`);
+    let left = drop;
+    const doc = {
+      ...base,
+      elements: base.elements.filter((e) => !(e.type === "image" && left-- > 0)),
+    };
+    writeFileSync(path, JSON.stringify(doc, null, 2) + "\n");
+    return path;
+  };
+
+  const oneLeft = copyWithoutImages("prune-one", 1);
+  const sizeBeforeOne = statSync(oneLeft).size;
+  await reviseDiagram({ file: oneLeft, svg: false });
+  const afterOne = JSON.parse(readFileSync(oneLeft, "utf8"));
+  check("deleting one of two images sharing an entry keeps the entry",
+    Object.keys(afterOne.files ?? {}).length === 1 && afterOne.files[fileId] !== undefined,
+    `${Object.keys(afterOne.files ?? {}).length} file(s)`);
+  check("a still-referenced entry survives revise byte-identical",
+    JSON.stringify(afterOne.files[fileId]) === entryBefore);
+  check("revise does not shrink a file whose bytes are still referenced",
+    statSync(oneLeft).size >= sizeBeforeOne - 200,
+    `${sizeBeforeOne} -> ${statSync(oneLeft).size} bytes`);
+
+  const noneLeft = copyWithoutImages("prune-none", 2);
+  const sizeBeforeNone = statSync(noneLeft).size;
+  await reviseDiagram({ file: noneLeft, svg: false });
+  const afterNone = JSON.parse(readFileSync(noneLeft, "utf8"));
+  const sizeAfterNone = statSync(noneLeft).size;
+  check("deleting every image prunes the orphaned entry",
+    Object.keys(afterNone.files ?? {}).length === 0,
+    `${Object.keys(afterNone.files ?? {}).length} file(s) left`);
+  check("pruning shrinks the file by the data URL it dropped",
+    sizeAfterNone < sizeBeforeNone / 2,
+    `${sizeBeforeNone} -> ${sizeAfterNone} bytes`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nassets behave");

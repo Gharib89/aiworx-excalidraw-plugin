@@ -119,7 +119,9 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" path/to/diagram.excalidraw
 
 `--no-svg` rewrites the `.excalidraw` alone. A file that isn't a parseable
 Excalidraw document is rejected with a `DocumentError`, a revision that would
-fail the gate with a `GateError`, and neither writes anything. From inside a
+fail the gate with a `GateError`, and neither writes anything. Revise also drops
+image bytes no element references any more, so deleting an image by hand shrinks
+the file instead of carrying its data URL forever. From inside a
 generator, call `reviseDiagram` directly (see
 [reference/authoring.md](reference/authoring.md)).
 

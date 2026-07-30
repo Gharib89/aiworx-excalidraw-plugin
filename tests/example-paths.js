@@ -30,7 +30,9 @@ const check = (name, cond, detail) => {
   // the committed example is regenerated deliberately, not by the test suite.
   const checkout = join(mkdtempSync(join(tmpdir(), "example-paths-")), "space test");
   mkdirSync(join(checkout, "examples"), { recursive: true });
-  for (const dir of ["tools", "brand"]) symlinkSync(join(root, dir), join(checkout, dir));
+  // "junction" is the one directory link Windows creates without elevation —
+  // the platform this suite exists for. The type is ignored on POSIX.
+  for (const dir of ["tools", "brand"]) symlinkSync(join(root, dir), join(checkout, dir), "junction");
   for (const f of ["gen-example.js", "stick-figure.excalidrawlib"]) {
     copyFileSync(join(root, "examples", f), join(checkout, "examples", f));
   }
@@ -55,16 +57,25 @@ const check = (name, cond, detail) => {
 
 // ---- 2. no URL.pathname as a filesystem path ----
 {
+  // In JS, any `.pathname` read is the bug — nothing here has a legitimate use
+  // for it — so the guard is the property, not one spelling of one expression.
+  // Comments are stripped first: naming the trap is how the fix stays understood.
+  const code = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  // Markdown is prose around snippets, so only the shape counts there; the
+  // sentence explaining why `URL.pathname` is wrong has to stay sayable.
+  const shape = (src) => (/\)\s*\.pathname/.test(src) ? src : "");
+
   const sources = [
-    "examples/gen-example.js",
-    "skills/excalidraw-diagram/SKILL.md",
-    "skills/excalidraw-diagram/reference/authoring.md",
-    "skills/excalidraw-diagram/reference/palette.md",
-    "skills/excalidraw-diagram/reference/patterns.md",
-    "skills/excalidraw-diagram/reference/anti-patterns.md",
+    ["examples/gen-example.js", (s) => code(s)],
+    ["skills/excalidraw-diagram/SKILL.md", shape],
+    ["skills/excalidraw-diagram/reference/authoring.md", shape],
+    ["skills/excalidraw-diagram/reference/palette.md", shape],
+    ["skills/excalidraw-diagram/reference/patterns.md", shape],
+    ["skills/excalidraw-diagram/reference/anti-patterns.md", shape],
   ];
-  // the shape, `new URL(…).pathname`, not the name — the prose above names it too
-  const offenders = sources.filter((f) => /\)\s*\.pathname/.test(readFileSync(join(root, f), "utf8")));
+  const offenders = sources
+    .filter(([f, scan]) => /\.pathname\b/.test(scan(readFileSync(join(root, f), "utf8"))))
+    .map(([f]) => f);
   check("no URL.pathname in the example or the docs templates",
     offenders.length === 0, offenders.join(", ") || `${sources.length} files clean`);
 }

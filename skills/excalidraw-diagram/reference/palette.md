@@ -7,8 +7,9 @@ hex values into a generator:
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const { palette, PROSE, CODE } = await import(
-  pathToFileURL(join(process.env.CLAUDE_PLUGIN_ROOT, "tools/author.js")).href);
+const root = process.env.CLAUDE_PLUGIN_ROOT;
+if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const { palette, PROSE, CODE } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 palette.roles.remote.stroke   // "#792A8E"
 palette.roles.remote.fill     // "#FFF0FF"
 ```

@@ -224,8 +224,12 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 ## Round-tripping a human-edited file
 
 ```js
-const { reviseDiagram } = await import(
-  pathToFileURL(join(process.env.CLAUDE_PLUGIN_ROOT, "tools/author.js")).href);
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const root = process.env.CLAUDE_PLUGIN_ROOT;
+if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const { reviseDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
 ```

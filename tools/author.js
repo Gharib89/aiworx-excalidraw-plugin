@@ -16,7 +16,7 @@
  * round-trips it through the library's restore (refreshed text metrics,
  * repaired bindings) and the same gate.
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
@@ -322,10 +322,35 @@ function validateSkeleton(built) {
 }
 
 /**
+ * Write every [path, body] pair, or leave all of them as they were.
+ *
+ * Each body goes to a sibling temp file first and only then is renamed into
+ * place. A write is where the failures live — no space, a read-only target, a
+ * full quota — and every one of them now happens while the real files are still
+ * untouched. The renames that follow need no space and no permission on the
+ * target itself, just the directory, so the pair does not diverge.
+ */
+function writeTogether(pairs) {
+  const staged = pairs.map(([path, body]) => ({
+    path,
+    tmp: `${path}.${randomBytes(6).toString("hex")}.tmp`,
+    body,
+  }));
+  try {
+    for (const { tmp, body } of staged) writeFileSync(tmp, body);
+  } catch (err) {
+    for (const { tmp } of staged) rmSync(tmp, { force: true });
+    throw err;
+  }
+  for (const { path, tmp } of staged) renameSync(tmp, path);
+}
+
+/**
  * Gate in-process, then write the .excalidraw and its SVG; a gate failure throws
- * before anything is written. The SVG is rendered before either file is written,
- * so an export that throws leaves both files untouched instead of dropping a
- * fresh .excalidraw next to a stale or missing .svg.
+ * before anything is written. The SVG is rendered before either file is written
+ * and both are staged then renamed into place, so a failing export — or a
+ * failing write — leaves both files as they were instead of dropping a fresh
+ * .excalidraw next to a stale or missing .svg.
  */
 async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
   const doc = { type: "excalidraw", version: 2, source: "aiworx-excalidraw", elements, appState, files };
@@ -338,8 +363,10 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
   const svgOut = svg ? out.replace(/\.excalidraw$/, "") + ".svg" : null;
   const rendered = svgOut ? await ex.exportSvg({ elements, appState, files }) : null;
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, JSON.stringify(doc, null, 2) + "\n");
-  if (svgOut) writeFileSync(svgOut, rendered.svg);
+  writeTogether([
+    [out, JSON.stringify(doc, null, 2) + "\n"],
+    ...(svgOut ? [[svgOut, rendered.svg]] : []),
+  ]);
   const frames = elements.filter((e) => e.type === "frame");
   console.log(`${out}  ${elements.length} elements, ${frames.length} frames${svgOut ? `\n${svgOut}` : ""}`);
   return { elements, frames, out, svgOut };

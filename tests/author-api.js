@@ -13,9 +13,11 @@
  *      the gate, the revised file passes it
  *   6. the same round-trip on the committed example
  *   7. a failing SVG export leaves both files unwritten
+ *   8. a failing write leaves the previous pair as it was
  */
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
+  writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -214,6 +216,13 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   check("revise names a foreign document", r2.ok, r2.detail);
 }
 
+/** The smallest build that passes the gate: one measured line of text. */
+const oneLine = (text) => async ({ measure, PROSE }) => {
+  const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
+  return [{ type: "text", x: 0, y: 0, text, fontSize: 18, fontFamily: PROSE,
+    width: m.width, height: m.height }];
+};
+
 // ---- 7. a failing SVG export leaves the output directory clean ----
 // A copy of the plugin whose browser layer delegates to the real one but
 // sabotages the export step: convert and the gate stay real, only the renderer
@@ -242,20 +251,37 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   );
 
   const out = join(outDir, "export-fails.excalidraw");
-  const r = await rejectsWith("PageError", brokenAuthor({
-    out,
-    build: async ({ measure, PROSE }) => {
-      const text = "the export will fail";
-      const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
-      return [{ type: "text", x: 0, y: 0, text, fontSize: 18, fontFamily: PROSE,
-        width: m.width, height: m.height }];
-    },
-  }));
+  const r = await rejectsWith("PageError", brokenAuthor({ out, build: oneLine("the export will fail") }));
   check("a failing SVG export propagates", r.ok && /induced export failure/.test(r.message ?? ""),
     r.detail);
   const svgOut = out.replace(/\.excalidraw$/, ".svg");
   check("a failing SVG export writes neither file", !existsSync(out) && !existsSync(svgOut),
     `${existsSync(out) ? "excalidraw written " : ""}${existsSync(svgOut) ? "svg written" : ""}`);
+}
+
+// ---- 8. a failing write leaves the previous pair as it was ----
+// The export can succeed and the write still fail. A directory that refuses new
+// files, with the render already gone, used to strand a rewritten .excalidraw
+// with no .svg beside it; staging both bodies before either lands closes that.
+// Permission bits only bind a non-root POSIX user, so elsewhere this is a skip.
+if (process.platform === "win32" || process.getuid?.() === 0) {
+  console.log("SKIP  a failing write leaves the previous pair as it was — needs POSIX bits, non-root");
+} else {
+  const dir = join(outDir, "readonly");
+  const out = join(dir, "pair.excalidraw");
+  const svgOut = out.replace(/\.excalidraw$/, ".svg");
+  await authorDiagram({ out, build: oneLine("first pass") });
+  const before = readFileSync(out, "utf8");
+  rmSync(svgOut);
+  chmodSync(dir, 0o555);
+  const r = await rejectsWith("Error", authorDiagram({ out, build: oneLine("second pass") }));
+  chmodSync(dir, 0o755);
+
+  check("a failing write is loud", r.ok && /EACCES|EPERM/.test(r.message ?? ""), r.detail);
+  check("a failing write leaves the document as it was",
+    readFileSync(out, "utf8") === before, `document mentions second pass: ${/second pass/.test(readFileSync(out, "utf8"))}`);
+  check("a failing write leaves no stray temp file",
+    !existsSync(svgOut) && readdirSync(dir).join(",") === "pair.excalidraw", readdirSync(dir).join(","));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

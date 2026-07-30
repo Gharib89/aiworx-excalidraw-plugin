@@ -36,8 +36,9 @@ function makeCopy() {
     copyFileSync(join(root, f), join(dir, f));
   }
   copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));
-  // the copy resolves playwright-core through the real install
-  symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "dir");
+  // the copy resolves playwright-core through the real install. "junction" is the
+  // one directory link Windows creates without elevation; ignored on POSIX.
+  symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
   return dir;
 }
 

@@ -81,6 +81,10 @@ export function verifyDocument(data) {
       note(`text "${preview(t.text)}" references missing container ${t.containerId}`);
       continue;
     }
+    // A shape clips the text inside it; a line does not. An arrow's label is
+    // centred on the path and drawn over whatever is behind it, so a label wider
+    // than a short arrow is how labelled edges render, not a defect.
+    if (LINEAR.has(c.type)) continue;
     if (t.width > (c.width ?? 0) + 1 || t.height > (c.height ?? 0) + 1) {
       note(
         `text overflows container: "${preview(t.text)}" ${round(t.width)}x${round(t.height)} in ${round(c.width)}x${round(c.height)} (${c.type} ${c.id})`,

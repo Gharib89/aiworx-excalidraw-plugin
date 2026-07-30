@@ -21,6 +21,9 @@ const CASES = [
   { name: "frames-overlap", exit: 1, expect: "frames overlap" },
   { name: "missing-container", exit: 1, expect: "references missing container ghost" },
   { name: "text-overflows-container", exit: 1, expect: "text overflows container" },
+  // a shape clips its text, a line does not: the same width is a defect above
+  // and correct rendering here
+  { name: "arrow-label-wide", exit: 0, expect: "no mechanical defects" },
   { name: "missing-frame", exit: 1, expect: "references missing frame ghost" },
   { name: "escapes-frame", exit: 1, expect: "escapes frame" },
   { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame" },

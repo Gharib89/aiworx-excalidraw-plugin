@@ -284,5 +284,42 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     !existsSync(svgOut) && readdirSync(dir).join(",") === "pair.excalidraw", readdirSync(dir).join(","));
 }
 
+// ---- 9. a labelled arrow: bound, measured text that survives the gate ----
+{
+  const out = join(outDir, "labelled.excalidraw");
+  const result = await authorDiagram({
+    out,
+    svg: false,
+    build: async ({ row, box, arrowBetween, palette: p }) => {
+      const card = (id, role) =>
+        box({ type: "rectangle", x: 0, y: 0, width: 120, height: 60 },
+          { padding: 16, id, strokeColor: p.roles[role].stroke, backgroundColor: p.roles[role].fill });
+      const a = card("src", "local");
+      const b = card("dst", "artifact");
+      row([a, b], { gap: 120 });
+      return [a, b, arrowBetween(a, b, { standoff: 10, label: "writes", strokeColor: p.grey.stroke })];
+    },
+  });
+  const arrow = result.elements.find((e) => e.type === "arrow");
+  const label = result.elements.find((e) => e.type === "text");
+  check("the label converts to text bound to the arrow",
+    label?.containerId === arrow.id, `container ${label?.containerId} vs arrow ${arrow.id}`);
+  check("the label is measured, in the house font",
+    label?.text === "writes" && label.fontFamily === PROSE && label.width > 0 && label.height > 0,
+    `${label?.width?.toFixed(1)}x${label?.height?.toFixed(1)} family ${label?.fontFamily}`);
+  check("the arrow lists its label in boundElements",
+    arrow.boundElements?.some((be) => be.id === label.id && be.type === "text"),
+    JSON.stringify(arrow.boundElements));
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("a labelled arrow passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+  // the round-trip must not drop the binding: restore re-measures bound text
+  const revised = await reviseDiagram({ file: out, svg: false });
+  const revisedLabel = revised.elements.find((e) => e.type === "text");
+  check("revise keeps the label bound to its arrow",
+    revisedLabel?.containerId === revised.elements.find((e) => e.type === "arrow").id,
+    `container ${revisedLabel?.containerId}`);
+}
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");
 process.exit(fail.length ? 1 : 0);

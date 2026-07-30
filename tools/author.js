@@ -446,20 +446,24 @@ export async function authorDiagram(options) {
 export async function withAuthoring(fn) {
   return withExcalidraw(async (ex) => {
     let queue = Promise.resolve();
-    const result = await fn((options) => {
-      const done = queue.then(() => authorInto(ex, options));
-      // one diagram's failure is its caller's; the queue later calls chain on
-      // must stay resolved or the whole batch fails with the first defect
-      queue = done.catch(() => {});
-      return done;
-    });
-    // A diagram handed out but never awaited — a forEach over the panels, a
-    // forgotten await — is still work this session promised to do, and the
-    // browser closes the moment this returns. Drain before that, or which files
-    // landed comes down to timing. The queue never rejects, so a caller who
-    // dropped a failing diagram still gets their own error, not a session one.
-    await queue;
-    return result;
+    try {
+      return await fn((options) => {
+        const done = queue.then(() => authorInto(ex, options));
+        // one diagram's failure is its caller's; the queue later calls chain on
+        // must stay resolved or the whole batch fails with the first defect
+        queue = done.catch(() => {});
+        return done;
+      });
+    } finally {
+      // A diagram handed out but never awaited — a forEach over the panels, a
+      // forgotten await — is still work this session promised to do, and the
+      // browser closes the moment this returns. Drain before that, or which
+      // files landed comes down to timing; in a finally, so a callback that
+      // throws leaves the same files behind as one that returns. The queue
+      // never rejects, so a caller who dropped a failing diagram still gets
+      // their own error, and it never displaces theirs.
+      await queue;
+    }
   });
 }
 

@@ -443,10 +443,20 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   check("a session finishes diagrams the caller never awaited", existsSync(loose),
     `${loose} ${widths.loose === undefined ? "never built" : "written"}`);
 
+  // ...and the same holds when the callback itself throws: the caller's error is
+  // the one that comes back, over the files the session had already promised
+  const looseThrown = join(outDir, "unawaited-then-throw.excalidraw");
+  const thrown = await rejectsWith("RangeError", withAuthoring(async (author) => {
+    author({ out: looseThrown, svg: false, build: measuring("looseThrown", ASCII) }).catch(() => {});
+    throw new RangeError("the generator gave up mid-batch");
+  }));
+  check("a callback that throws still leaves its diagrams written",
+    thrown.ok && existsSync(looseThrown), `${thrown.detail}; written ${existsSync(looseThrown)}`);
+
   // the single-shot API still opens and closes its own browser
   const solo = join(outDir, "still-single-shot.excalidraw");
   await countedAuthor({ out: solo, svg: false, build: measuring("solo", ASCII) });
-  check("the single-shot API still launches per call", launchCount() === 4, `${launchCount()} launches`);
+  check("the single-shot API still launches per call", launchCount() === 5, `${launchCount()} launches`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

@@ -444,15 +444,22 @@ export async function authorDiagram(options) {
  * the calls queue here rather than the invariant resting on the caller.
  */
 export async function withAuthoring(fn) {
-  return withExcalidraw((ex) => {
+  return withExcalidraw(async (ex) => {
     let queue = Promise.resolve();
-    return fn((options) => {
+    const result = await fn((options) => {
       const done = queue.then(() => authorInto(ex, options));
       // one diagram's failure is its caller's; the queue later calls chain on
       // must stay resolved or the whole batch fails with the first defect
       queue = done.catch(() => {});
       return done;
     });
+    // A diagram handed out but never awaited — a forEach over the panels, a
+    // forgotten await — is still work this session promised to do, and the
+    // browser closes the moment this returns. Drain before that, or which files
+    // landed comes down to timing. The queue never rejects, so a caller who
+    // dropped a failing diagram still gets their own error, not a session one.
+    await queue;
+    return result;
   });
 }
 

@@ -431,10 +431,22 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
       `#${i} batch ${batch?.toFixed(2)} vs fresh ${fresh?.toFixed(2)}`).join("; ") ||
       `${RARER.length} concurrent diagrams, no drift`);
 
+  // A diagram handed out but never awaited — a forEach over the panels, a
+  // forgotten await on the Promise.all — is still work the session promised to
+  // do. Closing the browser when the callback resolves would abandon it
+  // mid-flight, and which files landed would depend on timing. (The .catch keeps
+  // the loose promise from crashing the run on the way to the check.)
+  const loose = join(outDir, "unawaited.excalidraw");
+  await withAuthoring(async (author) => {
+    author({ out: loose, svg: false, build: measuring("loose", ASCII) }).catch(() => {});
+  });
+  check("a session finishes diagrams the caller never awaited", existsSync(loose),
+    `${loose} ${widths.loose === undefined ? "never built" : "written"}`);
+
   // the single-shot API still opens and closes its own browser
   const solo = join(outDir, "still-single-shot.excalidraw");
   await countedAuthor({ out: solo, svg: false, build: measuring("solo", ASCII) });
-  check("the single-shot API still launches per call", launchCount() === 3, `${launchCount()} launches`);
+  check("the single-shot API still launches per call", launchCount() === 4, `${launchCount()} launches`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

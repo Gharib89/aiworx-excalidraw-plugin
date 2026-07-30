@@ -45,6 +45,7 @@ const CASES = [
   { name: "text-over-image", exit: 1, expect: 'text "over the screenshot" sits over image i1' },
   { name: "foreign-font", exit: 1, expect: "outside the house pair" },
   { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary" },
+  { name: "malformed-element", exit: 1, expect: "element at index 1 is not an element object" },
 ];
 
 const fail = [];
@@ -90,6 +91,21 @@ for (const c of CASES) {
 
   const unreadable = run(CLEAN, ABSENT);
   check("an unreadable input outranks a mere defect", unreadable.status === 2, `exit ${unreadable.status}`);
+
+  // A document the rules cannot even walk must not take the batch down with it:
+  // every other file is still owed its report.
+  const hostile = run(fixture("malformed-element"), CLEAN);
+  check("a malformed document does not abort the batch",
+    hostile.status === 1 && hostile.stdout.includes("clean — no mechanical defects"),
+    `exit ${hostile.status}: ${hostile.stdout.trim().split("\n").pop()}`);
+
+  // A path can start with -- ; the conventional end-of-options marker is how you
+  // say so, and it is not itself an input.
+  const marker = run("--", CLEAN);
+  check("-- ends the options", marker.status === 0 && marker.stdout.includes(CLEAN), `exit ${marker.status}`);
+  const markerJson = run("--json", "--", CLEAN);
+  check("-- composes with a flag before it",
+    markerJson.status === 0 && JSON.parse(markerJson.stdout).files.length === 1, `exit ${markerJson.status}`);
 
   // --json: one document, exit codes unchanged
   const j = run(CLEAN, DIRTY, ABSENT, "--json");

@@ -4,7 +4,7 @@
  * API can run them in-process before writing; this wrapper adds the file-level
  * checks (readable, parseable, actually an Excalidraw document) and the output.
  *
- * Usage: node tools/check.js diagram.excalidraw [more.excalidraw ...] [--json]
+ * Usage: node tools/check.js [--json] [--] diagram.excalidraw [more.excalidraw ...]
  *
  * Every file is checked and reported; the exit code is the worst one seen, so a
  * clean run of many files still exits 0 and one bad file still fails the batch.
@@ -14,12 +14,14 @@
 import { readFileSync } from "node:fs";
 import { verifyDocument } from "./verify.js";
 
-const USAGE = "usage: check.js <file.excalidraw> [more.excalidraw ...] [--json]";
+const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw ...]";
 
 const inputs = [];
 let json = false;
+let literal = false; // everything after -- is a path, even if it looks like a flag
 for (const arg of process.argv.slice(2)) {
-  if (!arg.startsWith("--")) inputs.push(arg);
+  if (literal || !arg.startsWith("--")) inputs.push(arg);
+  else if (arg === "--") literal = true;
   else if (arg === "--json") json = true;
   else {
     console.error(`unknown flag ${arg}\n${USAGE}`);
@@ -55,7 +57,15 @@ function inspect(file) {
   if (data?.type !== "excalidraw" || !Array.isArray(data.elements)) {
     return { file, ok: false, code: 1, error: `not an Excalidraw document (type ${JSON.stringify(data?.type)})` };
   }
-  const { problems, stats } = verifyDocument(data);
+  // The rules name a malformed document rather than throwing on it, but a batch
+  // owes every other file its report whatever this one turns out to contain.
+  let result;
+  try {
+    result = verifyDocument(data);
+  } catch (err) {
+    return { file, ok: false, code: 1, error: `cannot be checked — ${err.name}: ${err.message}` };
+  }
+  const { problems, stats } = result;
   return { file, ok: problems.length === 0, code: problems.length ? 1 : 0, problems, stats };
 }
 

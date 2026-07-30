@@ -27,13 +27,21 @@ export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
  * Returns the defects found and the counts the CLI prints as a summary.
  */
 export function verifyDocument(data) {
-  const els = data.elements.filter((e) => !e.isDeleted);
+  const problems = [];
+  const note = (msg) => problems.push(msg);
+
+  // A null or primitive in the elements array — what a hand edit or a bad merge
+  // leaves behind — has no type, id or geometry, and would take every rule below
+  // down with it. Name it and drop it, so the rest of the document still gets checked.
+  const wellFormed = data.elements.filter((e, i) => {
+    if (e && typeof e === "object" && !Array.isArray(e)) return true;
+    note(`element at index ${i} is not an element object (${JSON.stringify(e) ?? typeof e})`);
+    return false;
+  });
+  const els = wellFormed.filter((e) => !e.isDeleted);
   const frames = els.filter((e) => e.type === "frame");
   const others = els.filter((e) => e.type !== "frame");
   const byId = new Map(els.map((e) => [e.id, e]));
-
-  const problems = [];
-  const note = (msg) => problems.push(msg);
 
   const texts = others.filter((e) => e.type === "text");
 

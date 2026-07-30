@@ -45,9 +45,17 @@ npm test                          # layout + gate fixtures + failure paths + ren
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
+node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
 node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
 ```
+
+`check.js` takes any number of files: each is reported, and the exit code is the
+worst one seen — 2 if an input could not be read at all, 1 if any file failed the
+rules, 0 if every file is clean. `--json` replaces the human output with one
+document (`{ ok, files: [{ file, ok, error?, problems, stats }] }`) covering
+every file, for pre-commit hooks and CI aggregation; the exit codes are the same
+either way.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,

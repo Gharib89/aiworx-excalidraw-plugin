@@ -3,7 +3,8 @@
  * Fixture suite for the geometry gate (tools/check.js). Every other step trusts
  * the gate's exit code, so the gate itself is proven here: one clean file must
  * exit 0, and one planted-defect file per live rule must exit 1 *and* name the
- * defect in its output.
+ * defect in its output. A second section covers the batch face: many files in
+ * one invocation, the combined exit code, and the --json report.
  *
  * Exits non-zero on any mismatch, with the gate's actual output printed.
  */
@@ -44,6 +45,7 @@ const CASES = [
   { name: "text-over-image", exit: 1, expect: 'text "over the screenshot" sits over image i1' },
   { name: "foreign-font", exit: 1, expect: "outside the house pair" },
   { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary" },
+  { name: "malformed-element", exit: 1, expect: "element at index 1 is not an element object" },
 ];
 
 const fail = [];
@@ -58,6 +60,89 @@ for (const c of CASES) {
   check(`${c.name}: exits ${c.exit}`, r.status === c.exit, `got ${r.status}`);
   check(`${c.name}: names the defect`, output.includes(c.expect),
     output.includes(c.expect) ? `"${c.expect}"` : `expected "${c.expect}" in:\n${output.trim()}`);
+}
+
+// ---- many files at once, and the machine-readable report ----
+//
+// The single-file cases above are the compatibility contract: this section only
+// adds what more than one argument, and --json, are supposed to do.
+{
+  const run = (...args) => spawnSync(process.execPath, [gate, ...args], { encoding: "utf8" });
+  const CLEAN = fixture("clean");
+  const DIRTY = fixture("duplicate-id");
+  const ABSENT = fixture("does-not-exist");
+
+  const EXAMPLE = join(root, "examples/example.excalidraw");
+  const both = run(CLEAN, EXAMPLE);
+  check("two clean files exit 0", both.status === 0, `exit ${both.status}`);
+  check("two clean files each get a summary",
+    both.stdout.includes(CLEAN) && both.stdout.includes(EXAMPLE) &&
+      /2 files checked, 0 failed/.test(both.stdout),
+    both.stdout.trim().split("\n").pop());
+
+  const mixed = run(CLEAN, DIRTY);
+  check("one bad file fails the batch", mixed.status === 1, `exit ${mixed.status}`);
+  check("the failing file's defect is named", mixed.stderr.includes("duplicate id dup"),
+    mixed.stderr.trim().split("\n").filter(Boolean).slice(0, 2).join(" | "));
+  check("the clean file is still reported", mixed.stdout.includes("clean — no mechanical defects"));
+  check("the roll-up names which file failed",
+    /1 failed: /.test(mixed.stderr) && mixed.stderr.includes(DIRTY),
+    mixed.stderr.trim().split("\n").pop());
+
+  const unreadable = run(CLEAN, ABSENT);
+  check("an unreadable input outranks a mere defect", unreadable.status === 2, `exit ${unreadable.status}`);
+
+  // A document the rules cannot even walk must not take the batch down with it:
+  // every other file is still owed its report.
+  const hostile = run(fixture("malformed-element"), CLEAN);
+  check("a malformed document does not abort the batch",
+    hostile.status === 1 && hostile.stdout.includes("clean — no mechanical defects"),
+    `exit ${hostile.status}: ${hostile.stdout.trim().split("\n").pop()}`);
+
+  // A path can start with -- ; the conventional end-of-options marker is how you
+  // say so, and it is not itself an input.
+  const marker = run("--", CLEAN);
+  check("-- ends the options", marker.status === 0 && marker.stdout.includes(CLEAN), `exit ${marker.status}`);
+  const markerJson = run("--json", "--", CLEAN);
+  check("-- composes with a flag before it",
+    markerJson.status === 0 && JSON.parse(markerJson.stdout).files.length === 1, `exit ${markerJson.status}`);
+
+  // --json: one document, exit codes unchanged
+  const j = run(CLEAN, DIRTY, ABSENT, "--json");
+  check("--json keeps the worst exit code", j.status === 2, `exit ${j.status}`);
+  let doc = null;
+  try {
+    doc = JSON.parse(j.stdout);
+  } catch (err) {
+    doc = null;
+  }
+  check("--json prints one parseable document and nothing else", doc !== null,
+    doc ? "" : j.stdout.trim().slice(0, 120));
+  if (doc) {
+    check("--json covers every file in order",
+      doc.files?.length === 3 && doc.files.map((f) => f.file).join("|") === [CLEAN, DIRTY, ABSENT].join("|"),
+      JSON.stringify(doc.files?.map((f) => f.ok)));
+    check("--json reports ok false for the batch", doc.ok === false);
+    check("--json carries per-file problems and stats",
+      doc.files[0].ok === true && doc.files[0].problems.length === 0 &&
+        doc.files[0].stats.elements > 0 &&
+        doc.files[1].problems.some((p) => p.includes("duplicate id dup")),
+      JSON.stringify(doc.files[1].problems));
+    check("--json names the read failure and nulls its stats",
+      /cannot read/.test(doc.files[2].error ?? "") && doc.files[2].stats === null,
+      JSON.stringify(doc.files[2]));
+  }
+
+  const jClean = run(CLEAN, "--json");
+  check("--json on a clean file exits 0 with ok true",
+    jClean.status === 0 && JSON.parse(jClean.stdout).ok === true, `exit ${jClean.status}`);
+
+  const bogus = run(CLEAN, "--bogus");
+  check("an unknown flag is a usage error", bogus.status === 2 && /unknown flag --bogus/.test(bogus.stderr),
+    `exit ${bogus.status}: ${bogus.stderr.trim().split("\n")[0]}`);
+  const noArgs = run();
+  check("no input is a usage error", noArgs.status === 2 && /usage: check\.js/.test(noArgs.stderr),
+    `exit ${noArgs.status}`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall gate fixtures behave");

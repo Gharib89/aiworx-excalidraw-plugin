@@ -4,7 +4,11 @@
 hex values into a generator:
 
 ```js
-const { palette, PROSE, CODE } = await import(`${process.env.CLAUDE_PLUGIN_ROOT}/tools/author.js`);
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const { palette, PROSE, CODE } = await import(
+  pathToFileURL(join(process.env.CLAUDE_PLUGIN_ROOT, "tools/author.js")).href);
 palette.roles.remote.stroke   // "#792A8E"
 palette.roles.remote.fill     // "#FFF0FF"
 ```
@@ -51,8 +55,8 @@ made only 2.98:1 against its own fill.
 ## Verifying
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/tools/palette.js           # print the table and the checks
-node ${CLAUDE_PLUGIN_ROOT}/tools/palette.js --write   # rewrite brand/palette.json
+node "${CLAUDE_PLUGIN_ROOT}/tools/palette.js"           # print the table and the checks
+node "${CLAUDE_PLUGIN_ROOT}/tools/palette.js" --write   # rewrite brand/palette.json
 ```
 
 It refuses to write unless body text clears 4.5:1 on every fill, strokes clear

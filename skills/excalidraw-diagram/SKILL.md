@@ -68,8 +68,9 @@ Geometry (rotation included): overlapping frames, bound text larger than its
 container, elements escaping their frame or sitting over one without belonging
 to it, free texts on top of each other, arrows crossing shapes they aren't
 bound to, arrowheads buried inside their target, off-canvas strays. Style:
-text failing 4.5:1 contrast against the fill it sits on, fonts outside the
-house pair.
+text failing 4.5:1 contrast against the fill it sits on, text sitting over an
+image (whose pixels are a ground no ratio can measure), fonts outside the house
+pair.
 
 Done when it exits 0.
 

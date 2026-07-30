@@ -1,0 +1,17 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: free text centred over an image, whose pixels are an unknowable ground",
+  "elements": [
+    { "id": "i1", "type": "image", "x": 0, "y": 0, "width": 200, "height": 120, "fileId": "shot" },
+    { "id": "t1", "type": "text", "x": 40, "y": 50, "width": 120, "height": 25, "text": "over the screenshot", "strokeColor": "#1A1A19", "fontFamily": 6 }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {
+    "shot": {
+      "id": "shot",
+      "mimeType": "image/png",
+      "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg=="
+    }
+  }
+}

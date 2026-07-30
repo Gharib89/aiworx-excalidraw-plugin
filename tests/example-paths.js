@@ -103,15 +103,23 @@ const check = (name, cond, detail) => {
   // reaches for `join` without `pathToFileURL` is handing a path to the loader.
   const buildsSpecifier = (line) => /\bfrom\s*["'`]?\$\{/.test(line) || /\bimport\(\s*(?!["'`])/.test(line);
   const raw = (line) => /\bjoin\(/.test(line) && !/pathToFileURL/.test(line) && buildsSpecifier(line);
+  // Comments are stripped, as in section 2: otherwise naming `pathToFileURL` in a
+  // trailing comment would switch the guard off for that line. Block comments
+  // collapse to their newlines so the reported line numbers stay true.
+  const stripComments = (src) =>
+    src.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, "")).replace(/\/\/.*$/gm, "");
 
+  /** Every .js under `dir`, at any depth — "anywhere under tests/" means anywhere. */
   const jsFiles = (dir) =>
-    readdirSync(join(root, dir), { withFileTypes: true })
-      .filter((e) => e.isFile() && e.name.endsWith(".js"))
-      .map((e) => `${dir}/${e.name}`);
+    readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? jsFiles(`${dir}/${e.name}`)
+        : e.name.endsWith(".js") ? [`${dir}/${e.name}`]
+        : [],
+    );
 
   const offenders = [];
   for (const f of [...jsFiles("tests"), ...jsFiles("tools"), ...jsFiles("examples")]) {
-    readFileSync(join(root, f), "utf8")
+    stripComments(readFileSync(join(root, f), "utf8"))
       .split("\n")
       .forEach((line, i) => {
         if (raw(line)) offenders.push(`${f}:${i + 1} ${line.trim()}`);

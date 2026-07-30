@@ -38,6 +38,7 @@ const CASES = [
   { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target" },
   { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray" },
   { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1" },
+  { name: "text-over-image", exit: 1, expect: 'text "over the screenshot" sits over image i1' },
   { name: "foreign-font", exit: 1, expect: "outside the house pair" },
   { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary" },
 ];

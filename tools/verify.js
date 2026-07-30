@@ -194,23 +194,30 @@ export function verifyDocument(data) {
   //     container's fill for bound text, the topmost solid shape under a free
   //     text's centre, the canvas otherwise. Hachure and cross-hatch fills are
   //     mostly canvas behind the glyphs, so only solid fills count as the ground.
+  //     An image is a ground no ratio can measure — its pixels are unknown — so
+  //     text over one is flagged instead of scored against whatever lies below.
   const canvas = normalizeHex(data.appState?.viewBackgroundColor) ?? palette.canvas;
   const fillOf = (s) => ((s?.fillStyle ?? "solid") === "solid" ? normalizeHex(s?.backgroundColor) : null);
   for (const t of texts) {
     const ink = normalizeHex(t.strokeColor) ?? palette.ink;
-    let bg = null;
+    let ground = null; // the element the glyphs sit on; null means bare canvas
     if (t.containerId) {
-      bg = fillOf(byId.get(t.containerId));
+      ground = byId.get(t.containerId);
     } else {
       const tb = bounds(t);
       const centre = [(tb.x1 + tb.x2) / 2, (tb.y1 + tb.y2) / 2];
       for (const s of others) {
-        if (SOLID.has(s.type) && !nonFinite.has(s.id) && shapeDepth(s, centre) > 0) {
-          bg = fillOf(s) ?? bg; // later elements render on top
+        // later elements render on top, so the last ground under the centre wins
+        if (SOLID.has(s.type) && !nonFinite.has(s.id) && shapeDepth(s, centre) > 0 && (s.type === "image" || fillOf(s))) {
+          ground = s;
         }
       }
     }
-    bg ??= canvas;
+    if (ground?.type === "image") {
+      note(`text "${preview(t.text)}" sits over image ${ground.id}: contrast against image pixels is unknowable`);
+      continue;
+    }
+    const bg = fillOf(ground) ?? canvas;
     // WCAG: body text needs 4.5:1, large text (>= 24px) needs 3:1
     const needs = (t.fontSize ?? 20) >= 24 ? 3 : 4.5;
     const c = contrast(ink, bg);

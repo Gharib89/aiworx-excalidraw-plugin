@@ -67,6 +67,29 @@ difference, which is why the distance check exists alongside it.
 
 Changing a role colour means re-running this and accepting whatever it says.
 
+## Dark exports
+
+Excalidraw's dark theme is not a second palette. `exportToSvg` puts one CSS filter
+chain on the root `<svg>` — `invert(93%) hue-rotate(180deg)` — and every pixel
+including the background rect goes through it; images carry a counter-filter so
+photographs survive. So a dark colour is a pure function of its light one, and
+`tools/palette.js` runs the whole check list twice, once per theme. Both pass:
+under the filter the canvas becomes `#151514`, ink `#D7D7D6`, and the tightest
+margin is `pass` stroke-on-own-fill at 4.24:1 against a 3:1 floor.
+
+The filter is not contrast-preserving, though — it compresses some opposing hue
+pairs toward each other. Dark green `#145A32` on pale salmon `#F5B7B1` clears
+4.84:1 light and only 4.20:1 dark. For off-palette colours, point the gate at the
+theme you ship:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" diagram.excalidraw --dark
+```
+
+It scores the contrast rule on the colours the dark export renders. It is opt-in
+for the same reason `render.js --dark` is: a diagram only shipped light need not
+hold in a theme nobody exports it to.
+
 ## Fonts
 
 Family assignment and the embed/substitution rule live in SKILL.md's House

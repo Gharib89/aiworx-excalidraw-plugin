@@ -7,14 +7,17 @@
  * rule for all six, rather than six hand-picked tints that drift.
  *
  * Nothing is written unless every contrast check passes: body text must clear
- * 4.5:1 on its fill, and a stroke must clear 3:1 against the canvas.
+ * 4.5:1 on its fill, and a stroke must clear 3:1 against the canvas. Every check
+ * runs twice — once on the authored colours, once on what a dark export renders,
+ * because Excalidraw's dark theme is a filter over the same values and its
+ * ratios are not the light ones.
  *
  * Usage: node tools/palette.js [--write]
  */
 import { writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { toOklch, fromOklch, contrast, oklabDist } from "./color.js";
+import { toOklch, fromOklch, contrast, oklabDist, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -53,58 +56,81 @@ const slots = ROLES.map((r) => {
 });
 
 // ---------- verify ----------
-const fail = [];
-const rows = [];
-for (const s of slots) {
-  const inkOnFill = contrast(INK, s.fill);
-  const strokeOnCanvas = contrast(s.stroke, CANVAS);
-  const strokeOnFill = contrast(s.stroke, s.fill);
-  rows.push({
-    role: s.role,
-    stroke: s.stroke,
-    fill: s.fill,
-    "ink on fill": inkOnFill.toFixed(2),
-    "stroke on canvas": strokeOnCanvas.toFixed(2),
-    "stroke on fill": strokeOnFill.toFixed(2),
-  });
-  if (inkOnFill < 4.5) fail.push(`${s.role}: body text on fill only ${inkOnFill.toFixed(2)}:1`);
-  if (strokeOnCanvas < 3) fail.push(`${s.role}: stroke on canvas only ${strokeOnCanvas.toFixed(2)}:1`);
-  if (strokeOnFill < 3) fail.push(`${s.role}: stroke on own fill only ${strokeOnFill.toFixed(2)}:1`);
-}
-
-// Fills must read as a tint, not as the canvas and not as a block of colour.
-// A contrast ratio can't see a chroma-only difference, so use OKLab distance.
-for (const s of slots) {
-  const d = oklabDist(s.fill, CANVAS);
-  if (d < 0.02) fail.push(`${s.role}: fill indistinguishable from canvas (ΔOKLab ${d.toFixed(3)})`);
-  if (contrast(s.fill, CANVAS) > 1.25) {
-    fail.push(`${s.role}: fill too dark against canvas (${contrast(s.fill, CANVAS).toFixed(2)}:1)`);
+/**
+ * Every contrast and separation claim the palette makes, over one set of rendered
+ * colours. `paint` is identity for the light export and the dark-theme filter for
+ * the dark one; the rules are the same either way because the filter changes what
+ * is on screen, not what the diagram promises about it.
+ */
+function verify(paint) {
+  const canvas = paint(CANVAS);
+  const ink = paint(INK);
+  const fail = [];
+  const rows = [];
+  for (const s of slots) {
+    const [stroke, fill] = [paint(s.stroke), paint(s.fill)];
+    const inkOnFill = contrast(ink, fill);
+    const strokeOnCanvas = contrast(stroke, canvas);
+    const strokeOnFill = contrast(stroke, fill);
+    rows.push({
+      role: s.role,
+      stroke,
+      fill,
+      "ink on fill": inkOnFill.toFixed(2),
+      "stroke on canvas": strokeOnCanvas.toFixed(2),
+      "stroke on fill": strokeOnFill.toFixed(2),
+    });
+    if (inkOnFill < 4.5) fail.push(`${s.role}: body text on fill only ${inkOnFill.toFixed(2)}:1`);
+    if (strokeOnCanvas < 3) fail.push(`${s.role}: stroke on canvas only ${strokeOnCanvas.toFixed(2)}:1`);
+    if (strokeOnFill < 3) fail.push(`${s.role}: stroke on own fill only ${strokeOnFill.toFixed(2)}:1`);
   }
-}
-// Adjacent fills must be tellable apart, or the colour coding conveys nothing.
-for (let i = 0; i < slots.length; i++) {
-  for (let j = i + 1; j < slots.length; j++) {
-    const d = oklabDist(slots[i].fill, slots[j].fill);
-    if (d < 0.02) {
-      fail.push(`${slots[i].role}/${slots[j].role}: fills too close (ΔOKLab ${d.toFixed(3)})`);
+
+  // Fills must read as a tint, not as the canvas and not as a block of colour.
+  // A contrast ratio can't see a chroma-only difference, so use OKLab distance.
+  for (const s of slots) {
+    const fill = paint(s.fill);
+    const d = oklabDist(fill, canvas);
+    if (d < 0.02) fail.push(`${s.role}: fill indistinguishable from canvas (ΔOKLab ${d.toFixed(3)})`);
+    if (contrast(fill, canvas) > 1.25) {
+      fail.push(`${s.role}: fill too dark against canvas (${contrast(fill, canvas).toFixed(2)}:1)`);
     }
   }
-}
-const greyChecks = {
-  "grey stroke on canvas": contrast(GREY.stroke, CANVAS),
-  "ink on canvas": contrast(INK, CANVAS),
-  "ink on grey fill": contrast(INK, GREY.fill),
-};
-for (const [name, v] of Object.entries(greyChecks)) {
-  if (v < 4.5) fail.push(`${name} only ${v.toFixed(2)}:1`);
+  // Adjacent fills must be tellable apart, or the colour coding conveys nothing.
+  for (let i = 0; i < slots.length; i++) {
+    for (let j = i + 1; j < slots.length; j++) {
+      const d = oklabDist(paint(slots[i].fill), paint(slots[j].fill));
+      if (d < 0.02) {
+        fail.push(`${slots[i].role}/${slots[j].role}: fills too close (ΔOKLab ${d.toFixed(3)})`);
+      }
+    }
+  }
+  const greyChecks = {
+    "grey stroke on canvas": contrast(paint(GREY.stroke), canvas),
+    "ink on canvas": contrast(ink, canvas),
+    "ink on grey fill": contrast(ink, paint(GREY.fill)),
+  };
+  for (const [name, v] of Object.entries(greyChecks)) {
+    if (v < 4.5) fail.push(`${name} only ${v.toFixed(2)}:1`);
+  }
+  return { fail, rows, greyChecks };
 }
 
-console.table(rows);
-console.log(
-  Object.entries(greyChecks)
-    .map(([k, v]) => `${k}: ${v.toFixed(2)}:1`)
-    .join("\n"),
-);
+const themes = [
+  { name: "light export", paint: (c) => c },
+  { name: "dark export (invert 93% + hue-rotate 180deg)", paint: toDarkTheme },
+];
+const fail = [];
+for (const theme of themes) {
+  const result = verify(theme.paint);
+  console.log(`\n${theme.name} — canvas ${theme.paint(CANVAS)}, ink ${theme.paint(INK)}`);
+  console.table(result.rows);
+  console.log(
+    Object.entries(result.greyChecks)
+      .map(([k, v]) => `${k}: ${v.toFixed(2)}:1`)
+      .join("\n"),
+  );
+  fail.push(...result.fail.map((f) => `${theme.name}: ${f}`));
+}
 
 if (fail.length) {
   console.error(`\n${fail.length} contrast failure(s):`);

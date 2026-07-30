@@ -41,11 +41,12 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ## Commands
 
 ```bash
-npm test                          # layout + gate fixtures + failure paths + render/revise CLIs + palette + author API + assets + browser smoke
+npm test                          # layout + gate fixtures + dark theme + failure paths + render/revise CLIs + palette + author API + assets + browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
+node tools/check.js d.excalidraw --dark   # ...scoring contrast on what a dark export renders
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
 node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
 ```
@@ -73,6 +74,14 @@ node tools/render.js d.excalidraw --background "#0d1117"
 [`examples/example-dark.svg`](examples/example-dark.svg) is the committed `--dark`
 render of the example band.
 
+Dark exports are gated, not assumed. Excalidraw's dark theme is one CSS filter
+chain on the root `<svg>` — `invert(93%) hue-rotate(180deg)` — so every dark
+colour is a pure function of its light one. `tools/palette.js` therefore runs
+every contrast check against both themes, and `check.js --dark` scores a
+diagram's own colours the same way. The filter is not contrast-preserving: it
+compresses some opposing hue pairs, so a pair can clear 4.5:1 light and fail it
+dark. `tests/dark.js` pins the maths against Chrome's own filter pipeline.
+
 `npm test` runs on every push via GitHub Actions and writes only to a temporary
 directory — verification never touches tracked files.
 
@@ -84,10 +93,10 @@ skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, images, library splicing, in-process gate, revise round-trip
   layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap
-  check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect
+  check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect; --dark scores the dark export
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
   geometry.js       one bounds definition shared by the gate and the frame binder
-  color.js          colour maths shared by the gate's contrast rule and palette.js
+  color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included
   page.js           browser-side Excalidraw entry (measure, convert, export)
   browser.js        headless-Chromium driver around page.js
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs

@@ -41,12 +41,17 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ## Commands
 
 ```bash
-npm test                          # layout + gate fixtures + failure paths + render CLI + palette + author API + assets + browser smoke
+npm test                          # layout + gate fixtures + failure paths + render/revise CLIs + palette + author API + assets + browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
+node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
 ```
+
+`revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
+bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,
+or failing the gate — writing nothing in either case.
 
 `render.js` iteration knobs — invalid values are rejected with a `UsageError`:
 
@@ -78,11 +83,12 @@ tools/
   page.js           browser-side Excalidraw entry (measure, convert, export)
   browser.js        headless-Chromium driver around page.js
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs
+  revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place
   smoke.js          browser smoke suite proving measurement, conversion, export and raster survival
   palette.js        derives brand/palette.json and verifies every contrast claim
   bundle.js         builds the committed dist/ bundle, fonts inlined, stamped with a source fingerprint
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
-tests/              layout units, gate fixtures, failure paths, render CLI, author API suites
+tests/              layout units, gate fixtures, failure paths, render + revise CLI, author API suites
 dist/               committed browser bundle
 brand/              AIWorx palette
 examples/           worked generator (gen-example.js) and its committed output

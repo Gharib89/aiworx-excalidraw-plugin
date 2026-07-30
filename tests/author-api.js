@@ -14,6 +14,8 @@
  *   6. the same round-trip on the committed example
  *   7. a failing SVG export leaves both files unwritten
  *   8. a failing write leaves the previous pair as it was
+ *   9. a labelled arrow keeps its bound text through the gate and a revise
+ *  10. a session authors N diagrams over one browser launch, without drift
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
@@ -223,22 +225,30 @@ const oneLine = (text) => async ({ measure, PROSE }) => {
     width: m.width, height: m.height }];
 };
 
-// ---- 7. a failing SVG export leaves the output directory clean ----
-// A copy of the plugin whose browser layer delegates to the real one but
-// sabotages the export step: convert and the gate stay real, only the renderer
-// breaks — which is the window where a half-written pair used to appear. The
-// stub throws the PageError the real driver would, so the failure has the shape
-// production produces; it resolves playwright through the real plugin root.
-{
-  const pluginCopy = mkdtempSync(join(tmpdir(), "author-export-fail-"));
-  cpSync(join(root, "tools"), join(pluginCopy, "tools"), { recursive: true });
-  cpSync(join(root, "brand"), join(pluginCopy, "brand"), { recursive: true });
+/**
+ * A copy of the plugin whose tools/browser.js is replaced by `source` — a stub
+ * that delegates to the real driver, so convert, the gate and playwright stay
+ * real and only the one seam under test changes.
+ */
+function pluginCopyWith(label, source) {
+  const dir = mkdtempSync(join(tmpdir(), `author-${label}-`));
+  cpSync(join(root, "tools"), join(dir, "tools"), { recursive: true });
+  cpSync(join(root, "brand"), join(dir, "brand"), { recursive: true });
   // outside the repo the copied .js files have no nearest "type": "module", and
   // only Node's ESM syntax detection saves them — carry the manifest instead
-  cpSync(join(root, "package.json"), join(pluginCopy, "package.json"));
-  const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js")).href);
-  writeFileSync(
-    join(pluginCopy, "tools/browser.js"),
+  cpSync(join(root, "package.json"), join(dir, "package.json"));
+  writeFileSync(join(dir, "tools/browser.js"), source);
+  return pathToFileURL(join(dir, "tools/author.js")).href;
+}
+const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js")).href);
+
+// ---- 7. a failing SVG export leaves the output directory clean ----
+// The stub sabotages the export step: the renderer breaks, which is the window
+// where a half-written pair used to appear. It throws the PageError the real
+// driver would, so the failure has the shape production produces.
+{
+  const brokenPlugin = pluginCopyWith(
+    "export-fail",
     `import { withExcalidraw as real, PageError } from ${realBrowser};\n` +
       `export function withExcalidraw(fn, opts) {\n` +
       `  return real((ex) => fn({ ...ex, exportSvg: async () => {\n` +
@@ -246,9 +256,7 @@ const oneLine = (text) => async ({ measure, PROSE }) => {
       `  } }), opts);\n` +
       `}\n`,
   );
-  const { authorDiagram: brokenAuthor } = await import(
-    pathToFileURL(join(pluginCopy, "tools/author.js")).href
-  );
+  const { authorDiagram: brokenAuthor } = await import(brokenPlugin);
 
   const out = join(outDir, "export-fails.excalidraw");
   const r = await rejectsWith("PageError", brokenAuthor({ out, build: oneLine("the export will fail") }));
@@ -319,6 +327,77 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   check("revise keeps the label bound to its arrow",
     revisedLabel?.containerId === revised.elements.find((e) => e.type === "arrow").id,
     `container ${revisedLabel?.containerId}`);
+}
+
+// ---- 10. one browser session authors many diagrams ----
+// The three claims a session has to make: N diagrams cost one launch, a gate
+// failure in the middle leaves the session usable, and accumulated font warming
+// measures every glyph the same as a fresh browser would — the drift this whole
+// pipeline exists to prevent.
+{
+  const RARE = "→ ∑ é ✓ warmed late";
+  const ASCII = "plain ascii line";
+  const widths = {};
+  /** Record the measured width of `text` under `key`, and draw it. */
+  const measuring = (key, text) => async ({ measure, PROSE }) => {
+    const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
+    widths[key] = m.width;
+    return [{ type: "text", x: 0, y: 0, text, fontSize: 18, fontFamily: PROSE,
+      width: m.width, height: m.height }];
+  };
+  const overlapping = async ({ PROSE }) => [
+    { type: "text", x: 0, y: 0, text: "one", fontSize: 18, fontFamily: PROSE },
+    { type: "text", x: 4, y: 4, text: "two", fontSize: 18, fontFamily: PROSE },
+  ];
+
+  // a fresh single-shot browser measures the rare glyphs with nothing warmed before them
+  await authorDiagram({
+    out: join(outDir, "fresh-rare.excalidraw"), svg: false, build: measuring("freshRare", RARE),
+  });
+
+  const countingPlugin = pluginCopyWith(
+    "launch-count",
+    `import { withExcalidraw as real } from ${realBrowser};\n` +
+      `export let launches = 0;\n` +
+      `export const launchCount = () => launches;\n` +
+      `export function withExcalidraw(fn, opts) {\n` +
+      `  launches++;\n` +
+      `  return real(fn, opts);\n` +
+      `}\n`,
+  );
+  const { authorDiagram: countedAuthor, withAuthoring } = await import(countingPlugin);
+  const { launchCount } = await import(
+    countingPlugin.replace(/author\.js$/, "browser.js")
+  );
+
+  const outs = ["s1", "s2", "s3"].map((n) => join(outDir, `session-${n}.excalidraw`));
+  const gateOut = join(outDir, "session-gated.excalidraw");
+  const session = await withAuthoring(async (author) => {
+    const first = await author({ out: outs[0], svg: false, build: measuring("sessionAscii", ASCII) });
+    const gated = await rejectsWith("GateError", author({ out: gateOut, build: overlapping }));
+    const rare = await author({ out: outs[1], svg: false, build: measuring("sessionRare", RARE) });
+    const again = await author({ out: outs[2], svg: false, build: measuring("sessionAsciiAgain", ASCII) });
+    return { first, gated, rare, again };
+  });
+
+  check("a session authors every diagram", outs.every(existsSync), outs.map(existsSync).join(","));
+  check("a session costs one browser launch, not one per diagram", launchCount() === 1,
+    `${launchCount()} launches for a session of 3 diagrams`);
+  check("a gate failure inside a session is a GateError that writes nothing",
+    session.gated.ok && !existsSync(gateOut), session.gated.detail);
+  check("the session survives a failed diagram",
+    session.again.elements.length > 0 && existsSync(outs[2]), `then wrote ${outs[2]}`);
+  check("no measurement drift across a session",
+    widths.sessionAscii === widths.sessionAsciiAgain,
+    `${widths.sessionAscii?.toFixed(2)} then ${widths.sessionAsciiAgain?.toFixed(2)}`);
+  check("late glyphs measure as they do in a fresh browser",
+    Math.abs(widths.sessionRare - widths.freshRare) < 0.01,
+    `session ${widths.sessionRare?.toFixed(2)} vs fresh ${widths.freshRare?.toFixed(2)}`);
+
+  // the single-shot API still opens and closes its own browser
+  const solo = join(outDir, "still-single-shot.excalidraw");
+  await countedAuthor({ out: solo, svg: false, build: measuring("solo", ASCII) });
+  check("the single-shot API still launches per call", launchCount() === 2, `${launchCount()} launches`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

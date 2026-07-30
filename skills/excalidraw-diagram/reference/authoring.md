@@ -95,6 +95,30 @@ the same rules as `check.js` **in-process, before the file is written**: a
 defective build throws a `GateError` listing every defect and writes nothing.
 The output directory is created for you.
 
+## Many diagrams in one run
+
+Each `authorDiagram` call launches and closes its own headless browser (~1–2 s).
+A generator writing several diagrams — a band split into files, a set of panels —
+wraps them in one session instead:
+
+```js
+const { withAuthoring } = await import(pathToFileURL(join(root, "tools/author.js")).href);
+
+await withAuthoring(async (author) => {
+  for (const panel of panels) {
+    await author({ out: `docs/diagrams/${panel.slug}.excalidraw`, build: panel.build });
+  }
+});
+```
+
+`author` takes exactly the options `authorDiagram` takes and returns the same
+result. Every diagram is still gated before its own write, so a `GateError`
+names one diagram and the session stays usable for the rest — catch it inside the
+callback to keep going. Font warming accumulates across the session: a glyph that
+first appears in the last diagram re-warms the page, and everything measured
+before it still measures the same. Use `authorDiagram` for a single diagram; it
+is the same code path with the session opened for you.
+
 ## Composing layout
 
 Hand-accumulated pixel offsets (`y + title.height + 28 + body.height + …`)

@@ -12,6 +12,9 @@
  *       [ ...skeleton or layout groups ],
  *   });
  *
+ * Several diagrams in one run share a browser session through withAuthoring,
+ * which pays one Chromium launch for all of them and gates each one the same way.
+ *
  * A human-edited file re-enters the pipeline through reviseDiagram, which
  * round-trips it through the library's restore (refreshed text metrics,
  * repaired bindings) and the same gate.
@@ -402,18 +405,39 @@ const buildContext = (ex, files) => ({
   spliceLibraryItem,
 });
 
+/** One diagram, built and written inside an already-open browser session. */
+async function authorInto(ex, { out, build, svg = true, background }) {
+  const files = {};
+  const skeleton = validateSkeleton(await build(buildContext(ex, files)));
+  const elements = bindToFrames(await ex.convert(skeleton));
+  const appState = {
+    viewBackgroundColor: background ?? palette.canvas,
+    gridSize: 20,
+  };
+  return gateAndWrite(ex, { out, elements, appState, files, svg });
+}
+
 /** Build, verify in-process, and write a diagram from a skeleton. */
-export async function authorDiagram({ out, build, svg = true, background }) {
-  return withExcalidraw(async (ex) => {
-    const files = {};
-    const skeleton = validateSkeleton(await build(buildContext(ex, files)));
-    const elements = bindToFrames(await ex.convert(skeleton));
-    const appState = {
-      viewBackgroundColor: background ?? palette.canvas,
-      gridSize: 20,
-    };
-    return gateAndWrite(ex, { out, elements, appState, files, svg });
-  });
+export async function authorDiagram(options) {
+  return withExcalidraw((ex) => authorInto(ex, options));
+}
+
+/**
+ * Author several diagrams over one browser session — one Chromium launch instead
+ * of one per diagram, which is the ~1–2 s a generator was paying per call.
+ *
+ *   await withAuthoring(async (author) => {
+ *     for (const panel of panels) await author({ out: panel.out, build: panel.build });
+ *   });
+ *
+ * `author` takes exactly the options authorDiagram takes and gates each diagram
+ * before its own write, so a failure names one diagram and leaves the session
+ * usable for the next. Font warming accumulates across the session: a glyph
+ * first seen in the fifth diagram re-warms the page, and the strings measured
+ * before it still measure the same.
+ */
+export async function withAuthoring(fn) {
+  return withExcalidraw((ex) => fn((options) => authorInto(ex, options)));
 }
 
 /**

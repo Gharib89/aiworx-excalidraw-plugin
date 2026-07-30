@@ -186,7 +186,9 @@ function makeImage(ex, files) {
         try {
           intrinsic = await ex.imageSize(files[fileId]);
         } catch (err) {
-          throw new AssetError(`${path}: cannot decode image bytes — ${err.message}`);
+          // the name carries the diagnosis (EncodingError, PageError); a bare
+          // message can lose it, or be empty for a non-Error throw
+          throw new AssetError(`${path}: cannot decode image bytes — ${err.name}: ${err.message || err}`);
         }
       }
       if (!intrinsic) {

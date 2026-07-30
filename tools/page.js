@@ -137,8 +137,16 @@ async function svgSize(dataURL) {
   if (doc.querySelector("parsererror") || svg?.tagName !== "svg") {
     throw new Error("not parseable SVG markup");
   }
-  const ABSOLUTE = new Set([SVGLength.SVG_LENGTHTYPE_NUMBER, SVGLength.SVG_LENGTHTYPE_PX]);
-  const px = (len) => (ABSOLUTE.has(len?.unitType) && len.value > 0 ? len.value : null);
+  // SVGLength.value resolves every absolute unit to px for us — in, cm, mm, pt,
+  // pc as well as px and unitless. Viewport- and font-relative units state no
+  // intrinsic size at all, so they are refused rather than resolved against a
+  // viewport this detached document does not have.
+  const RELATIVE = new Set([
+    SVGLength.SVG_LENGTHTYPE_PERCENTAGE,
+    SVGLength.SVG_LENGTHTYPE_EMS,
+    SVGLength.SVG_LENGTHTYPE_EXS,
+  ]);
+  const px = (len) => (len && !RELATIVE.has(len.unitType) && len.value > 0 ? len.value : null);
   const width = px(svg.width?.baseVal);
   const height = px(svg.height?.baseVal);
   if (width && height) return { width, height };

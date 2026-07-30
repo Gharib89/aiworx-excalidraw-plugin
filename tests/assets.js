@@ -243,6 +243,20 @@ const demoOut = join(outDir, "assets.excalidraw");
     Object.keys(doc.files ?? {}).length === FORMATS.length,
     `${Object.keys(doc.files ?? {}).length} file(s)`);
 
+  // an SVG sized in absolute units other than px: 2in x 1in is 192x96
+  const inches = join(outDir, "inches.svg");
+  writeFileSync(inches, `<svg xmlns="http://www.w3.org/2000/svg" width="2in" height="1in"><rect width="100%" height="100%" fill="#d62c2c"/></svg>`);
+  const inchOut = join(outDir, "inches.excalidraw");
+  await authorDiagram({
+    out: inchOut,
+    svg: false,
+    build: async ({ image }) => [await image(inches, { width: 96 })],
+  });
+  const inchImage = JSON.parse(readFileSync(inchOut, "utf8")).elements[0];
+  check("absolute units other than px resolve (2in x 1in)",
+    Math.abs(inchImage.width - 96) < 0.5 && Math.abs(inchImage.height - 48) < 0.5,
+    `${inchImage.width}x${inchImage.height}`);
+
   // bytes Chrome cannot decode are still a named AssetError with nothing written
   const lying = join(outDir, "lying.jpg");
   writeFileSync(lying, "JFIF is not enough to make this a JPEG");

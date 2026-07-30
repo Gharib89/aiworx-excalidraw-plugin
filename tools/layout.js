@@ -8,6 +8,13 @@
  * placeable, so rows nest in columns and vice versa. `flatten` turns the tree
  * back into the element list a skeleton wants; authorDiagram does it for you.
  */
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const palette = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
+);
 
 export class LayoutError extends Error {
   name = "LayoutError";
@@ -134,14 +141,39 @@ const boundsOf = (el) => {
 
 const bindId = (node) => node?.id ?? node?.shape?.id;
 
+/** One step below body prose: an edge annotation, not a heading. */
+const LABEL_FONT_SIZE = 16;
+
+/**
+ * Turn the `label` shorthand into the skeleton's bound-text form. A string is the
+ * common case; an object overrides the defaults (`fontSize`, colour, anything the
+ * converter accepts). The house prose font is the default because the gate rejects
+ * text outside the house pair, and the converter measures the text itself — the
+ * label is real bound text, not a decoration.
+ */
+function labelSpec(label) {
+  const spec = typeof label === "string" ? { text: label } : label;
+  if (!spec || typeof spec.text !== "string" || spec.text === "") {
+    throw new LayoutError(
+      `arrow label needs text: pass a string or { text: "…" }, got ${JSON.stringify(label)}`,
+    );
+  }
+  return { fontSize: LABEL_FONT_SIZE, fontFamily: palette.fontFamily.prose, ...spec };
+}
+
 /**
  * An arrow that owns the gap between two placed shapes (or boxes): it leaves the
  * source edge `standoff` px out, enters the target edge `standoff` px short, and
  * writes explicit points — the converter does not run the app's elbow router, so
  * a routed path goes in as `via` waypoints (absolute coordinates) and keeps its
  * corners with roundness off.
+ *
+ * `label` annotates the edge: `{ label: "writes" }` binds measured text to the
+ * arrow, centred on the path. It is drawn over whatever lies behind it, so a
+ * label wider than a short arrow is normal — but check the render when the arrow
+ * runs close to a neighbour.
  */
-export function arrowBetween(a, b, { standoff = 10, via = [], ...style } = {}) {
+export function arrowBetween(a, b, { standoff = 10, via = [], label, ...style } = {}) {
   const A = boundsOf(a);
   const B = boundsOf(b);
   const dxGap = Math.max(B.x1 - A.x2, A.x1 - B.x2);
@@ -187,6 +219,7 @@ export function arrowBetween(a, b, { standoff = 10, via = [], ...style } = {}) {
     height: Math.max(...ys) - Math.min(...ys),
     points,
     ...(via.length ? { roundness: null } : {}),
+    ...(label !== undefined ? { label: labelSpec(label) } : {}),
     ...style,
   };
   const startId = bindId(a);

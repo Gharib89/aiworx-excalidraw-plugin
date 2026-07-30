@@ -127,6 +127,13 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   them. Where the two shapes' cross ranges overlap the arrow runs level through
   the overlap's centre. A routed path goes in as `via: [[x, y], …]` waypoints
   (absolute) and keeps its corners with `roundness: null` set for you.
+- `label` annotates the edge: `arrowBetween(a, b, { label: "writes" })` binds
+  measured text to the arrow at 16px in the house prose font. Pass an object —
+  `{ label: { text: "12 ms", fontSize: 20, fontFamily: CODE } }` — to override.
+  The label is centred on the path and drawn over whatever is behind it, so a
+  label wider than a short arrow is normal; the gate does not treat that as
+  overflow (a shape clips its text, a line does not), which means a label
+  running close to a neighbour is a thing to check in the render.
 - Malformed input — empty items, a gap array of the wrong length, an item
   without measured width/height — throws a `LayoutError` naming the problem.
 

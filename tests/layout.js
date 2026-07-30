@@ -3,9 +3,18 @@
  * Unit suite for the layout helpers (tools/layout.js). Pure geometry — no
  * browser. Pins the placement arithmetic a generator would otherwise hand-roll:
  * stacking with explicit gaps, cross-axis alignment, nesting, padded boxes, and
- * arrows that own the gap between two shapes.
+ * arrows that own the gap between two shapes — labelled or not.
  */
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { column, row, stack, box, arrowBetween, flatten, LayoutError } from "../tools/layout.js";
+
+// the house pair, read the way the helpers read it — importing author.js here
+// would pull the browser driver into a suite that runs without one
+const { prose: PROSE, code: CODE } = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
+).fontFamily;
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -151,6 +160,29 @@ const throwsLayoutError = (fn) => {
   const b = { type: "rectangle", x: 50, y: 50, width: 100, height: 100 };
   check("overlapping shapes leave no gap to own",
     throwsLayoutError(() => arrowBetween(a, b)));
+}
+{
+  // a labelled edge: the shorthand becomes the skeleton's bound-text form, in
+  // the house font, and the label changes nothing about the path
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 50 };
+  const plain = arrowBetween(a, b, { standoff: 10 });
+  const labelled = arrowBetween(a, b, { standoff: 10, label: "writes" });
+  check("a string label becomes measured bound text in the house font",
+    labelled.label?.text === "writes" && labelled.label.fontFamily === PROSE &&
+      labelled.label.fontSize === 16,
+    JSON.stringify(labelled.label));
+  check("a label leaves the path alone",
+    labelled.x === plain.x && labelled.y === plain.y &&
+      JSON.stringify(labelled.points) === JSON.stringify(plain.points),
+    `${labelled.x},${labelled.y} ${JSON.stringify(labelled.points)}`);
+  const styled = arrowBetween(a, b, { standoff: 10, label: { text: "12 ms", fontSize: 20, fontFamily: CODE } });
+  check("an object label overrides size and family",
+    styled.label.fontSize === 20 && styled.label.fontFamily === CODE, JSON.stringify(styled.label));
+  check("an unlabelled arrow carries no label key", !("label" in plain));
+  check("a label with no text is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, b, { label: "" })) &&
+      throwsLayoutError(() => arrowBetween(a, b, { label: { fontSize: 16 } })));
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

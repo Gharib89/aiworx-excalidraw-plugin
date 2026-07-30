@@ -1,0 +1,14 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — clean: an arrow label wider than its arrow is how labelled edges render",
+  "elements": [
+    { "id": "a1", "type": "arrow", "x": 0, "y": 0, "width": 40, "height": 0,
+      "points": [[0, 0], [40, 0]],
+      "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": -28, "y": -11, "width": 97, "height": 22, "text": "writes to disk", "fontFamily": 6,
+      "containerId": "a1" }
+  ],
+  "appState": {},
+  "files": {}
+}

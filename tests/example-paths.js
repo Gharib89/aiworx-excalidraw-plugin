@@ -36,6 +36,10 @@ const check = (name, cond, detail) => {
   for (const f of ["gen-example.js", "stick-figure.excalidrawlib"]) {
     copyFileSync(join(root, "examples", f), join(checkout, "examples", f));
   }
+  // package.json carries `"type": "module"`. Without it the copy is only ESM by
+  // Node's syntax detection, which is a different resolution path than the one a
+  // real checkout takes — the test would be passing for the wrong reason.
+  copyFileSync(join(root, "package.json"), join(checkout, "package.json"));
   console.log(`checkout: ${checkout}`);
 
   const run = spawnSync(process.execPath, ["examples/gen-example.js"], {
@@ -44,8 +48,12 @@ const check = (name, cond, detail) => {
     encoding: "utf8",
   });
   const out = join(checkout, "examples", "example.excalidraw");
+  // A spawn that never ran has no status and no stderr; say so rather than
+  // reporting `exit null: undefined` and sending the reader to the wrong place.
+  const why = () => String(run.stderr ?? "").split("\n").filter(Boolean).slice(-1)[0]
+    ?? run.error?.message ?? "no output on stderr";
   check("the generator exits clean from a path with a space", run.status === 0,
-    run.status === 0 ? "" : `exit ${run.status}: ${String(run.stderr).split("\n").filter(Boolean).slice(-1)[0]}`);
+    run.status === 0 ? "" : `exit ${run.status}: ${why()}`);
   check("the diagram lands next to the generator", existsSync(out), out);
   if (existsSync(out)) {
     const doc = JSON.parse(readFileSync(out, "utf8"));

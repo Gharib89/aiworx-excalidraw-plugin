@@ -91,7 +91,7 @@ directory — verification never touches tracked files.
 .claude-plugin/     plugin + marketplace manifests
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
-  author.js         authoring API: measured wrapping, frame binding, images, library splicing, in-process gate, revise round-trip
+  author.js         authoring API: measured wrapping, frame binding, images, library splicing, in-process gate, one-session batches, revise round-trip
   layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect; --dark scores the dark export
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts

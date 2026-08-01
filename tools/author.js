@@ -12,6 +12,9 @@
  *       [ ...skeleton or layout groups ],
  *   });
  *
+ * Several diagrams in one run share a browser session through withAuthoring,
+ * which pays one Chromium launch for all of them and gates each one the same way.
+ *
  * A human-edited file re-enters the pipeline through reviseDiagram, which
  * round-trips it through the library's restore (refreshed text metrics,
  * repaired bindings) and the same gate.
@@ -402,17 +405,65 @@ const buildContext = (ex, files) => ({
   spliceLibraryItem,
 });
 
+/** One diagram, built and written inside an already-open browser session. */
+async function authorInto(ex, { out, build, svg = true, background }) {
+  const files = {};
+  const skeleton = validateSkeleton(await build(buildContext(ex, files)));
+  const elements = bindToFrames(await ex.convert(skeleton));
+  const appState = {
+    viewBackgroundColor: background ?? palette.canvas,
+    gridSize: 20,
+  };
+  return gateAndWrite(ex, { out, elements, appState, files, svg });
+}
+
 /** Build, verify in-process, and write a diagram from a skeleton. */
-export async function authorDiagram({ out, build, svg = true, background }) {
+export async function authorDiagram(options) {
+  return withExcalidraw((ex) => authorInto(ex, options));
+}
+
+/**
+ * Author several diagrams over one browser session — one Chromium launch instead
+ * of one per diagram, which is the ~1–2 s a generator was paying per call.
+ *
+ *   await withAuthoring(async (author) => {
+ *     for (const panel of panels) await author({ out: panel.out, build: panel.build });
+ *   });
+ *
+ * `author` takes exactly the options authorDiagram takes and gates each diagram
+ * before its own write, so a failure names one diagram and leaves the session
+ * usable for the next. Font warming accumulates across the session: a glyph
+ * first seen in the fifth diagram re-warms the page, and the strings measured
+ * before it still measure the same.
+ *
+ * Diagrams run one at a time even when the caller fires them together. The page
+ * warms fonts for the glyphs it has been asked about and re-warms when a new one
+ * appears, which is only correct while a single call is in flight (see
+ * tools/page.js): overlap two and one of them measures against the fallback face,
+ * silently. `Promise.all` over a batch of panels is the natural thing to write, so
+ * the calls queue here rather than the invariant resting on the caller.
+ */
+export async function withAuthoring(fn) {
   return withExcalidraw(async (ex) => {
-    const files = {};
-    const skeleton = validateSkeleton(await build(buildContext(ex, files)));
-    const elements = bindToFrames(await ex.convert(skeleton));
-    const appState = {
-      viewBackgroundColor: background ?? palette.canvas,
-      gridSize: 20,
-    };
-    return gateAndWrite(ex, { out, elements, appState, files, svg });
+    let queue = Promise.resolve();
+    try {
+      return await fn((options) => {
+        const done = queue.then(() => authorInto(ex, options));
+        // one diagram's failure is its caller's; the queue later calls chain on
+        // must stay resolved or the whole batch fails with the first defect
+        queue = done.catch(() => {});
+        return done;
+      });
+    } finally {
+      // A diagram handed out but never awaited — a forEach over the panels, a
+      // forgotten await — is still work this session promised to do, and the
+      // browser closes the moment this returns. Drain before that, or which
+      // files landed comes down to timing; in a finally, so a callback that
+      // throws leaves the same files behind as one that returns. The queue
+      // never rejects, so a caller who dropped a failing diagram still gets
+      // their own error, and it never displaces theirs.
+      await queue;
+    }
   });
 }
 

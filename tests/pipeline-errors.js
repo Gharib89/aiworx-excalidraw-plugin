@@ -47,7 +47,7 @@ function makeCopy() {
   const dir = mkdtempSync(join(tmpdir(), "pipeline-errors-"));
   mkdirSync(join(dir, "tools"));
   mkdirSync(join(dir, "dist"));
-  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json"]) {
+  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
     copyFileSync(join(root, f), join(dir, f));
   }
   copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));
@@ -115,6 +115,23 @@ const probe = (dir, env) =>
   check("stale bundle: fails before any browser work", !existsSync(marker));
 }
 
+// ---- 1a. stale bundle: a bundled dep resolved to a new version, no rebundle ----
+// `npm install` can move a floating range (react ^19) in the lockfile without
+// any source file changing — the stamp must move with the resolved versions.
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  const lockPath = join(dir, "package-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  lock.packages["node_modules/react"].version = "19.99.0";
+  writeFileSync(lockPath, JSON.stringify(lock));
+  const r = probe(dir);
+  check("dep bump: refuses to run", r.status !== 0, `exit ${r.status}`);
+  check("dep bump: names StaleBundleError", /StaleBundleError/.test(r.stderr),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
+  check("dep bump: fails before any browser work", !existsSync(marker));
+}
+
 // ---- 1b. control: the stub is wired in, so the marker's absence is evidence ----
 {
   const dir = makeCopy();
@@ -171,8 +188,13 @@ const probe = (dir, env) =>
   const tried = attempts(marker);
   check("no CHROME_PATH: the driver asks Chromium for the system Chrome",
     tried[0]?.channel === "chrome", JSON.stringify(tried[0]));
-  check("no CHROME_PATH: known executables follow the channel",
-    tried.length > 1 && tried.slice(1).every((t) => t.executablePath), `${tried.length} attempts`);
+  // the fallback paths are Linux locations, so which of them follow the channel
+  // depends on the machine: exactly those that exist here, in order, no others
+  const { CHROME_CANDIDATES } = await import(specifier(root, "tools/browser.js"));
+  const present = CHROME_CANDIDATES.filter((p) => existsSync(p));
+  check("no CHROME_PATH: exactly the installed candidates follow the channel",
+    JSON.stringify(tried.slice(1).map((t) => t.executablePath)) === JSON.stringify(present),
+    `${tried.length} attempts, ${present.length} candidates installed`);
   check("nothing launches: names ChromeLaunchError", /ChromeLaunchError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("nothing launches: names the override", /CHROME_PATH/.test(r.stderr));

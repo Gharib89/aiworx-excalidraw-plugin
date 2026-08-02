@@ -26,21 +26,34 @@ export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
  * Run every element-level rule over a parsed Excalidraw document.
  * Returns the defects found and the counts the CLI prints as a summary.
  *
- * `theme: "dark"` scores the contrast rule on the colours a dark export actually
- * renders, not the authored ones. Geometry is theme-independent, so nothing else
- * changes. A pair can clear 4.5:1 light and fail it dark — the filter compresses
+ * Each problem is a flat discriminated-union object:
+ * `{ code, message, elements, ...per-code fields }`. `code` is a stable
+ * kebab-case defect-kind id and the contract machine consumers key on — the
+ * registry is append-only: a shipped code is never renamed or reused; splitting
+ * a kind mints new codes. `message` is the human prose and carries no contract.
+ * `elements` lists the ids involved in a fixed meaningful order per code
+ * (defendant first, then the frame/container/target it offends against), and
+ * may name an id the document no longer contains — that dangling id is the
+ * defect. Code-specific fields sit flat at top level; numbers are rounded as
+ * the message prints them.
+ *
+ * The `theme: "dark"` *option* scores the contrast rule on the colours a dark
+ * export actually renders, not the authored ones — each `low-contrast` problem
+ * records the theme it was scored under in its own `theme` field. Geometry is
+ * theme-independent, so nothing else changes. A pair can clear 4.5:1 light and fail it dark — the filter compresses
  * some hue pairs toward each other — so a diagram meant for both is checked twice.
  */
 export function verifyDocument(data, { theme = "light" } = {}) {
   const problems = [];
-  const note = (msg) => problems.push(msg);
+  const note = (code, message, elements = [], extra = {}) =>
+    problems.push({ code, message, elements, ...extra });
 
   // A null or primitive in the elements array — what a hand edit or a bad merge
   // leaves behind — has no type, id or geometry, and would take every rule below
   // down with it. Name it and drop it, so the rest of the document still gets checked.
   const wellFormed = data.elements.filter((e, i) => {
     if (e && typeof e === "object" && !Array.isArray(e)) return true;
-    note(`element at index ${i} is not an element object (${JSON.stringify(e) ?? typeof e})`);
+    note("malformed-element", `element at index ${i} is not an element object (${JSON.stringify(e) ?? typeof e})`, [], { index: i });
     return false;
   });
   const els = wellFormed.filter((e) => !e.isDeleted);
@@ -53,27 +66,27 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   // 1. every element must be renderable: known type, finite and non-empty geometry
   const nonFinite = new Set();
   for (const e of els) {
-    if (!KNOWN.has(e.type)) note(`unknown element type ${JSON.stringify(e.type)} (${e.id})`);
+    if (!KNOWN.has(e.type)) note("unknown-type", `unknown element type ${JSON.stringify(e.type)} (${e.id})`, [e.id]);
     const nums = [e.x, e.y, e.width ?? 0, e.height ?? 0, e.angle ?? 0, ...(Array.isArray(e.points) ? e.points.flat() : [])];
     if (!nums.every(Number.isFinite)) {
-      note(`${e.type} ${e.id} has non-finite geometry`);
+      note("non-finite-geometry", `${e.type} ${e.id} has non-finite geometry`, [e.id]);
       nonFinite.add(e.id);
       continue;
     }
     if (LINEAR.has(e.type)) {
       const b = bounds(e);
       if (!Array.isArray(e.points) || e.points.length < 2 || (b.x2 - b.x1 < 0.5 && b.y2 - b.y1 < 0.5)) {
-        note(`${e.type} ${e.id} is degenerate (zero length)`);
+        note("degenerate", `${e.type} ${e.id} is degenerate (zero length)`, [e.id]);
       }
     } else if (!((e.width ?? 0) > 0) || !((e.height ?? 0) > 0)) {
-      note(`${e.type} ${e.id} is degenerate (zero size: ${round(e.width)}x${round(e.height)})`);
+      note("degenerate", `${e.type} ${e.id} is degenerate (zero size: ${round(e.width)}x${round(e.height)})`, [e.id]);
     }
   }
 
   // 2. duplicate ids — silently drops elements on import
   const seen = new Set();
   for (const e of els) {
-    if (seen.has(e.id)) note(`duplicate id ${e.id} (${e.type})`);
+    if (seen.has(e.id)) note("duplicate-id", `duplicate id ${e.id} (${e.type})`, [e.id]);
     seen.add(e.id);
   }
 
@@ -82,7 +95,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   for (let i = 0; i < frames.length; i++) {
     for (let j = i + 1; j < frames.length; j++) {
       if (outlinesOverlap(frames[i], frames[j])) {
-        note(`frames overlap: "${frames[i].name ?? frames[i].id}" and "${frames[j].name ?? frames[j].id}"`);
+        note("frame-overlap", `frames overlap: "${frames[i].name ?? frames[i].id}" and "${frames[j].name ?? frames[j].id}"`, [frames[i].id, frames[j].id]);
       }
     }
   }
@@ -91,7 +104,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   for (const t of texts.filter((e) => e.containerId)) {
     const c = byId.get(t.containerId);
     if (!c) {
-      note(`text "${preview(t.text)}" references missing container ${t.containerId}`);
+      note("missing-container", `text "${preview(t.text)}" references missing container ${t.containerId}`, [t.id, t.containerId]);
       continue;
     }
     // A shape clips the text inside it; a line does not. An arrow's label is
@@ -101,7 +114,9 @@ export function verifyDocument(data, { theme = "light" } = {}) {
     const fit = boundTextFit(c);
     if (t.width > fit.width + 1 || t.height > fit.height + 1) {
       note(
+        "text-overflow",
         `text overflows container: "${preview(t.text)}" ${round(t.width)}x${round(t.height)} exceeds the usable ${round(fit.width)}x${round(fit.height)} of ${c.type} ${c.id} (${round(c.width)}x${round(c.height)})`,
+        [t.id, c.id],
       );
     }
   }
@@ -110,14 +125,17 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   for (const e of others.filter((e) => e.frameId)) {
     const f = byId.get(e.frameId);
     if (!f) {
-      note(`element ${e.id} (${e.type}) references missing frame ${e.frameId}`);
+      note("missing-frame", `element ${e.id} (${e.type}) references missing frame ${e.frameId}`, [e.id, e.frameId]);
       continue;
     }
     if (!contains(bounds(f), bounds(e))) {
       const b = bounds(e);
       const fb = bounds(f);
       note(
+        "frame-escape",
         `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} escapes frame "${f.name ?? f.id}": element ${round(b.x1)},${round(b.y1)}–${round(b.x2)},${round(b.y2)} vs frame ${round(fb.x1)},${round(fb.y1)}–${round(fb.x2)},${round(fb.y2)}`,
+        [e.id, f.id],
+        { element: roundBox(b), frame: roundBox(fb) },
       );
     }
   }
@@ -132,7 +150,9 @@ export function verifyDocument(data, { theme = "light" } = {}) {
       const host = frames.find((f) => outlinesOverlap(f, e));
       if (host) {
         note(
+          "unbound-over-frame",
           `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits over frame "${host.name ?? host.id}" without being bound to it`,
+          [e.id, host.id],
         );
       } else {
         outsideAll++;
@@ -145,7 +165,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   for (const a of arrows) {
     for (const end of ["startBinding", "endBinding"]) {
       const id = a[end]?.elementId;
-      if (id && !byId.get(id)) note(`arrow ${a.id} ${end} points at missing element ${id}`);
+      if (id && !byId.get(id)) note("dangling-binding", `arrow ${a.id} ${end} points at missing element ${id}`, [a.id, id]);
     }
   }
 
@@ -154,7 +174,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   for (let i = 0; i < freeTexts.length; i++) {
     for (let j = i + 1; j < freeTexts.length; j++) {
       if (outlinesOverlap(freeTexts[i], freeTexts[j])) {
-        note(`free texts overlap: "${preview(freeTexts[i].text)}" and "${preview(freeTexts[j].text)}"`);
+        note("free-text-overlap", `free texts overlap: "${preview(freeTexts[i].text)}" and "${preview(freeTexts[j].text)}"`, [freeTexts[i].id, freeTexts[j].id]);
       }
     }
   }
@@ -182,7 +202,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
         run = 0;
         openAtTail = false;
       }
-      if (crossed) note(`arrow ${a.id} crosses ${s.type} ${s.id} it is not bound to`);
+      if (crossed) note("arrow-crossing", `arrow ${a.id} crosses ${s.type} ${s.id} it is not bound to`, [a.id, s.id]);
     }
   }
 
@@ -197,7 +217,12 @@ export function verifyDocument(data, { theme = "light" } = {}) {
       const depth = shapeDepth(t, point);
       const slack = Math.min(8, Math.min(Math.abs(t.width ?? 0), Math.abs(t.height ?? 0)) / 4);
       if (depth > slack) {
-        note(`arrow ${a.id} ${end === "endBinding" ? "head" : "tail"} lands inside its target ${t.type} ${t.id} (${round(depth)}px deep)`);
+        note(
+          "arrow-buried",
+          `arrow ${a.id} ${end === "endBinding" ? "head" : "tail"} lands inside its target ${t.type} ${t.id} (${round(depth)}px deep)`,
+          [a.id, t.id],
+          { depth: round(depth) },
+        );
       }
     }
   }
@@ -212,7 +237,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
     placeable.forEach((e, i) => {
       const nearest = Math.min(...boxes.map((b, j) => (i === j ? Infinity : gap(boxes[i], b))));
       if (Number.isFinite(nearest) && nearest > STRAY_GAP) {
-        note(`${e.type} ${e.id} is an off-canvas stray (${round(nearest)}px from anything else)`);
+        note("stray", `${e.type} ${e.id} is an off-canvas stray (${round(nearest)}px from anything else)`, [e.id]);
       }
     });
   }
@@ -243,7 +268,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
       }
     }
     if (ground?.type === "image") {
-      note(`text "${preview(t.text)}" sits over image ${ground.id}: contrast against image pixels is unknowable`);
+      note("text-over-image", `text "${preview(t.text)}" sits over image ${ground.id}: contrast against image pixels is unknowable`, [t.id, ground.id]);
       continue;
     }
     const bg = fillOf(ground) ?? canvas;
@@ -251,7 +276,12 @@ export function verifyDocument(data, { theme = "light" } = {}) {
     const needs = (t.fontSize ?? 20) >= 24 ? 3 : 4.5;
     const c = contrast(ink, bg);
     if (c < needs) {
-      note(`text "${preview(t.text)}" contrast ${c.toFixed(2)}:1${where} (${ink} on ${bg}, needs ${needs}:1)`);
+      note(
+        "low-contrast",
+        `text "${preview(t.text)}" contrast ${c.toFixed(2)}:1${where} (${ink} on ${bg}, needs ${needs}:1)`,
+        [t.id],
+        { ratio: Number(c.toFixed(2)), needs, ink, bg, theme },
+      );
     }
   }
 
@@ -260,7 +290,9 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   for (const t of texts) {
     if (!HOUSE.has(t.fontFamily)) {
       note(
+        "foreign-font",
         `text "${preview(t.text)}" uses fontFamily ${t.fontFamily ?? "unset"} outside the house pair (prose ${palette.fontFamily.prose}, code ${palette.fontFamily.code})`,
+        [t.id],
       );
     }
   }
@@ -269,7 +301,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   const files = data.files ?? {};
   for (const e of others.filter((e) => e.type === "image")) {
     if (!e.fileId || !files[e.fileId]?.dataURL) {
-      note(`image ${e.id} references bytes missing from the files dictionary (fileId ${e.fileId ?? "unset"})`);
+      note("missing-image-bytes", `image ${e.id} references bytes missing from the files dictionary (fileId ${e.fileId ?? "unset"})`, [e.id]);
     }
   }
 
@@ -311,4 +343,7 @@ function preview(s) {
 }
 function round(n) {
   return Math.round(Number(n ?? 0));
+}
+function roundBox(b) {
+  return { x1: round(b.x1), y1: round(b.y1), x2: round(b.x2), y2: round(b.y2) };
 }

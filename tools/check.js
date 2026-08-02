@@ -43,25 +43,29 @@ if (inputs.length === 0) {
  * Read, parse and verify one file. `code` is the exit code this file alone would
  * produce: 2 for an input that cannot be read at all, 1 for a document the gate
  * rejects, 0 for a clean one.
+ *
+ * `error` is `{ code, message }` — a stable kebab-case code in its own
+ * namespace, distinct from the element-level problem codes, for a file that
+ * never reached the rules.
  */
 function inspect(file) {
   let raw;
   try {
     raw = readFileSync(file, "utf8");
   } catch (err) {
-    return { file, ok: false, code: 2, error: `cannot read — ${err.message}` };
+    return { file, ok: false, code: 2, error: { code: "unreadable", message: `cannot read — ${err.message}` } };
   }
   if (raw.trim() === "") {
-    return { file, ok: false, code: 1, error: "empty file — not an Excalidraw document" };
+    return { file, ok: false, code: 1, error: { code: "empty-file", message: "empty file — not an Excalidraw document" } };
   }
   let data;
   try {
     data = JSON.parse(raw);
   } catch (err) {
-    return { file, ok: false, code: 1, error: `not valid JSON — ${err.message}` };
+    return { file, ok: false, code: 1, error: { code: "invalid-json", message: `not valid JSON — ${err.message}` } };
   }
   if (data?.type !== "excalidraw" || !Array.isArray(data.elements)) {
-    return { file, ok: false, code: 1, error: `not an Excalidraw document (type ${JSON.stringify(data?.type)})` };
+    return { file, ok: false, code: 1, error: { code: "not-excalidraw", message: `not an Excalidraw document (type ${JSON.stringify(data?.type)})` } };
   }
   // The rules name a malformed document rather than throwing on it, but a batch
   // owes every other file its report whatever this one turns out to contain.
@@ -69,7 +73,7 @@ function inspect(file) {
   try {
     result = verifyDocument(data, { theme: dark ? "dark" : "light" });
   } catch (err) {
-    return { file, ok: false, code: 1, error: `cannot be checked — ${err.name}: ${err.message}` };
+    return { file, ok: false, code: 1, error: { code: "check-crashed", message: `cannot be checked — ${err.name}: ${err.message}` } };
   }
   const { problems, stats } = result;
   return { file, ok: problems.length === 0, code: problems.length ? 1 : 0, problems, stats };
@@ -78,7 +82,7 @@ function inspect(file) {
 /** One file's human report: summary on stdout, defects on stderr. */
 function report(r) {
   if (r.error) {
-    console.error(`${r.file}: ${r.error}`);
+    console.error(`${r.file}: ${r.error.message}`);
     return;
   }
   console.log(
@@ -89,7 +93,7 @@ function report(r) {
   );
   if (r.problems.length) {
     console.error(`\n${r.problems.length} problem(s):`);
-    r.problems.forEach((p) => console.error("  " + p));
+    r.problems.forEach((p) => console.error("  " + p.message));
     return;
   }
   console.log("clean — no mechanical defects");

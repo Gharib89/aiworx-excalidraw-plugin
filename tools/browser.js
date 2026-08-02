@@ -28,24 +28,52 @@ export class StaleBundleError extends NamedError {}
 export class BundleLoadError extends NamedError {}
 /** A call into the page threw. */
 export class PageError extends NamedError {}
+/** Nothing in the search order produced a running browser. */
+export class ChromeLaunchError extends NamedError {}
 
 const CHROME_CANDIDATES = [
-  process.env.CHROME_PATH,
   "/usr/bin/google-chrome",
   "/usr/bin/google-chrome-stable",
   "/usr/bin/chromium",
   "/usr/bin/chromium-browser",
-].filter(Boolean);
+];
 
-function chromePath() {
-  const found = CHROME_CANDIDATES.find((p) => existsSync(p));
-  if (!found) {
-    throw new Error(
-      `No Chrome/Chromium found. Tried: ${CHROME_CANDIDATES.join(", ")}. ` +
-        `Set CHROME_PATH to the executable.`,
-    );
+/**
+ * Launch the system Chrome. CHROME_PATH, if set, is the only place looked;
+ * otherwise Playwright's "chrome" channel goes first and the paths above
+ * follow.
+ *
+ * The channel carries the per-OS knowledge this file used to hard-code for
+ * Linux alone — it knows where Chrome installs itself on macOS and Windows
+ * too. The paths stay behind it because the channel finds Google Chrome and
+ * nothing else, so a machine with only Chromium still works.
+ *
+ * A launch fails for reasons other than absence, so each failure falls through
+ * to the next candidate and they are reported together if none survives: "no
+ * Chrome" and "Chrome is installed but won't start" need the same trail. Only
+ * the first line of each is kept — the rest is Playwright offering to download
+ * a browser, which is exactly what this plugin exists not to do.
+ */
+async function launchChrome(options) {
+  const override = process.env.CHROME_PATH;
+  const asPath = (executablePath) => ({ executablePath });
+  const present = CHROME_CANDIDATES.filter((p) => existsSync(p));
+  const plan = override ? [asPath(override)] : [{ channel: "chrome" }, ...present.map(asPath)];
+
+  const failures = [];
+  for (const where of plan) {
+    try {
+      return await chromium.launch({ ...options, ...where });
+    } catch (err) {
+      failures.push(`  ${where.channel ?? where.executablePath}: ${err.message.split("\n")[0]}`);
+    }
   }
-  return found;
+  const absent = override ? [] : CHROME_CANDIDATES.filter((p) => !present.includes(p));
+  throw new ChromeLaunchError(
+    `No Chrome/Chromium could be launched. Tried:\n${failures.join("\n")}\n` +
+      (absent.length ? `Nothing installed at: ${absent.join(", ")}.\n` : "") +
+      `Set CHROME_PATH to a Chrome or Chromium executable.`,
+  );
 }
 
 function assertFreshBundle() {
@@ -68,8 +96,7 @@ function assertFreshBundle() {
  */
 export async function withExcalidraw(fn, { scale = 2 } = {}) {
   assertFreshBundle();
-  const browser = await chromium.launch({
-    executablePath: chromePath(),
+  const browser = await launchChrome({
     headless: true,
     args: ["--no-sandbox", "--disable-gpu", "--font-render-hinting=none"],
   });

@@ -18,8 +18,9 @@ Then, once per installation:
 npm install --omit=dev   # playwright-core only; the render bundle is committed
 ```
 
-Rendering uses your **system Chrome** (no browser download). Set `CHROME_PATH` if
-it isn't at one of the usual locations.
+Rendering uses your **system Chrome** (no browser download) and finds it for you
+on macOS, Windows and Linux. Set `CHROME_PATH` to point at a specific executable
+— it takes precedence over anything discovered.
 
 ## Why this exists
 

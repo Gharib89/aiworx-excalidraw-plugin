@@ -113,6 +113,26 @@ const wrap = makeWrap(fakeMeasure());
   }
 }
 
+// ---- 4b. convergence: repeated words count per occurrence, not per vocabulary ----
+{
+  // one word in the vocabulary, but 150 occurrences each needing two mid-word
+  // splits (12 emoji at 20px against 90px = 3 lines) — a bound computed from
+  // de-duplicated words undercounts this 300-split input and threw
+  const word = "\u{1F642}".repeat(12);
+  const text = Array.from({ length: 150 }, () => word).join("\n");
+  let w, err;
+  try {
+    w = await wrap(text, 90, { fontSize: 16 });
+  } catch (e) {
+    err = e;
+  }
+  check("150 repeats of one long word converge", !err, err && `${err.name}: ${err.message}`);
+  if (w) {
+    check("every repeated-word line fits", w.lines.every((l) => fakeWidth(l) <= 90),
+      `${w.lines.length} lines, widest ${Math.max(...w.lines.map((l) => fakeWidth(l)))}`);
+  }
+}
+
 // ---- 5. empty and whitespace-only input ----
 {
   for (const [name, input] of [["empty string", ""], ["whitespace-only", "   \n \t \n  "]]) {

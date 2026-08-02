@@ -107,8 +107,12 @@ export function makeWrap(measure) {
     // lines. Re-measure and repair until every line actually fits. Every pass
     // splits one line in two and lines never merge, so a text of G graphemes
     // can need at most G splits — more passes means the measure is inconsistent.
-    const maxPasses =
-      words.reduce((n, w) => n + [...GRAPHEMES.segment(w)].length, 0) + paragraphs.length + 1;
+    // Count G over every occurrence: `words` is de-duplicated.
+    const graphemeCount = new Map(words.map((w) => [w, [...GRAPHEMES.segment(w)].length]));
+    const maxPasses = paragraphs.reduce(
+      (n, p) => p.split(/\s+/).filter(Boolean).reduce((m, w) => m + graphemeCount.get(w), n),
+      paragraphs.length + 1,
+    );
     for (let pass = 0; ; pass++) {
       if (pass > maxPasses) throw new WrapError(`wrap did not converge for width ${maxWidth}px`);
       const measured = await widthOf(lines);

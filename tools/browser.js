@@ -28,24 +28,52 @@ export class StaleBundleError extends NamedError {}
 export class BundleLoadError extends NamedError {}
 /** A call into the page threw. */
 export class PageError extends NamedError {}
+/** Nothing in the search order produced a running browser. */
+export class ChromeNotFoundError extends NamedError {}
 
 const CHROME_CANDIDATES = [
-  process.env.CHROME_PATH,
   "/usr/bin/google-chrome",
   "/usr/bin/google-chrome-stable",
   "/usr/bin/chromium",
   "/usr/bin/chromium-browser",
-].filter(Boolean);
+];
 
-function chromePath() {
-  const found = CHROME_CANDIDATES.find((p) => existsSync(p));
-  if (!found) {
-    throw new Error(
-      `No Chrome/Chromium found. Tried: ${CHROME_CANDIDATES.join(", ")}. ` +
-        `Set CHROME_PATH to the executable.`,
-    );
+/**
+ * Where to look for a browser, in order: the launch options to try one by one.
+ *
+ * Playwright's "chrome" channel knows where the system Chrome lives on macOS,
+ * Windows and Linux alike, so it carries the per-OS knowledge this file used to
+ * hard-code for Linux only. The paths stay behind it because the channel finds
+ * Google Chrome and nothing else — a machine with only Chromium still works.
+ */
+export function chromeLaunchPlan(override, fallbacks) {
+  if (override) return [{ executablePath: override }];
+  return [{ channel: "chrome" }, ...fallbacks.map((executablePath) => ({ executablePath }))];
+}
+
+/**
+ * Launch the first browser in the plan that starts. A launch can fail for
+ * reasons other than absence, so every failure falls through to the next
+ * candidate and is reported together if none survives — "no Chrome" and
+ * "Chrome is broken" both need the whole trail to be diagnosable.
+ */
+async function launchChrome(options) {
+  const plan = chromeLaunchPlan(
+    process.env.CHROME_PATH,
+    CHROME_CANDIDATES.filter((p) => existsSync(p)),
+  );
+  const failures = [];
+  for (const where of plan) {
+    try {
+      return await chromium.launch({ ...options, ...where });
+    } catch (err) {
+      failures.push(`  ${where.channel ?? where.executablePath}: ${err.message.split("\n")[0]}`);
+    }
   }
-  return found;
+  throw new ChromeNotFoundError(
+    `No Chrome/Chromium could be launched. Tried:\n${failures.join("\n")}\n` +
+      `Set CHROME_PATH to a Chrome or Chromium executable.`,
+  );
 }
 
 function assertFreshBundle() {
@@ -68,8 +96,7 @@ function assertFreshBundle() {
  */
 export async function withExcalidraw(fn, { scale = 2 } = {}) {
   assertFreshBundle();
-  const browser = await chromium.launch({
-    executablePath: chromePath(),
+  const browser = await launchChrome({
     headless: true,
     args: ["--no-sandbox", "--disable-gpu", "--font-render-hinting=none"],
   });

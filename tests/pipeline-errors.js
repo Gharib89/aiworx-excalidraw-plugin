@@ -9,12 +9,15 @@
  *      BundleLoadError immediately, not as a generic 30-second timeout
  *   3. a call that throws inside the page comes back as a PageError naming
  *      the failing operation
+ *   4. Chrome is looked for in the documented order, and finding none names
+ *      the CHROME_PATH override
  *
- * The first two run against a throwaway copy of the pipeline so the repo
- * stays clean; the third runs the real pipeline with a bad call.
+ * The copy-based probes run against a throwaway copy of the pipeline so the
+ * repo stays clean; the page-error probe runs the real pipeline with a bad
+ * call.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, readFileSync, symlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -58,8 +61,9 @@ function makeCopy() {
  * Shadow playwright-core for one probe copy. A bare specifier resolves from the
  * importing file upward, so a stub under `tools/node_modules` wins over the real
  * install symlinked at the copy root — and only for that copy's tools/browser.js.
- * The stub records the launch on disk and then fails, which turns "no browser
- * work happened" into a file that does not exist instead of a wall-clock budget.
+ * The stub appends each launch's options to a file and then fails, which turns
+ * "no browser work happened" into a file that does not exist instead of a
+ * wall-clock budget, and makes the executable the driver picked observable.
  */
 function stubChromium(dir) {
   const marker = join(dir, "launched");
@@ -71,10 +75,10 @@ function stubChromium(dir) {
   );
   writeFileSync(
     join(pkg, "index.js"),
-    `import { writeFileSync } from "node:fs";
+    `import { appendFileSync } from "node:fs";
      export const chromium = {
-       launch: async () => {
-         writeFileSync(${JSON.stringify(marker)}, "launched");
+       launch: async (opts) => {
+         appendFileSync(${JSON.stringify(marker)}, JSON.stringify(opts) + "\\n");
          throw new Error("stub chromium: launch was reached");
        },
      };\n`,
@@ -82,14 +86,20 @@ function stubChromium(dir) {
   return marker;
 }
 
-const probe = (dir) =>
+/** The launch options the driver tried, in order. */
+const attempts = (marker) =>
+  existsSync(marker)
+    ? readFileSync(marker, "utf8").trim().split("\n").map((l) => JSON.parse(l))
+    : [];
+
+const probe = (dir, env) =>
   spawnSync(
     process.execPath,
     ["--input-type=module", "-e",
       `import { withExcalidraw } from "${specifier(dir, "tools/browser.js")}";
        await withExcalidraw(async () => {});
        console.log("ran");`],
-    { encoding: "utf8", timeout: PROBE_TIMEOUT },
+    { encoding: "utf8", timeout: PROBE_TIMEOUT, env: { ...process.env, ...env } },
   );
 
 // ---- 1. stale bundle: sources changed after the bundle was stamped ----
@@ -147,6 +157,51 @@ const probe = (dir) =>
   check("bad page call: names PageError", /PageError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("bad page call: names the failing operation", /measureText failed in the page/.test(r.stderr));
+}
+
+// ---- 4. Chrome discovery: order, override, and the not-found error ----
+{
+  const { chromeLaunchPlan } = await import(specifier(root, "tools/browser.js"));
+
+  const overridden = chromeLaunchPlan("/opt/my/chrome", ["/usr/bin/google-chrome"]);
+  check("discovery: CHROME_PATH is the only place looked",
+    overridden.length === 1 && overridden[0].executablePath === "/opt/my/chrome",
+    JSON.stringify(overridden));
+
+  const discovered = chromeLaunchPlan(undefined, ["/usr/bin/chromium"]);
+  check("discovery: the per-OS channel is tried first",
+    discovered[0].channel === "chrome", JSON.stringify(discovered[0]));
+  check("discovery: known executables remain as fallbacks",
+    discovered.length === 2 && discovered[1].executablePath === "/usr/bin/chromium",
+    JSON.stringify(discovered));
+}
+
+// the stub fails every launch, so the probe walks the whole plan and the
+// recorded options are the plan the driver actually followed
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  const r = probe(dir, { CHROME_PATH: "" });
+  const tried = attempts(marker);
+  check("no CHROME_PATH: the driver asks Chromium for the system Chrome",
+    tried[0]?.channel === "chrome", JSON.stringify(tried[0]));
+  check("no Chrome anywhere: names the override", /CHROME_PATH/.test(r.stderr),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
+  check("no Chrome anywhere: names ChromeNotFoundError", /ChromeNotFoundError/.test(r.stderr));
+  check("no Chrome anywhere: reports every place it looked",
+    tried.every((t) => r.stderr.includes(t.channel ?? t.executablePath)),
+    `tried ${tried.length}`);
+}
+
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  probe(dir, { CHROME_PATH: "/opt/my/chrome" });
+  const tried = attempts(marker);
+  check("CHROME_PATH wins: it is the executable launched",
+    tried.length === 1 && tried[0].executablePath === "/opt/my/chrome", JSON.stringify(tried));
+  check("CHROME_PATH wins: no channel discovery",
+    tried.every((t) => t.channel === undefined), JSON.stringify(tried));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nfailure paths are loud");

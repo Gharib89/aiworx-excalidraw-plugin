@@ -61,6 +61,8 @@ export class LibraryError extends NamedError {}
  * word moves down, and a word that alone exceeds the width is broken at the
  * widest character boundary that fits. The result never exceeds `maxWidth`.
  */
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
 export function makeWrap(measure) {
   return async function wrap(text, maxWidth, { fontSize = 18, fontFamily = PROSE } = {}) {
     if (!Number.isFinite(maxWidth) || maxWidth <= 0) {
@@ -102,9 +104,13 @@ export function makeWrap(measure) {
     }
 
     // The greedy fill worked from summed word widths; the renderer draws whole
-    // lines. Re-measure and repair until every line actually fits.
+    // lines. Re-measure and repair until every line actually fits. Every pass
+    // splits one line in two and lines never merge, so a text of G graphemes
+    // can need at most G splits — more passes means the measure is inconsistent.
+    const maxPasses =
+      words.reduce((n, w) => n + [...GRAPHEMES.segment(w)].length, 0) + paragraphs.length + 1;
     for (let pass = 0; ; pass++) {
-      if (pass > 100) throw new WrapError(`wrap did not converge for width ${maxWidth}px`);
+      if (pass > maxPasses) throw new WrapError(`wrap did not converge for width ${maxWidth}px`);
       const measured = await widthOf(lines);
       const i = measured.findIndex((w) => w > maxWidth);
       if (i === -1) break;
@@ -113,19 +119,22 @@ export function makeWrap(measure) {
         lines.splice(i, 1, parts.slice(0, -1).join(" "), parts[parts.length - 1]);
         continue;
       }
-      // a single word wider than the requested width: break it mid-word
+      // a single word wider than the requested width: break it at the widest
+      // grapheme boundary that fits — never inside a surrogate pair or ZWJ run
       const word = parts[0];
-      const prefixWidths = await widthOf(
-        Array.from({ length: word.length }, (_, n) => word.slice(0, n + 1)),
-      );
+      const prefixes = [];
+      for (const g of GRAPHEMES.segment(word)) {
+        prefixes.push((prefixes.at(-1) ?? "") + g.segment);
+      }
+      const prefixWidths = await widthOf(prefixes);
       if (prefixWidths[0] > maxWidth) {
         throw new WrapError(
           `width ${maxWidth}px cannot fit even one character of "${word}" at ${fontSize}px`,
         );
       }
       let cut = 1;
-      while (cut < word.length && prefixWidths[cut] <= maxWidth) cut++;
-      lines.splice(i, 1, word.slice(0, cut), word.slice(cut));
+      while (cut < prefixes.length && prefixWidths[cut] <= maxWidth) cut++;
+      lines.splice(i, 1, prefixes[cut - 1], word.slice(prefixes[cut - 1].length));
     }
 
     const joined = lines.join("\n");

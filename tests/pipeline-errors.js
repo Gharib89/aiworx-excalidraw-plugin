@@ -14,7 +14,7 @@
  * stays clean; the third runs the real pipeline with a bad call.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, symlinkSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, symlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -54,6 +54,34 @@ function makeCopy() {
   return dir;
 }
 
+/**
+ * Shadow playwright-core for one probe copy. A bare specifier resolves from the
+ * importing file upward, so a stub under `tools/node_modules` wins over the real
+ * install symlinked at the copy root — and only for that copy's tools/browser.js.
+ * The stub records the launch on disk and then fails, which turns "no browser
+ * work happened" into a file that does not exist instead of a wall-clock budget.
+ */
+function stubChromium(dir) {
+  const marker = join(dir, "launched");
+  const pkg = join(dir, "tools/node_modules/playwright-core");
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(
+    join(pkg, "package.json"),
+    JSON.stringify({ name: "playwright-core", version: "0.0.0", type: "module", main: "index.js" }),
+  );
+  writeFileSync(
+    join(pkg, "index.js"),
+    `import { writeFileSync } from "node:fs";
+     export const chromium = {
+       launch: async () => {
+         writeFileSync(${JSON.stringify(marker)}, "launched");
+         throw new Error("stub chromium: launch was reached");
+       },
+     };\n`,
+  );
+  return marker;
+}
+
 const probe = (dir) =>
   spawnSync(
     process.execPath,
@@ -67,15 +95,23 @@ const probe = (dir) =>
 // ---- 1. stale bundle: sources changed after the bundle was stamped ----
 {
   const dir = makeCopy();
+  const marker = stubChromium(dir);
   appendFileSync(join(dir, "tools/page.js"), "\n// tampered after bundling\n");
-  const start = Date.now();
   const r = probe(dir);
   check("stale bundle: refuses to run", r.status !== 0, `exit ${r.status}`);
   check("stale bundle: names StaleBundleError", /StaleBundleError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("stale bundle: tells the user to rebundle", /npm run bundle/.test(r.stderr));
-  check("stale bundle: fails before any browser work", Date.now() - start < 5_000,
-    `${Date.now() - start}ms`);
+  check("stale bundle: fails before any browser work", !existsSync(marker));
+}
+
+// ---- 1b. control: the stub is wired in, so the marker's absence is evidence ----
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  const r = probe(dir);
+  check("stub control: a fresh bundle does reach the launch", existsSync(marker),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? `exit ${r.status}`);
 }
 
 // ---- 2. broken bundle with a valid stamp: page error surfaces, fast ----

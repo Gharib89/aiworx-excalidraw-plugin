@@ -47,7 +47,7 @@ function makeCopy() {
   const dir = mkdtempSync(join(tmpdir(), "pipeline-errors-"));
   mkdirSync(join(dir, "tools"));
   mkdirSync(join(dir, "dist"));
-  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json"]) {
+  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
     copyFileSync(join(root, f), join(dir, f));
   }
   copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));
@@ -113,6 +113,23 @@ const probe = (dir, env) =>
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("stale bundle: tells the user to rebundle", /npm run bundle/.test(r.stderr));
   check("stale bundle: fails before any browser work", !existsSync(marker));
+}
+
+// ---- 1a. stale bundle: a bundled dep resolved to a new version, no rebundle ----
+// `npm install` can move a floating range (react ^19) in the lockfile without
+// any source file changing — the stamp must move with the resolved versions.
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  const lockPath = join(dir, "package-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  lock.packages["node_modules/react"].version = "19.99.0";
+  writeFileSync(lockPath, JSON.stringify(lock));
+  const r = probe(dir);
+  check("dep bump: refuses to run", r.status !== 0, `exit ${r.status}`);
+  check("dep bump: names StaleBundleError", /StaleBundleError/.test(r.stderr),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
+  check("dep bump: fails before any browser work", !existsSync(marker));
 }
 
 // ---- 1b. control: the stub is wired in, so the marker's absence is evidence ----

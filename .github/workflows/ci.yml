@@ -12,15 +12,39 @@ concurrency:
 
 jobs:
   test:
+    # Browser discovery and path handling are per-OS claims (the "chrome"
+    # channel on macOS/Windows, junction links, file-URL module specifiers) —
+    # run the suite where those claims live, not just on Linux.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Runtime deps only (playwright-core), exactly as locked; the browser
+      # bundle is committed and the smoke suite drives the runner's
+      # preinstalled system Chrome.
+      - run: npm ci --omit=dev
+      - run: npm test
+      - name: verification must not dirty the repo
+        shell: bash
+        run: test -z "$(git status --porcelain)"
+
+  bundle:
+    # The committed bundle is what ships, but `npm run bundle` must stay able
+    # to reproduce it: rebuild from the locked toolchain, then run the
+    # capability gate and the check CLI against the freshly built bundle.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Runtime deps only (playwright-core); the browser bundle is committed and
-      # the smoke suite drives the runner's preinstalled system Chrome.
-      - run: npm install --omit=dev
-      - run: npm test
-      - name: verification must not dirty the repo
-        run: test -z "$(git status --porcelain)"
+      - run: npm ci
+      - run: npm run bundle
+      - run: npm run smoke
+      - run: node tools/check.js tests/fixtures/clean.excalidraw

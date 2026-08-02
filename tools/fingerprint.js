@@ -17,14 +17,20 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const FINGERPRINT_MARKER = "//# aiworxBundleFingerprint=";
 
-/** Hash of everything that shapes the bundle: page source, bundler config, library version. */
+/** Hash of everything that shapes the bundle: page source, bundler config, resolved dep versions. */
 export function expectedFingerprint() {
   const hash = createHash("sha256");
   for (const f of ["tools/page.js", "tools/bundle.js"]) {
     hash.update(readFileSync(join(root, f))).update("\0");
   }
-  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
-  hash.update(pkg.devDependencies?.["@excalidraw/excalidraw"] ?? "");
+  // Resolved versions from the lockfile, not package.json ranges: a floating
+  // range (react ^19, esbuild ^0.25) can move under `npm install` without any
+  // range string changing — exactly the forgot-to-rebundle case the stamp
+  // exists to catch.
+  const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
+  for (const dep of ["@excalidraw/excalidraw", "react", "react-dom", "esbuild"]) {
+    hash.update(lock.packages[`node_modules/${dep}`]?.version ?? "").update("\0");
+  }
   return hash.digest("hex").slice(0, 16);
 }
 

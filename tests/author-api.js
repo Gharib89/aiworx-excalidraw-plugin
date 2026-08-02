@@ -43,6 +43,7 @@ const rejectsWith = async (errorName, promise) => {
     return {
       ok: err.name === errorName,
       message: String(err.message),
+      error: err,
       detail: `${err.name}: ${String(err.message).split("\n")[0]}`,
     };
   }
@@ -116,6 +117,10 @@ await withExcalidraw(async (ex) => {
   }));
   check("a gate defect is a GateError before writing", r.ok && /free texts overlap/.test(r.message),
     r.detail);
+  check("the GateError carries the structured problems",
+    Array.isArray(r.error?.problems) &&
+      r.error.problems.some((p) => p.code === "free-text-overlap" && p.elements.length === 2),
+    JSON.stringify(r.error?.problems));
   check("a gated build writes nothing", !existsSync(out) && !existsSync(out.replace(/\.excalidraw$/, ".svg")));
 }
 

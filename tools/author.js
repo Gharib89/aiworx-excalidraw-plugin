@@ -42,8 +42,17 @@ class NamedError extends Error {
 }
 /** The build callback returned something that is not a usable skeleton. */
 export class SkeletonError extends NamedError {}
-/** The built document failed the geometry gate; nothing was written. */
-export class GateError extends NamedError {}
+/**
+ * The built document failed the geometry gate; nothing was written.
+ * `.problems` holds verify.js's structured problem objects; the message stays
+ * the joined human prose.
+ */
+export class GateError extends NamedError {
+  constructor(message, problems = []) {
+    super(message);
+    this.problems = problems;
+  }
+}
 /** Text cannot be wrapped to the requested width. */
 export class WrapError extends NamedError {}
 /** The input file is not a parseable Excalidraw document. */
@@ -388,7 +397,8 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
   const { problems } = verifyDocument(doc);
   if (problems.length) {
     throw new GateError(
-      `refusing to write ${out} — ${problems.length} defect(s):\n  ${problems.join("\n  ")}`,
+      `refusing to write ${out} — ${problems.length} defect(s):\n  ${problems.map((p) => p.message).join("\n  ")}`,
+      problems,
     );
   }
   const svgOut = svg ? out.replace(/\.excalidraw$/, "") + ".svg" : null;

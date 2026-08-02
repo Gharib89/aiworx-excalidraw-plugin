@@ -188,8 +188,13 @@ const probe = (dir, env) =>
   const tried = attempts(marker);
   check("no CHROME_PATH: the driver asks Chromium for the system Chrome",
     tried[0]?.channel === "chrome", JSON.stringify(tried[0]));
-  check("no CHROME_PATH: known executables follow the channel",
-    tried.length > 1 && tried.slice(1).every((t) => t.executablePath), `${tried.length} attempts`);
+  // the fallback paths are Linux locations, so which of them follow the channel
+  // depends on the machine: exactly those that exist here, in order, no others
+  const { CHROME_CANDIDATES } = await import(specifier(root, "tools/browser.js"));
+  const present = CHROME_CANDIDATES.filter((p) => existsSync(p));
+  check("no CHROME_PATH: exactly the installed candidates follow the channel",
+    JSON.stringify(tried.slice(1).map((t) => t.executablePath)) === JSON.stringify(present),
+    `${tried.length} attempts, ${present.length} candidates installed`);
   check("nothing launches: names ChromeLaunchError", /ChromeLaunchError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("nothing launches: names the override", /CHROME_PATH/.test(r.stderr));

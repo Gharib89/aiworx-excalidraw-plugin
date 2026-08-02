@@ -31,7 +31,7 @@ export class PageError extends NamedError {}
 /** Nothing in the search order produced a running browser. */
 export class ChromeLaunchError extends NamedError {}
 
-const CHROME_CANDIDATES = [
+export const CHROME_CANDIDATES = [
   "/usr/bin/google-chrome",
   "/usr/bin/google-chrome-stable",
   "/usr/bin/chromium",

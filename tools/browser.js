@@ -29,7 +29,7 @@ export class BundleLoadError extends NamedError {}
 /** A call into the page threw. */
 export class PageError extends NamedError {}
 /** Nothing in the search order produced a running browser. */
-export class ChromeNotFoundError extends NamedError {}
+export class ChromeLaunchError extends NamedError {}
 
 const CHROME_CANDIDATES = [
   "/usr/bin/google-chrome",
@@ -39,29 +39,27 @@ const CHROME_CANDIDATES = [
 ];
 
 /**
- * Where to look for a browser, in order: the launch options to try one by one.
+ * Launch the system Chrome. CHROME_PATH, if set, is the only place looked;
+ * otherwise Playwright's "chrome" channel goes first and the paths above
+ * follow.
  *
- * Playwright's "chrome" channel knows where the system Chrome lives on macOS,
- * Windows and Linux alike, so it carries the per-OS knowledge this file used to
- * hard-code for Linux only. The paths stay behind it because the channel finds
- * Google Chrome and nothing else — a machine with only Chromium still works.
- */
-export function chromeLaunchPlan(override, fallbacks) {
-  if (override) return [{ executablePath: override }];
-  return [{ channel: "chrome" }, ...fallbacks.map((executablePath) => ({ executablePath }))];
-}
-
-/**
- * Launch the first browser in the plan that starts. A launch can fail for
- * reasons other than absence, so every failure falls through to the next
- * candidate and is reported together if none survives — "no Chrome" and
- * "Chrome is broken" both need the whole trail to be diagnosable.
+ * The channel carries the per-OS knowledge this file used to hard-code for
+ * Linux alone — it knows where Chrome installs itself on macOS and Windows
+ * too. The paths stay behind it because the channel finds Google Chrome and
+ * nothing else, so a machine with only Chromium still works.
+ *
+ * A launch fails for reasons other than absence, so each failure falls through
+ * to the next candidate and they are reported together if none survives: "no
+ * Chrome" and "Chrome is installed but won't start" need the same trail. Only
+ * the first line of each is kept — the rest is Playwright offering to download
+ * a browser, which is exactly what this plugin exists not to do.
  */
 async function launchChrome(options) {
-  const plan = chromeLaunchPlan(
-    process.env.CHROME_PATH,
-    CHROME_CANDIDATES.filter((p) => existsSync(p)),
-  );
+  const override = process.env.CHROME_PATH;
+  const asPath = (executablePath) => ({ executablePath });
+  const present = CHROME_CANDIDATES.filter((p) => existsSync(p));
+  const plan = override ? [asPath(override)] : [{ channel: "chrome" }, ...present.map(asPath)];
+
   const failures = [];
   for (const where of plan) {
     try {
@@ -70,8 +68,10 @@ async function launchChrome(options) {
       failures.push(`  ${where.channel ?? where.executablePath}: ${err.message.split("\n")[0]}`);
     }
   }
-  throw new ChromeNotFoundError(
+  const absent = override ? [] : CHROME_CANDIDATES.filter((p) => !present.includes(p));
+  throw new ChromeLaunchError(
     `No Chrome/Chromium could be launched. Tried:\n${failures.join("\n")}\n` +
+      (absent.length ? `Nothing installed at: ${absent.join(", ")}.\n` : "") +
       `Set CHROME_PATH to a Chrome or Chromium executable.`,
   );
 }

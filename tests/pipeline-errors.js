@@ -159,25 +159,11 @@ const probe = (dir, env) =>
   check("bad page call: names the failing operation", /measureText failed in the page/.test(r.stderr));
 }
 
-// ---- 4. Chrome discovery: order, override, and the not-found error ----
-{
-  const { chromeLaunchPlan } = await import(specifier(root, "tools/browser.js"));
-
-  const overridden = chromeLaunchPlan("/opt/my/chrome", ["/usr/bin/google-chrome"]);
-  check("discovery: CHROME_PATH is the only place looked",
-    overridden.length === 1 && overridden[0].executablePath === "/opt/my/chrome",
-    JSON.stringify(overridden));
-
-  const discovered = chromeLaunchPlan(undefined, ["/usr/bin/chromium"]);
-  check("discovery: the per-OS channel is tried first",
-    discovered[0].channel === "chrome", JSON.stringify(discovered[0]));
-  check("discovery: known executables remain as fallbacks",
-    discovered.length === 2 && discovered[1].executablePath === "/usr/bin/chromium",
-    JSON.stringify(discovered));
-}
-
-// the stub fails every launch, so the probe walks the whole plan and the
-// recorded options are the plan the driver actually followed
+// ---- 4. discovery order, and the error when the whole order comes up empty ----
+// The stub fails every launch, so the probe walks the plan to its end and the
+// recorded options are the search order the driver actually followed. An empty
+// CHROME_PATH stands for "unset": the driver reads it as falsy, and passing it
+// explicitly keeps a developer's own override out of the probe.
 {
   const dir = makeCopy();
   const marker = stubChromium(dir);
@@ -185,14 +171,17 @@ const probe = (dir, env) =>
   const tried = attempts(marker);
   check("no CHROME_PATH: the driver asks Chromium for the system Chrome",
     tried[0]?.channel === "chrome", JSON.stringify(tried[0]));
-  check("no Chrome anywhere: names the override", /CHROME_PATH/.test(r.stderr),
+  check("no CHROME_PATH: known executables follow the channel",
+    tried.length > 1 && tried.slice(1).every((t) => t.executablePath), `${tried.length} attempts`);
+  check("nothing launches: names ChromeLaunchError", /ChromeLaunchError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
-  check("no Chrome anywhere: names ChromeNotFoundError", /ChromeNotFoundError/.test(r.stderr));
-  check("no Chrome anywhere: reports every place it looked",
+  check("nothing launches: names the override", /CHROME_PATH/.test(r.stderr));
+  check("nothing launches: reports every place it looked",
     tried.every((t) => r.stderr.includes(t.channel ?? t.executablePath)),
     `tried ${tried.length}`);
 }
 
+// ---- 4b. CHROME_PATH is not one candidate among several — it is the only one ----
 {
   const dir = makeCopy();
   const marker = stubChromium(dir);

@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bounds, outline, overlap, contains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
+import { bounds, outline, outlinesOverlap, contains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
 import { contrast, normalizeHex, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -81,7 +81,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   //    make exportingFrame pick up a neighbour's elements
   for (let i = 0; i < frames.length; i++) {
     for (let j = i + 1; j < frames.length; j++) {
-      if (overlap(bounds(frames[i]), bounds(frames[j]))) {
+      if (outlinesOverlap(frames[i], frames[j])) {
         note(`frames overlap: "${frames[i].name ?? frames[i].id}" and "${frames[j].name ?? frames[j].id}"`);
       }
     }
@@ -98,9 +98,10 @@ export function verifyDocument(data, { theme = "light" } = {}) {
     // centred on the path and drawn over whatever is behind it, so a label wider
     // than a short arrow is how labelled edges render, not a defect.
     if (LINEAR.has(c.type)) continue;
-    if (t.width > (c.width ?? 0) + 1 || t.height > (c.height ?? 0) + 1) {
+    const fit = boundTextFit(c);
+    if (t.width > fit.width + 1 || t.height > fit.height + 1) {
       note(
-        `text overflows container: "${preview(t.text)}" ${round(t.width)}x${round(t.height)} in ${round(c.width)}x${round(c.height)} (${c.type} ${c.id})`,
+        `text overflows container: "${preview(t.text)}" ${round(t.width)}x${round(t.height)} exceeds the usable ${round(fit.width)}x${round(fit.height)} of ${c.type} ${c.id} (${round(c.width)}x${round(c.height)})`,
       );
     }
   }
@@ -128,7 +129,7 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   let outsideAll = 0;
   if (frames.length > 0) {
     for (const e of others.filter((e) => !e.frameId && !e.containerId)) {
-      const host = frames.find((f) => overlap(bounds(f), bounds(e)));
+      const host = frames.find((f) => outlinesOverlap(f, e));
       if (host) {
         note(
           `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits over frame "${host.name ?? host.id}" without being bound to it`,
@@ -152,26 +153,35 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   const freeTexts = texts.filter((e) => !e.containerId);
   for (let i = 0; i < freeTexts.length; i++) {
     for (let j = i + 1; j < freeTexts.length; j++) {
-      if (overlap(bounds(freeTexts[i]), bounds(freeTexts[j]))) {
+      if (outlinesOverlap(freeTexts[i], freeTexts[j])) {
         note(`free texts overlap: "${preview(freeTexts[i].text)}" and "${preview(freeTexts[j].text)}"`);
       }
     }
   }
 
-  // 9. an arrow segment passing clean through a shape it isn't bound to reads as
-  //    a connection that doesn't exist. A segment merely starting or ending inside
-  //    a shape is binding hygiene, not a crossing, so both endpoints must be outside.
+  // 9. an arrow passing clean through a shape it isn't bound to reads as a
+  //    connection that doesn't exist. The polyline is walked as contiguous runs
+  //    through the shape's ink — a turn at a vertex inside the shape is still the
+  //    same pass-through. A run that begins at the arrow's tail or is still open
+  //    at its head merely starts or ends inside the shape: binding hygiene, not
+  //    a crossing.
   for (const a of arrows) {
     const pts = outline(a);
     const related = new Set([a.startBinding?.elementId, a.endBinding?.elementId]);
     for (const s of others.filter((e) => SOLID.has(e.type) && !related.has(e.id) && !nonFinite.has(e.id))) {
-      const crossed = pts.some(
-        (p, i) =>
-          i + 1 < pts.length &&
-          shapeDepth(s, p) <= 0 &&
-          shapeDepth(s, pts[i + 1]) <= 0 &&
-          segmentLengthInsideShape(s, p, pts[i + 1]) > 2,
-      );
+      let run = 0;
+      let openAtTail = shapeDepth(s, pts[0]) > 0;
+      let crossed = false;
+      for (let i = 0; i + 1 < pts.length; i++) {
+        run += segmentLengthInsideShape(s, pts[i], pts[i + 1]);
+        if (shapeDepth(s, pts[i + 1]) > 0) continue; // still inside: the run goes on
+        if (run > 2 && !openAtTail) {
+          crossed = true;
+          break;
+        }
+        run = 0;
+        openAtTail = false;
+      }
       if (crossed) note(`arrow ${a.id} crosses ${s.type} ${s.id} it is not bound to`);
     }
   }
@@ -272,6 +282,28 @@ export function verifyDocument(data, { theme = "light" } = {}) {
       outsideAll,
     },
   };
+}
+
+/**
+ * The box the app actually wraps bound text into — Excalidraw's
+ * getBoundTextMaxWidth/Height with BOUND_TEXT_PADDING = 5. Smaller than the
+ * container's own box: padding all round, and for ellipse and diamond only the
+ * inscribed text area holds ink.
+ */
+const BOUND_TEXT_PADDING = 5;
+function boundTextFit(c) {
+  const w = c.width ?? 0;
+  const h = c.height ?? 0;
+  if (c.type === "ellipse") {
+    return {
+      width: Math.round((w / 2) * Math.SQRT2) - BOUND_TEXT_PADDING * 2,
+      height: Math.round((h / 2) * Math.SQRT2) - BOUND_TEXT_PADDING * 2,
+    };
+  }
+  if (c.type === "diamond") {
+    return { width: Math.round(w / 2) - BOUND_TEXT_PADDING * 2, height: Math.round(h / 2) - BOUND_TEXT_PADDING * 2 };
+  }
+  return { width: w - BOUND_TEXT_PADDING * 2, height: h - BOUND_TEXT_PADDING * 2 };
 }
 
 function preview(s) {

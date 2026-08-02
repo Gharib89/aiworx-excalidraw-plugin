@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — an unbound arrow ending inside a shape is binding hygiene, not a crossing",
+  "elements": [
+    { "id": "r1", "type": "rectangle", "x": 100, "y": 0, "width": 100, "height": 100 },
+    { "id": "a1", "type": "arrow", "x": 0, "y": 50, "width": 150, "height": 0,
+      "points": [[0, 0], [150, 0]] }
+  ],
+  "appState": {},
+  "files": {}
+}

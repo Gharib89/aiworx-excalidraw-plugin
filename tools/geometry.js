@@ -43,7 +43,53 @@ export function bounds(e) {
   return { x1: Math.min(...xs), y1: Math.min(...ys), x2: Math.max(...xs), y2: Math.max(...ys) };
 }
 
-export const overlap = (a, b) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+/**
+ * Whether two elements' outlines intersect, rotation honoured (separating-axis
+ * test on the outline quads). Linear elements fall back to their bounding box —
+ * their point list is not a convex polygon. Touching edges do not overlap.
+ */
+export function outlinesOverlap(a, b) {
+  const pa = convexOutline(a);
+  const pb = convexOutline(b);
+  return !separated(pa, pb) && !separated(pb, pa);
+}
+
+function convexOutline(e) {
+  if ((e.type === "arrow" || e.type === "line" || e.type === "freedraw") && Array.isArray(e.points)) {
+    const b = bounds(e);
+    return [
+      [b.x1, b.y1],
+      [b.x2, b.y1],
+      [b.x2, b.y2],
+      [b.x1, b.y2],
+    ];
+  }
+  return outline(e);
+}
+
+/** True when some edge normal of `pts` separates the two point sets. */
+function separated(pts, other) {
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[(i + 1) % pts.length];
+    const nx = y2 - y1;
+    const ny = x1 - x2;
+    const project = (poly) => {
+      let min = Infinity;
+      let max = -Infinity;
+      for (const [px, py] of poly) {
+        const d = px * nx + py * ny;
+        if (d < min) min = d;
+        if (d > max) max = d;
+      }
+      return [min, max];
+    };
+    const [aMin, aMax] = project(pts);
+    const [bMin, bMax] = project(other);
+    if (aMax <= bMin || bMax <= aMin) return true;
+  }
+  return false;
+}
 
 export const contains = (outer, inner, pad = 0.5) =>
   inner.x1 >= outer.x1 - pad &&

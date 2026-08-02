@@ -1,0 +1,13 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: bound text fits the container box but not its padded interior",
+  "elements": [
+    { "id": "r1", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 40,
+      "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": 2.5, "y": 7.5, "width": 95, "height": 25, "text": "fits the box, not the padding", "fontFamily": 6,
+      "containerId": "r1" }
+  ],
+  "appState": {},
+  "files": {}
+}

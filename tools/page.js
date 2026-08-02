@@ -101,7 +101,7 @@ async function warm(need) {
         try {
           faces = await document.fonts.load(`20px "${f}"`);
         } catch (err) {
-          throw new FontIntegrityError(`font load rejected for "${f}": ${err.message}`);
+          throw new FontIntegrityError(`font load rejected for "${f}": ${err?.message ?? err}`);
         }
         if (!faces.length) {
           throw new FontIntegrityError(`font load matched no faces for "${f}"`);
@@ -117,7 +117,7 @@ async function warm(need) {
     await Promise.all(
       fresh.map((f) =>
         f.load().catch((err) => {
-          throw new FontIntegrityError(`face for "${f.family}" failed to load: ${err.message}`);
+          throw new FontIntegrityError(`face for "${f.family}" failed to load: ${err?.message ?? err}`);
         }),
       ),
     );
@@ -133,7 +133,6 @@ async function warm(need) {
     const widths = families.map((f) => ({ family: f, width: sentinelWidth(ctx, `"${f}", serif`) }));
     const unapplied = widths.filter((w) => w.width === fallback);
     if (unapplied.length) {
-      if (styleEl) document.head.appendChild(styleEl);
       throw new FontIntegrityError(
         `fonts did not apply: ${unapplied.map((w) => `"${w.family}"`).join(", ")} ` +
           `(sentinel widths ${widths.map((w) => `${w.family}=${w.width}`).join(", ")}; ` +
@@ -145,7 +144,12 @@ async function warm(need) {
     warmChars = need;
     return { families, faces: css.length, glyphs: need.size };
   } catch (err) {
+    // undo whatever this warm attached: drop the candidate, and reattach the
+    // committed element if the failure happened inside the probe's detach
+    // window — otherwise `styleEl` would sit set-but-disconnected and the
+    // early return would vouch for faces that are no longer in the document
     el.remove();
+    if (styleEl && !styleEl.isConnected) document.head.appendChild(styleEl);
     throw err;
   }
 }

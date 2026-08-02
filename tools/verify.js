@@ -37,9 +37,10 @@ export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
  * defect. Code-specific fields sit flat at top level; numbers are rounded as
  * the message prints them.
  *
- * `theme: "dark"` scores the contrast rule on the colours a dark export actually
- * renders, not the authored ones. Geometry is theme-independent, so nothing else
- * changes. A pair can clear 4.5:1 light and fail it dark — the filter compresses
+ * The `theme: "dark"` *option* scores the contrast rule on the colours a dark
+ * export actually renders, not the authored ones — each `low-contrast` problem
+ * records the theme it was scored under in its own `theme` field. Geometry is
+ * theme-independent, so nothing else changes. A pair can clear 4.5:1 light and fail it dark — the filter compresses
  * some hue pairs toward each other — so a diagram meant for both is checked twice.
  */
 export function verifyDocument(data, { theme = "light" } = {}) {

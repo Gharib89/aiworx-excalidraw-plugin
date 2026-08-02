@@ -37,7 +37,9 @@ Two traps it handles, both verified in `tools/smoke.js`:
    overflows the moment the real font renders.
 2. **Embedded fonts are subset to the rendered glyphs.** Warming with a short
    sample leaves most characters still falling back. The warm-up therefore covers
-   printable ASCII and re-warms whenever an unseen glyph appears.
+   printable ASCII and re-warms whenever an unseen glyph appears. A warm whose
+   faces fail to load or apply throws a `FontIntegrityError` and leaves the
+   previous warm intact — the next call re-warms from scratch.
 
 ## Commands
 

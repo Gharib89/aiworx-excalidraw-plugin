@@ -24,7 +24,131 @@ const BASE_CHARS = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 +
 
 let warmChars = new Set();
 let styleEl = null;
-let warming = null;
+let warmQueue = Promise.resolve();
+
+/**
+ * A warm completed but the faces did not verifiably apply. The name is a
+ * string literal, not new.target.name: this file is minified into the page
+ * bundle, and the minifier renames the class.
+ */
+class FontIntegrityError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "FontIntegrityError";
+  }
+}
+
+/**
+ * Fixed string measured per family after every warm. Same-run comparison only:
+ * a family whose width equals an explicit serif fallback stack's did not apply.
+ * No golden widths — the real faces just have to differ from serif on this
+ * string, which every Excalidraw family comfortably does.
+ */
+const SENTINEL = "Hamburgefonstiv 0123";
+
+function sentinelWidth(ctx, stack) {
+  ctx.font = `20px ${stack}`;
+  return ctx.measureText(SENTINEL).width;
+}
+
+/**
+ * One warm pass: export, attach the @font-face rules, load and probe the
+ * faces. Nothing is committed until every step succeeds — a failure removes
+ * the candidate style element and leaves `warmChars`/`styleEl` untouched, so
+ * the next call re-warms from scratch instead of early-returning against a
+ * poisoned session. That commit-after-success is the retry mechanism; there
+ * is deliberately no in-place retry loop masking the root cause.
+ */
+async function warm(need) {
+  const sample = [...need].join("");
+  const svg = await exportToSvg({
+    elements: convertToExcalidrawElements(
+      WARM_FAMILIES.map((fontFamily, i) => ({
+        type: "text",
+        x: 0,
+        y: i * 40,
+        text: sample,
+        fontSize: 20,
+        fontFamily,
+      })),
+    ),
+    appState: {},
+    files: {},
+  });
+  const css = svg.outerHTML.match(/@font-face\s*{[^}]*}/g) ?? [];
+  const before = new Set(document.fonts);
+  const el = document.createElement("style");
+  el.textContent = css.join("\n");
+  document.head.appendChild(el);
+  try {
+    const families = [
+      ...new Set(
+        css
+          .map((rule) => rule.match(/font-family:\s*([^;]+);/)?.[1]?.trim())
+          .filter(Boolean)
+          .map((f) => f.replace(/^["']|["']$/g, "")),
+      ),
+    ];
+    if (families.length < WARM_FAMILIES.length) {
+      throw new FontIntegrityError(
+        `warm export yielded @font-face rules for [${families.join(", ")}] — ` +
+          `${WARM_FAMILIES.length} families requested`,
+      );
+    }
+    await Promise.all(
+      families.map(async (f) => {
+        let faces;
+        try {
+          faces = await document.fonts.load(`20px "${f}"`);
+        } catch (err) {
+          throw new FontIntegrityError(`font load rejected for "${f}": ${err.message}`);
+        }
+        if (!faces.length) {
+          throw new FontIntegrityError(`font load matched no faces for "${f}"`);
+        }
+      }),
+    );
+    // On a re-warm the family-level load above is satisfied by the previous
+    // warm's faces, which say nothing about this warm's subsets — and the
+    // set-level load only triggers faces whose unicode-range matches its
+    // sample. So load this warm's own faces directly: exactly the entries
+    // document.fonts gained when `el` was attached.
+    const fresh = [...document.fonts].filter((f) => !before.has(f));
+    await Promise.all(
+      fresh.map((f) =>
+        f.load().catch((err) => {
+          throw new FontIntegrityError(`face for "${f.family}" failed to load: ${err.message}`);
+        }),
+      ),
+    );
+    await document.fonts.ready;
+
+    // Probe against this warm's faces alone: the committed style element is
+    // detached for the duration, so a stale face cannot vouch for a broken
+    // fresh one. The window is synchronous — no await between detach and
+    // commit/rollback — so a conversion in another call never observes it.
+    styleEl?.remove();
+    const ctx = document.createElement("canvas").getContext("2d");
+    const fallback = sentinelWidth(ctx, "serif");
+    const widths = families.map((f) => ({ family: f, width: sentinelWidth(ctx, `"${f}", serif`) }));
+    const unapplied = widths.filter((w) => w.width === fallback);
+    if (unapplied.length) {
+      if (styleEl) document.head.appendChild(styleEl);
+      throw new FontIntegrityError(
+        `fonts did not apply: ${unapplied.map((w) => `"${w.family}"`).join(", ")} ` +
+          `(sentinel widths ${widths.map((w) => `${w.family}=${w.width}`).join(", ")}; ` +
+          `serif fallback=${fallback})`,
+      );
+    }
+
+    styleEl = el;
+    warmChars = need;
+    return { families, faces: css.length, glyphs: need.size };
+  } catch (err) {
+    el.remove();
+    throw err;
+  }
+}
 
 /**
  * exportToSvg inlines @font-face rules (base64 src) for the families it renders,
@@ -36,61 +160,27 @@ let warming = null;
  * Fix: warm with the union of every character we've been asked to measure, and
  * re-warm whenever a new one shows up. Measurement then matches what the exported
  * SVG will render, which is the whole point of measuring at all.
+ *
+ * Warms are serialized on a module-level promise chain: the page defends its
+ * own invariant instead of trusting every driver to make one call at a time.
+ * The glyph check runs inside the chain, after any in-flight warm has settled
+ * and committed, so an early return always means the faces are truly applied.
  */
-async function ensureFonts(texts = []) {
-  const need = new Set(warmChars);
-  for (const c of BASE_CHARS) need.add(c);
-  for (const t of texts) {
-    for (const c of String(t)) {
-      if (c !== "\n" && c !== "\r" && c !== "\t") need.add(c);
+function ensureFonts(texts = []) {
+  const run = warmQueue.then(() => {
+    const need = new Set(warmChars);
+    for (const c of BASE_CHARS) need.add(c);
+    for (const t of texts) {
+      for (const c of String(t)) {
+        if (c !== "\n" && c !== "\r" && c !== "\t") need.add(c);
+      }
     }
-  }
-  // Already warm for every glyph asked for, so nothing to await. This early
-  // return is only safe because Node drives the page one call at a time
-  // (tools/browser.js awaits every page.evaluate): a prior ensureFonts has
-  // therefore already settled, and there is no in-flight `warming` to join.
-  // Fire two page calls concurrently and a caller could return here while the
-  // first warm is still loading faces — measure against the fallback font.
-  if (styleEl && need.size === warmChars.size) return;
-
-  warmChars = need;
-  const sample = [...need].join("");
-  warming = (async () => {
-    const svg = await exportToSvg({
-      elements: convertToExcalidrawElements(
-        WARM_FAMILIES.map((fontFamily, i) => ({
-          type: "text",
-          x: 0,
-          y: i * 40,
-          text: sample,
-          fontSize: 20,
-          fontFamily,
-        })),
-      ),
-      appState: {},
-      files: {},
-    });
-    const css = svg.outerHTML.match(/@font-face\s*{[^}]*}/g) ?? [];
-    styleEl?.remove();
-    styleEl = document.createElement("style");
-    styleEl.textContent = css.join("\n");
-    document.head.appendChild(styleEl);
-
-    const families = [
-      ...new Set(
-        css
-          .map((rule) => rule.match(/font-family:\s*([^;]+);/)?.[1]?.trim())
-          .filter(Boolean)
-          .map((f) => f.replace(/^["']|["']$/g, "")),
-      ),
-    ];
-    await Promise.all(
-      families.map((f) => document.fonts.load(`20px "${f}"`).catch(() => {})),
-    );
-    await document.fonts.ready;
-    return { families, faces: css.length, glyphs: warmChars.size };
-  })();
-  return warming;
+    if (styleEl && need.size === warmChars.size) return;
+    return warm(need);
+  });
+  // a failed warm must not wedge the queue — the caller sees the rejection
+  warmQueue = run.catch(() => {});
+  return run;
 }
 
 /** Pull every string a skeleton will render, so fonts can be warmed for them. */

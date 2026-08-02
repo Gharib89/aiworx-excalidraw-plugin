@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — a rotated strip clears the frame's corner, though its AABB overlaps the frame",
+  "elements": [
+    { "id": "f1", "type": "frame", "x": 0, "y": 0, "width": 200, "height": 200, "name": "host" },
+    { "id": "r1", "type": "rectangle", "x": 170, "y": -20, "width": 120, "height": 20,
+      "angle": 0.7853981633974483 }
+  ],
+  "appState": {},
+  "files": {}
+}

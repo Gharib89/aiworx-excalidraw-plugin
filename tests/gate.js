@@ -22,6 +22,11 @@ const CASES = [
   { name: "frames-overlap", exit: 1, expect: "frames overlap" },
   { name: "missing-container", exit: 1, expect: "references missing container ghost" },
   { name: "text-overflows-container", exit: 1, expect: "text overflows container" },
+  // the app wraps bound text into the padded interior, not the container's box —
+  // and for ellipse and diamond only the inscribed text area holds ink
+  { name: "text-overflows-padding", exit: 1, expect: "text overflows container" },
+  { name: "text-overflows-ellipse", exit: 1, expect: "text overflows container" },
+  { name: "text-overflows-diamond", exit: 1, expect: "text overflows container" },
   // a shape clips its text, a line does not: the same width is a defect above
   // and correct rendering here
   { name: "arrow-label-wide", exit: 0, expect: "no mechanical defects" },
@@ -29,6 +34,8 @@ const CASES = [
   { name: "escapes-frame", exit: 1, expect: "escapes frame" },
   { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame" },
   { name: "unbound-over-frame", exit: 1, expect: "without being bound to it" },
+  // overlap is judged on the rotated outline, not its axis-aligned box
+  { name: "rotated-clear-of-frame", exit: 0, expect: "no mechanical defects" },
   { name: "arrow-binding-missing", exit: 1, expect: "points at missing element ghost" },
   { name: "empty", exit: 1, expect: "empty file" },
   { name: "invalid-json", exit: 1, expect: "not valid JSON" },
@@ -38,7 +45,13 @@ const CASES = [
   { name: "degenerate-non-finite", exit: 1, expect: "non-finite geometry" },
   { name: "unknown-type", exit: 1, expect: 'unknown element type "widget"' },
   { name: "free-texts-overlap", exit: 1, expect: "free texts overlap" },
+  { name: "rotated-texts-overlap", exit: 1, expect: "free texts overlap" },
+  { name: "rotated-texts-clear", exit: 0, expect: "no mechanical defects" },
   { name: "arrow-crosses-shape", exit: 1, expect: "crosses rectangle r1" },
+  // a vertex inside the shape is still a pass-through; only a run that begins at
+  // the arrow's tail or is still open at its head is binding hygiene
+  { name: "arrow-vertex-inside-shape", exit: 1, expect: "crosses rectangle r1" },
+  { name: "arrow-ends-inside-shape", exit: 0, expect: "no mechanical defects" },
   { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target" },
   { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray" },
   { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1" },

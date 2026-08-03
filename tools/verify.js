@@ -291,7 +291,12 @@ export function verifyDocument(data) {
     if (hex) return hex;
     return isTransparentish(s?.backgroundColor) ? null : "invalid";
   };
-  const alpha = (e) => (e.opacity ?? 100) / 100;
+  // the browser clamps opacity to 0..1 and treats an invalid value as the
+  // initial 1, so a hand-edited "250" or "full" must not extrapolate the blend
+  const alpha = (e) => {
+    const o = Number(e.opacity ?? 100);
+    return Number.isFinite(o) ? Math.min(1, Math.max(0, o / 100)) : 1;
+  };
   for (const t of texts) {
     let ground = null; // the element the glyphs sit on; null means bare canvas
     if (t.containerId) {

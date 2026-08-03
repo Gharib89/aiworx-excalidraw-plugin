@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: a non-numeric opacity renders at the browser's initial 1, so this pale ink is scored solid and fails, not silently skipped as NaN",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 0, "y": 0, "width": 150, "height": 25, "text": "ghost grey", "strokeColor": "#BBBBBB", "opacity": "full", "fontFamily": 6 }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

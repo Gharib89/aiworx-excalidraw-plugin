@@ -63,6 +63,9 @@ const CASES = [
   // opacity composes into the ratio: these colours pass solid and fail blended
   { name: "low-contrast-opacity", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
   { name: "low-contrast-ground-opacity", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // the browser treats an invalid opacity as the initial 1: the pale ink is
+  // scored solid and fails, instead of a NaN blend silently passing everything
+  { name: "opacity-non-numeric", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
   // a colour the rule cannot parse is a problem, never a silent fallback…
   { name: "unparseable-color", exit: 1, expect: "not a hex colour", code: "unparseable-color" },
   { name: "transparent-ink", exit: 1, expect: "renders invisible", code: "unparseable-color" },

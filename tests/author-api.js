@@ -129,7 +129,7 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
 {
   const result = await authorDiagram({
     out: bandOut,
-    build: async ({ measure, wrap, row, column, box, arrowBetween, palette: p, PROSE }) => {
+    build: async ({ measure, wrap, row, column, box, arrowBetween, flatten, palette: p, PROSE }) => {
       const [title] = await measure([{ text: "revise me later", fontSize: 24, fontFamily: PROSE }]);
       const titleEl = {
         type: "text", id: "title", text: "revise me later", fontSize: 24, fontFamily: PROSE,
@@ -148,8 +148,11 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
       const b = await card("api", "remote", "Calls a model over the network, costs money.");
       const cards = row([a, b], { gap: 60, align: "start" });
       const band = column([titleEl, cards], { gap: 28 });
+      // flatten comes through the build context: collect the frame's children
+      // from the composed group instead of listing ids by hand
+      const children = flatten(band).map((el) => el.id).filter(Boolean);
       return [band, arrowBetween(a, b, { standoff: 10, strokeColor: p.grey.stroke, strokeWidth: 2 }),
-        { type: "frame", children: ["title", "cpu", "api"], name: "1 · revise fixture" }];
+        { type: "frame", children, name: "1 · revise fixture" }];
     },
   });
   check("helpers author a band into a created directory", existsSync(bandOut),

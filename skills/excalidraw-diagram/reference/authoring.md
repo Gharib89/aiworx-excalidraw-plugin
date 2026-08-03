@@ -41,6 +41,16 @@ The app's elbow router does not run in the converter: an arrow given
 orthogonal route is therefore written out as explicit `points`, with
 `roundness: null` to keep its corners.
 
+Authored ids survive to the written file — the converter runs with
+`regenerateIds: false` — so a gate error names the generator's own ids and
+traces straight back to code. What the converter would silently mangle is a
+`SkeletonError` at the door instead: a reused id, an arrow carrying
+`startBinding`/`endBinding`/`fixedPoint` (bind with `start: { id }` /
+`end: { id }`), an arrow whose `start`/`end` is an inline id-less shape the
+converter cannot bind. Arrows bound to images and frames do work: the converter
+alone crashes on those targets, so the pipeline lifts the bindings out and
+stitches them back onto the converted elements.
+
 ## Measuring
 
 A generator never hardcodes the plugin's install path — it differs per machine
@@ -68,7 +78,7 @@ const { authorDiagram } = await import(pathToFileURL(join(root, "tools/author.js
 
 await authorDiagram({
   out: "docs/diagrams/thing.excalidraw",
-  build: async ({ measure, wrap, palette, PROSE, CODE, row, column, box, arrowBetween }) => {
+  build: async ({ measure, wrap, palette, PROSE, CODE, row, column, box, arrowBetween, flatten }) => {
     // one call, many strings — each returns the real rendered size
     const [title, code] = await measure([
       { text: "the formula pass", fontSize: 28, fontFamily: PROSE },
@@ -153,6 +163,11 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   `authorDiagram` flattens groups back into elements.
 - `box` sizes a rectangle from its content plus padding and exposes the
   rectangle as `.shape`, so `arrowBetween` can bind boxes directly.
+- `flatten` unrolls nested groups back into their elements. A frame's
+  `children` wants flat element ids, so list them with
+  `flatten(band).map((el) => el.id)` instead of re-walking the group by hand —
+  and give every element the frame should own an id, because an id-less
+  element cannot be claimed.
 - `arrowBetween` needs *placed* shapes — call it after the stacks that move
   them. Where the two shapes' cross ranges overlap the arrow runs level through
   the overlap's centre. A routed path goes in as `via: [[x, y], …]` waypoints
@@ -164,6 +179,10 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   label wider than a short arrow is normal; the gate does not treat that as
   overflow (a shape clips its text, a line does not), which means a label
   running close to a neighbour is a thing to check in the render.
+  A label inherits the arrow's `strokeColor` and is scored as text on whatever
+  lies behind it — in both themes, every run — so a role-coloured arrow (pass
+  green, decision gold) usually fails 4.5:1 through its own label. Give the
+  label ink of its own: `{ label: { text: "writes", strokeColor: palette.ink } }`.
 - Malformed input — empty items, a gap array of the wrong length, an item
   without measured width/height — throws a `LayoutError` naming the problem.
 

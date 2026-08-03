@@ -8,7 +8,7 @@
  *
  *   await authorDiagram({
  *     out: "docs/diagrams/thing.excalidraw",
- *     build: async ({ measure, wrap, palette, PROSE, CODE, stack, row, column, box, arrowBetween }) =>
+ *     build: async ({ measure, wrap, palette, PROSE, CODE, stack, row, column, box, arrowBetween, flatten }) =>
  *       [ ...skeleton or layout groups ],
  *   });
  *
@@ -522,6 +522,7 @@ const buildContext = (ex, files) => ({
   column,
   box,
   arrowBetween,
+  flatten,
   image: makeImage(ex, files),
   spliceLibraryItem,
 });

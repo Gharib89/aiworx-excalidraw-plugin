@@ -65,6 +65,12 @@ filter over the same colours and it does not preserve contrast ratios, so a
 pair can clear 4.5:1 light and fail it dark — each failure names the theme it
 failed under.
 
+`--json` reports each defect as an object with a stable kebab-case `code`, the
+element ids involved, and per-code fields (a contrast failure names its
+`theme`). Codes are append-only, so machine handling keys on `code` — the
+`message` prose carries no contract. A file that cannot be checked at all
+carries `error: { code, message }` instead of a problem list.
+
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
 refuse to write a failing file, so a generator's output arrives pre-gated; the
 CLI is for files that got here another way, and as the proof after hand edits.
@@ -94,6 +100,11 @@ the picture shows them.
 When iterating on one frame, re-render just it instead of the whole band:
 `--frame 3`. Other knobs: `--dark` (dark-theme export), `--padding N`,
 `--background COLOR`. Invalid values fail loudly with a `UsageError`.
+
+`--padding` pads the whole-picture SVG only: Excalidraw zeroes padding when
+exporting a frame, so every frame PNG crops exactly at the frame border, and
+content flush with the frame edge reads as clipped in its PNG. That is the
+export, not a layout defect — the fix is room inside the frame, not a flag.
 
 For each frame, check the composition against the claim from step 1, then hunt
 the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — the
@@ -161,3 +172,12 @@ chosen once per diagram; see [reference/patterns.md](reference/patterns.md).
 
 See [reference/palette.md](reference/palette.md) for the exact values and how the
 palette is verified.
+
+## When the skill misbehaves
+
+The installed plugin is a cached copy that can lag this repo — a session then
+loads stale skill text against newer expectations. When a documented flag is
+rejected, an error appears that this text does not mention, or behaviour
+contradicts these docs, compare the running copy's version
+(`.claude-plugin/plugin.json` under `${CLAUDE_PLUGIN_ROOT}`) with the repo's
+before debugging further, and update the plugin if they differ.

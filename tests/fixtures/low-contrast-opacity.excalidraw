@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: full-contrast ink at opacity 30 blends into the canvas and fails the ratio it would pass solid",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 0, "y": 0, "width": 150, "height": 25, "text": "faded ink", "strokeColor": "#1A1A19", "opacity": 30, "fontFamily": 6 }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

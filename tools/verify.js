@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { bounds, outline, outlinesOverlap, contains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
-import { contrast, normalizeHex, toDarkTheme } from "./color.js";
+import { blend, contrast, normalizeHex, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
@@ -37,13 +37,14 @@ export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
  * defect. Code-specific fields sit flat at top level; numbers are rounded as
  * the message prints them.
  *
- * The `theme: "dark"` *option* scores the contrast rule on the colours a dark
- * export actually renders, not the authored ones — each `low-contrast` problem
- * records the theme it was scored under in its own `theme` field. Geometry is
- * theme-independent, so nothing else changes. A pair can clear 4.5:1 light and fail it dark — the filter compresses
- * some hue pairs toward each other — so a diagram meant for both is checked twice.
+ * The contrast rule is scored twice per run — once per theme, from the same
+ * light colours — because the dark export's filter is not contrast-preserving:
+ * a pair can clear 4.5:1 light and fail it dark. Each `low-contrast` problem
+ * records the theme it was scored under in its own `theme` field; a pair
+ * failing both themes yields two problems. Geometry is theme-independent, so
+ * nothing else runs twice.
  */
-export function verifyDocument(data, { theme = "light" } = {}) {
+export function verifyDocument(data) {
   const problems = [];
   const note = (code, message, elements = [], extra = {}) =>
     problems.push({ code, message, elements, ...extra });
@@ -248,12 +249,50 @@ export function verifyDocument(data, { theme = "light" } = {}) {
   //     mostly canvas behind the glyphs, so only solid fills count as the ground.
   //     An image is a ground no ratio can measure — its pixels are unknown — so
   //     text over one is flagged instead of scored against whatever lies below.
-  const themed = theme === "dark" ? (c) => toDarkTheme(c) : (c) => c;
-  const where = theme === "dark" ? " under the dark theme" : "";
-  const canvas = themed(normalizeHex(data.appState?.viewBackgroundColor) ?? palette.canvas);
-  const fillOf = (s) => ((s?.fillStyle ?? "solid") === "solid" ? themed(normalizeHex(s?.backgroundColor)) : null);
+  //
+  //     Colours the rule cannot parse are problems, never silent fallbacks: no
+  //     ratio is ever computed against an invented value. "transparent" (and
+  //     empty/unset) is legitimate for fills only — the canvas shows through;
+  //     transparent ink renders no text at all. Named colours are not resolved:
+  //     the palette and Excalidraw's picker emit hex, and toDarkTheme cannot
+  //     transform a name anyway.
+  //
+  //     Opacity composes into the ratio through a single-level backdrop chain —
+  //     the same topmost-solid-ground simplification, now opacity-aware:
+  //     effectiveGround = blend(groundFill, canvas, ground.opacity) and
+  //     effectiveInk = blend(ink, effectiveGround, text.opacity). Blending
+  //     happens once in light sRGB and the blended pair is themed afterwards;
+  //     blend and theme commute (tests/dark.js pins it), so this equals
+  //     theming first. Both themes are scored on every run.
+  const isTransparentish = (c) => c == null || String(c).trim() === "" || String(c).trim().toLowerCase() === "transparent";
+  const seenBadColor = new Set(); // one problem per (element, field), however many texts sit on it
+  const badColor = (elements, field, value, message) => {
+    const key = `${elements.join()}|${field}`;
+    if (seenBadColor.has(key)) return;
+    seenBadColor.add(key);
+    note("unparseable-color", message, elements, { field, value });
+  };
+  const rawCanvas = data.appState?.viewBackgroundColor;
+  let canvas = normalizeHex(rawCanvas);
+  if (!canvas) {
+    // "transparent" (and unset) canvas keeps the palette fallback silently; anything
+    // else is named, then scoring continues against the palette so the rule still runs
+    if (!isTransparentish(rawCanvas)) {
+      badColor([], "viewBackgroundColor", rawCanvas,
+        `appState.viewBackgroundColor ${JSON.stringify(rawCanvas)} is not a hex colour (scored against ${palette.canvas} instead)`);
+    }
+    canvas = palette.canvas;
+  }
+  // a solid-style shape's fill: a hex, null when the canvas legitimately shows
+  // through, or "invalid" for a value the rule refuses to invent a colour for
+  const fillOf = (s) => {
+    if ((s?.fillStyle ?? "solid") !== "solid") return null;
+    const hex = normalizeHex(s?.backgroundColor);
+    if (hex) return hex;
+    return isTransparentish(s?.backgroundColor) ? null : "invalid";
+  };
+  const alpha = (e) => (e.opacity ?? 100) / 100;
   for (const t of texts) {
-    const ink = themed(normalizeHex(t.strokeColor) ?? palette.ink);
     let ground = null; // the element the glyphs sit on; null means bare canvas
     if (t.containerId) {
       ground = byId.get(t.containerId);
@@ -268,20 +307,40 @@ export function verifyDocument(data, { theme = "light" } = {}) {
       }
     }
     if (ground?.type === "image") {
+      // theme-independent: the pixels are unknowable in either theme
       note("text-over-image", `text "${preview(t.text)}" sits over image ${ground.id}: contrast against image pixels is unknowable`, [t.id, ground.id]);
       continue;
     }
-    const bg = fillOf(ground) ?? canvas;
+    // unset ink keeps Excalidraw's own default; transparent ink is invisible
+    // text, never intended, and any other non-hex is unparseable
+    const ink = t.strokeColor == null ? palette.ink : normalizeHex(t.strokeColor);
+    if (!ink) {
+      badColor([t.id], "strokeColor", t.strokeColor,
+        String(t.strokeColor).trim().toLowerCase() === "transparent"
+          ? `text "${preview(t.text)}" has transparent strokeColor — it renders invisible`
+          : `text "${preview(t.text)}" strokeColor ${JSON.stringify(t.strokeColor)} is not a hex colour`);
+    }
+    const groundFill = ground ? fillOf(ground) : null;
+    if (groundFill === "invalid") {
+      badColor([ground.id], "backgroundColor", ground.backgroundColor,
+        `${ground.type} ${ground.id} backgroundColor ${JSON.stringify(ground.backgroundColor)} is not a hex colour`);
+    }
+    if (!ink || groundFill === "invalid") continue; // no ratio against invented colours
+    const effGround = groundFill ? blend(groundFill, canvas, alpha(ground)) : canvas;
+    const effInk = blend(ink, effGround, alpha(t));
     // WCAG: body text needs 4.5:1, large text (>= 24px) needs 3:1
     const needs = (t.fontSize ?? 20) >= 24 ? 3 : 4.5;
-    const c = contrast(ink, bg);
-    if (c < needs) {
-      note(
-        "low-contrast",
-        `text "${preview(t.text)}" contrast ${c.toFixed(2)}:1${where} (${ink} on ${bg}, needs ${needs}:1)`,
-        [t.id],
-        { ratio: Number(c.toFixed(2)), needs, ink, bg, theme },
-      );
+    for (const theme of ["light", "dark"]) {
+      const [inkT, bgT] = theme === "dark" ? [toDarkTheme(effInk), toDarkTheme(effGround)] : [effInk, effGround];
+      const c = contrast(inkT, bgT);
+      if (c < needs) {
+        note(
+          "low-contrast",
+          `text "${preview(t.text)}" contrast ${c.toFixed(2)}:1${theme === "dark" ? " under the dark theme" : ""} (${inkT} on ${bgT}, needs ${needs}:1)`,
+          [t.id],
+          { ratio: Number(c.toFixed(2)), needs, ink: inkT, bg: bgT, theme },
+        );
+      }
     }
   }
 

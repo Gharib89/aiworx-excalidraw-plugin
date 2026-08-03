@@ -4,31 +4,29 @@
  * API can run them in-process before writing; this wrapper adds the file-level
  * checks (readable, parseable, actually an Excalidraw document) and the output.
  *
- * Usage: node tools/check.js [--json] [--dark] [--] diagram.excalidraw [more.excalidraw ...]
+ * Usage: node tools/check.js [--json] [--] diagram.excalidraw [more.excalidraw ...]
  *
  * Every file is checked and reported; the exit code is the worst one seen, so a
  * clean run of many files still exits 0 and one bad file still fails the batch.
  * `--json` prints one document covering every file instead, for pre-commit hooks
  * and CI aggregation — the exit codes are the same either way.
  *
- * `--dark` scores contrast on the colours a dark export renders instead of the
- * authored ones. It is opt-in for the same reason render.js --dark is: a diagram
- * only shipped light need not hold in a theme nobody exports it to.
+ * Contrast is scored against both themes on every run — each low-contrast
+ * problem carries the theme it failed under. Render tools keep their dark
+ * flags; that is output selection, not verification.
  */
 import { readFileSync } from "node:fs";
 import { verifyDocument } from "./verify.js";
 
-const USAGE = "usage: check.js [--json] [--dark] [--] <file.excalidraw> [more.excalidraw ...]";
+const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw ...]";
 
 const inputs = [];
 let json = false;
-let dark = false;
 let literal = false; // everything after -- is a path, even if it looks like a flag
 for (const arg of process.argv.slice(2)) {
   if (literal || !arg.startsWith("--")) inputs.push(arg);
   else if (arg === "--") literal = true;
   else if (arg === "--json") json = true;
-  else if (arg === "--dark") dark = true;
   else {
     console.error(`unknown flag ${arg}\n${USAGE}`);
     process.exit(2);
@@ -71,7 +69,7 @@ function inspect(file) {
   // owes every other file its report whatever this one turns out to contain.
   let result;
   try {
-    result = verifyDocument(data, { theme: dark ? "dark" : "light" });
+    result = verifyDocument(data);
   } catch (err) {
     return { file, ok: false, code: 1, error: { code: "check-crashed", message: `cannot be checked — ${err.name}: ${err.message}` } };
   }
@@ -88,8 +86,7 @@ function report(r) {
   console.log(
     `${r.file}: ${r.stats.elements} elements, ${r.stats.frames} frames, ` +
       `${r.stats.texts} text` +
-      (r.stats.outsideAll ? `, ${r.stats.outsideAll} outside every frame` : "") +
-      (dark ? " — dark theme" : ""),
+      (r.stats.outsideAll ? `, ${r.stats.outsideAll} outside every frame` : ""),
   );
   if (r.problems.length) {
     console.error(`\n${r.problems.length} problem(s):`);

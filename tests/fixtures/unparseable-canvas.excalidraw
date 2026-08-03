@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: a named canvas colour; the problem is emitted and the text is still scored against the palette canvas",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 0, "y": 0, "width": 150, "height": 25, "text": "dark ink", "strokeColor": "#1A1A19", "fontFamily": 6 }
+  ],
+  "appState": { "viewBackgroundColor": "papayawhip" },
+  "files": {}
+}

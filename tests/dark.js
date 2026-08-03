@@ -7,13 +7,15 @@
  *
  *   1. toDarkTheme reproduces what Chrome's filter pipeline actually produces
  *   2. the transform's own invariants (idempotent hue pair, mid-grey fixed point)
- *   3. check.js --dark scores contrast on the transformed colours, so a pair that
- *      passes light and fails dark is caught — and a clean file stays clean
+ *      and its commutation with alpha blending — blend-then-theme ≡ theme-then-blend,
+ *      which is what lets the gate blend once in light sRGB and theme the result
+ *   3. every check.js run scores both themes, so a pair that passes light and
+ *      fails dark is caught with no flag — and a clean file stays clean
  */
 import { spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { toDarkTheme, contrast } from "../tools/color.js";
+import { toDarkTheme, contrast, blend } from "../tools/color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const gate = join(root, "tools/check.js");
@@ -72,9 +74,26 @@ check("no colour drifts more than two 8-bit levels from the browser", worst <= 2
   // barely moves and greys stay greys instead of swapping ends of the ramp.
   check("mid-grey is near-fixed", delta(toDarkTheme("#808080"), "#7F7F7F") <= 2, toDarkTheme("#808080"));
   check("a bad hex is null, not a crash", toDarkTheme("transparent") === null);
+
+  // Invert and hue-rotate are affine on sRGB channels and an alpha blend is a
+  // convex combination, so theming commutes with blending — as long as the
+  // transform stays in gamut (a channel that clamps at 0 or 255, as saturated
+  // blues and reds do, breaks affinity). The gate blends once in light sRGB and
+  // themes the result, which is the order the render itself applies — the dark
+  // filter runs over final composited pixels — so the gate is exact either way;
+  // this pins the commutation on in-gamut pairs so the shortcut stays honest.
+  // Δ≤2 covers the double 8-bit rounding.
+  let worstBlend = 0;
+  for (const [fg, bg] of [["#1A1A19", "#FCFCFB"], ["#6E9A21", "#F1F1EF"], ["#0198CB", "#FCFCFB"], ["#A17E00", "#F1F1EF"]]) {
+    for (const a of [0, 0.2, 0.35, 0.5, 0.8, 1]) {
+      const d = delta(toDarkTheme(blend(fg, bg, a)), blend(toDarkTheme(fg), toDarkTheme(bg), a));
+      worstBlend = Math.max(worstBlend, d);
+    }
+  }
+  check("blend-then-theme agrees with theme-then-blend", worstBlend <= 2, `worst Δ${worstBlend}`);
 }
 
-// ---- 3. the gate under --dark ----
+// ---- 3. the gate scores both themes on every run ----
 {
   const run = (args) => {
     const r = spawnSync(process.execPath, [gate, ...args], { encoding: "utf8" });
@@ -86,29 +105,23 @@ check("no colour drifts more than two 8-bit levels from the browser", worst <= 2
   check("the fixture really does flip", lightRatio >= 4.5 && darkRatio < 4.5,
     `light ${lightRatio.toFixed(2)}:1, dark ${darkRatio.toFixed(2)}:1`);
 
-  const light = run([fixture("dark-contrast")]);
-  check("the fixture passes the light gate", light.status === 0, light.output.trim().split("\n").pop());
+  const plain = run([fixture("dark-contrast")]);
+  check("a plain run catches the dark-only failure", plain.status === 1, `exit ${plain.status}`);
+  check("the failure names the dark theme", plain.output.includes("under the dark theme"), plain.output.trim());
+  check("the failure reports the transformed pair", plain.output.includes(toDarkTheme("#F5B7B1")), plain.output.trim());
 
-  const dark = run([fixture("dark-contrast"), "--dark"]);
-  check("--dark catches it", dark.status === 1, `exit ${dark.status}`);
-  check("--dark names the dark ground", dark.output.includes("under the dark theme"), dark.output.trim());
-  check("--dark reports the transformed pair", dark.output.includes(toDarkTheme("#F5B7B1")), dark.output.trim());
+  const clean = run([fixture("clean")]);
+  check("a clean file is clean in both themes", clean.status === 0, clean.output.trim().split("\n").pop());
 
-  const clean = run([fixture("clean"), "--dark"]);
-  check("a clean file stays clean under --dark", clean.status === 0, clean.output.trim().split("\n").pop());
-
-  const example = run([join(root, "examples/example.excalidraw"), "--dark"]);
-  check("the committed example passes under --dark", example.status === 0,
+  const example = run([join(root, "examples/example.excalidraw")]);
+  check("the committed example passes both themes", example.status === 0,
     example.output.trim().split("\n").pop());
 
-  const planted = run([fixture("low-contrast-text"), "--dark"]);
-  check("a light-theme failure is still a failure under --dark", planted.status === 1, `exit ${planted.status}`);
-
-  // A misspelt flag that scored the light theme anyway would report a pass the
-  // author never asked for, so an unknown flag is a usage error.
-  const typo = run([fixture("dark-contrast"), "--drak"]);
-  check("a misspelt flag is a usage error", typo.status === 2 && typo.output.includes("unknown flag --drak"),
-    `exit ${typo.status}: ${typo.output.trim().split("\n")[0]}`);
+  // --dark is gone — one run, one truth. A flag that silently narrowed the run
+  // back to one theme would report a pass the plain run contradicts.
+  const flag = run([fixture("dark-contrast"), "--dark"]);
+  check("--dark is a usage error now", flag.status === 2 && flag.output.includes("unknown flag --dark"),
+    `exit ${flag.status}: ${flag.output.trim().split("\n")[0]}`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\ndark-theme contrast behaves");

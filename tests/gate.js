@@ -57,6 +57,21 @@ const CASES = [
   { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target", code: "arrow-buried" },
   { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray", code: "stray" },
   { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // every run scores both themes: a pair that only fails once the dark filter
+  // has run is caught without any flag
+  { name: "dark-contrast", exit: 1, expect: "under the dark theme", code: "low-contrast" },
+  // opacity composes into the ratio: these colours pass solid and fail blended
+  { name: "low-contrast-opacity", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  { name: "low-contrast-ground-opacity", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // the browser treats an invalid opacity as the initial 1: the pale ink is
+  // scored solid and fails, instead of a NaN blend silently passing everything
+  { name: "opacity-non-numeric", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // a colour the rule cannot parse is a problem, never a silent fallback…
+  { name: "unparseable-color", exit: 1, expect: "not a hex colour", code: "unparseable-color" },
+  { name: "transparent-ink", exit: 1, expect: "renders invisible", code: "unparseable-color" },
+  { name: "unparseable-canvas", exit: 1, expect: "viewBackgroundColor", code: "unparseable-color" },
+  // …but "transparent" as a fill legitimately means the canvas shows through
+  { name: "transparent-fill", exit: 0, expect: "no mechanical defects" },
   { name: "text-over-image", exit: 1, expect: 'text "over the screenshot" sits over image i1', code: "text-over-image" },
   { name: "foreign-font", exit: 1, expect: "outside the house pair", code: "foreign-font" },
   { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary", code: "missing-image-bytes" },
@@ -185,8 +200,8 @@ for (const c of CASES) {
 // The code registry is append-only and messages carry no contract, so machine
 // consumers key on these shapes. One fixture per field-bearing code.
 {
-  const jsonFile = (name, ...flags) => {
-    const r = spawnSync(process.execPath, [gate, "--json", ...flags, fixture(name)], { encoding: "utf8" });
+  const jsonFile = (name) => {
+    const r = spawnSync(process.execPath, [gate, "--json", fixture(name)], { encoding: "utf8" });
     return JSON.parse(r.stdout).files[0];
   };
   const find = (f, code) => (f.problems ?? []).find((p) => p.code === code);
@@ -203,9 +218,32 @@ for (const c of CASES) {
       contrast.theme === "light" && contrast.elements.join() === "t1",
     JSON.stringify(contrast));
 
-  const dark = find(jsonFile("dark-contrast", "--dark"), "low-contrast");
-  check("a --dark run stamps its low-contrast problems theme dark",
-    dark?.theme === "dark", JSON.stringify(dark));
+  // one run, both themes: a dark-only failure is stamped dark, and no light
+  // problem is invented for a pair that clears the light ratio
+  const darkOnly = (jsonFile("dark-contrast").problems ?? []).filter((p) => p.code === "low-contrast");
+  check("a dark-only failure yields exactly one problem, stamped theme dark",
+    darkOnly.length === 1 && darkOnly[0].theme === "dark", JSON.stringify(darkOnly));
+  const bothThemes = (jsonFile("low-contrast-text").problems ?? []).filter((p) => p.code === "low-contrast");
+  check("a pair failing both themes yields one problem per theme",
+    bothThemes.map((p) => p.theme).sort().join() === "dark,light", JSON.stringify(bothThemes.map((p) => p.theme)));
+
+  const named = find(jsonFile("unparseable-color"), "unparseable-color");
+  check("unparseable-color carries field and value and names the element",
+    named?.field === "strokeColor" && named.value === "salmon" && named.elements.join() === "t1",
+    JSON.stringify(named));
+  check("a flagged element gets no low-contrast score",
+    !find(jsonFile("unparseable-color"), "low-contrast"),
+    JSON.stringify(jsonFile("unparseable-color").problems));
+
+  const canvasProblem = find(jsonFile("unparseable-canvas"), "unparseable-color");
+  check("an unparseable canvas names no element and the rest is still scored",
+    canvasProblem?.field === "viewBackgroundColor" && canvasProblem.value === "papayawhip" &&
+      canvasProblem.elements.length === 0 && !find(jsonFile("unparseable-canvas"), "low-contrast"),
+    JSON.stringify(jsonFile("unparseable-canvas").problems));
+
+  const overImage = (jsonFile("text-over-image").problems ?? []).filter((p) => p.code === "text-over-image");
+  check("text-over-image is theme-independent: emitted once, no theme field",
+    overImage.length === 1 && !("theme" in overImage[0]), JSON.stringify(overImage));
 
   const overflow = find(jsonFile("text-overflows-container"), "text-overflow");
   check("text-overflow names text then container",

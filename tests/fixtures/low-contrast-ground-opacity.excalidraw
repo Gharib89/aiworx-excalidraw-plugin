@@ -1,0 +1,11 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: near-white ink on a dark card at opacity 20; the card washes out to the canvas and the ink fails against the blend",
+  "elements": [
+    { "id": "card", "type": "rectangle", "x": 0, "y": 0, "width": 220, "height": 60, "strokeColor": "#1A1A19", "backgroundColor": "#1A1A19", "fillStyle": "solid", "opacity": 20, "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": 35, "y": 18, "width": 150, "height": 25, "text": "washed out", "strokeColor": "#FCFCFB", "fontFamily": 6, "containerId": "card" }
+  ],
+  "appState": { "viewBackgroundColor": "#FCFCFB" },
+  "files": {}
+}

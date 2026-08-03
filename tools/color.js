@@ -65,6 +65,18 @@ export const contrast = (a, b) => {
   return (x + 0.05) / (y + 0.05);
 };
 
+/**
+ * Alpha-composite fg over bg: fg·a + bg·(1−a) per channel, in non-linear sRGB —
+ * the space the browser composites element opacity in. Both colours "#RRGGBB",
+ * alpha 0..1. Commutes with toDarkTheme while the transform stays in gamut (the
+ * filter chain is affine per channel until a channel clamps at 0 or 255);
+ * tests/dark.js pins that on in-gamut pairs.
+ */
+export const blend = (fg, bg, alpha) => {
+  const b = hexToRgb(bg);
+  return rgbToHex(hexToRgb(fg).map((c, i) => c * alpha + b[i] * (1 - alpha)));
+};
+
 // Excalidraw's dark export is not a second palette: exportToSvg puts one CSS
 // filter chain on the root <svg> — invert(93%) hue-rotate(180deg) — and every
 // pixel, background rect included, goes through it. So a dark colour is a pure

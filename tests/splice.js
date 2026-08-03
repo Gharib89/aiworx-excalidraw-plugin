@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit suite for spliceLibraryItem (tools/author.js). Pure JSON in, JSON out —
+ * Unit suite for spliceLibraryItem (#58, tools/author.js). Pure JSON in, out —
  * no browser, so small libraries written to a temp dir pin the whole contract:
  *
  *   1. an item is picked by index or by name; every malformed selection and
@@ -14,6 +14,7 @@
  *   5. the item lands with its top-left corner at `at` and reports its extent
  *   6. an item whose every element is deleted splices to nothing — that is
  *      current behavior, pinned here so fixing it shows up as a change
+ *      (#67 item 6 flips this pin)
  *
  * The stick-figure library (examples/) is the real-world case; everything that
  * needs a specific shape is written inline, so the expectation and the input
@@ -28,6 +29,7 @@ import { spliceLibraryItem } from "../tools/author.js";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = mkdtempSync(join(tmpdir(), "splice-"));
 const LIB = join(root, "examples/stick-figure.excalidrawlib");
+console.log(`artifacts: ${outDir}`);
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -43,7 +45,7 @@ const throwsWith = (errorName, fn) => {
   }
 };
 
-/** A complete element: the converter's required fields, so only the case's own fields vary. */
+/** A realistic full Excalidraw element, so only the case's own fields vary. */
 const el = (id, extra = {}) => ({
   id, type: "rectangle", x: 0, y: 0, width: 40, height: 40, angle: 0,
   strokeColor: "#1e1e1e", backgroundColor: "transparent", fillStyle: "solid",
@@ -51,9 +53,9 @@ const el = (id, extra = {}) => ({
   groupIds: [], frameId: null, roundness: null, seed: 1, version: 1,
   versionNonce: 1, isDeleted: false, link: null, locked: false, ...extra,
 });
-const library = (name, items) => {
+const library = (name, doc) => {
   const path = join(outDir, `${name}.excalidrawlib`);
-  writeFileSync(path, JSON.stringify(items));
+  writeFileSync(path, JSON.stringify(doc));
   return path;
 };
 
@@ -203,17 +205,18 @@ const library = (name, items) => {
   const groups = new Set([r1, t1, r2].flatMap((e) => e.groupIds));
   check("one source group becomes one fresh group shared by its members",
     groups.size === 1 && !groups.has("g1"), [...groups].join(", "));
-  check("the frame joins no group of its own", frame.groupIds.length === 0 && t2.groupIds.length === 0,
+  check("an element with no source group joins none", frame.groupIds.length === 0 && t2.groupIds.length === 0,
     JSON.stringify([frame.groupIds, t2.groupIds]));
 }
 
 // ---- 6. an all-deleted item: current behavior, pinned ----
 //
-// Deleted elements are filtered before anything else, so an item that holds
-// nothing but tombstones splices to an empty group with a non-finite extent
-// (Math.min/max over no boxes) instead of being rejected like an element-less
-// item. That asymmetry is a known paper cut, tracked separately — when it is
-// fixed this case becomes a LibraryError and these expectations flip.
+// The element-less guard runs before the isDeleted filter, so an item of
+// nothing but tombstones clears the guard and then splices to an empty group
+// with a non-finite extent (Math.min/max over no boxes) instead of being
+// rejected the way a genuinely element-less item is. That asymmetry is a known
+// paper cut, tracked as #67 item 6 (move the guard after the filter) — when it
+// lands this case becomes a LibraryError and these expectations flip.
 {
   const dead = library("dead", {
     type: "excalidrawlib", version: 2,

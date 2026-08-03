@@ -7,10 +7,10 @@
  *      travel in the file, the SVG embeds them, and the gate passes
  *   2. unreadable or unsupported image input is a named AssetError and
  *      nothing is written
- *   3. revise prunes the bytes no live image references any more, and leaves
- *      the ones that are still referenced untouched
- *   4. intrinsic size comes from the bytes for every supported format, not just
+ *   3. intrinsic size comes from the bytes for every supported format, not just
  *      PNG, so one dimension is enough to place any of them
+ *   4. revise prunes the bytes no live image references any more, and leaves
+ *      the ones that are still referenced untouched
  *
  * spliceLibraryItem's own contract lives in tests/splice.js; the spliced figure
  * appears here only as part of the whole-pipeline build.

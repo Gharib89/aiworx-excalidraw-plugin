@@ -261,9 +261,12 @@ export function verifyDocument(data) {
   //     the same topmost-solid-ground simplification, now opacity-aware:
   //     effectiveGround = blend(groundFill, canvas, ground.opacity) and
   //     effectiveInk = blend(ink, effectiveGround, text.opacity). Blending
-  //     happens once in light sRGB and the blended pair is themed afterwards;
-  //     blend and theme commute (tests/dark.js pins it), so this equals
-  //     theming first. Both themes are scored on every run.
+  //     happens once in light sRGB and the blended pair is themed afterwards —
+  //     the order the render itself applies, the dark filter running over the
+  //     final composited pixels. Blend and theme also commute while the
+  //     transform stays in gamut (tests/dark.js pins it on in-gamut pairs), so
+  //     the shortcut agrees with theming first wherever both are defined.
+  //     Both themes are scored on every run.
   const isTransparentish = (c) => c == null || String(c).trim() === "" || String(c).trim().toLowerCase() === "transparent";
   const seenBadColor = new Set(); // one problem per (element, field), however many texts sit on it
   const badColor = (elements, field, value, message) => {

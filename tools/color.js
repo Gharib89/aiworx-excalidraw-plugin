@@ -68,8 +68,9 @@ export const contrast = (a, b) => {
 /**
  * Alpha-composite fg over bg: fg·a + bg·(1−a) per channel, in non-linear sRGB —
  * the space the browser composites element opacity in. Both colours "#RRGGBB",
- * alpha 0..1. Commutes with toDarkTheme (the filter chain is affine per pixel);
- * tests/dark.js pins that.
+ * alpha 0..1. Commutes with toDarkTheme while the transform stays in gamut (the
+ * filter chain is affine per channel until a channel clamps at 0 or 255);
+ * tests/dark.js pins that on in-gamut pairs.
  */
 export const blend = (fg, bg, alpha) => {
   const b = hexToRgb(bg);

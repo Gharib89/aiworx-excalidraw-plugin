@@ -144,18 +144,10 @@ await withAuthoring(async (author) => {
         panels.push({
           g, name: "3 · the components, and who owns whom",
           post: () => [
-            // BUG WORKAROUND: the converter re-routes BOUND arrows center-to-center,
-            // discarding arrowBetween's computed points; the re-routed diagonals clip
-            // neighbour cards and the gate rejects the file. Geometry-only endpoints
-            // keep the computed path.
             ...[layoutM, verifyM, browserM, renderM].map((m) =>
-              arrowBetween({ x: authorM.x, y: authorM.y, width: authorM.width, height: authorM.height },
-                { x: m.x, y: m.y, width: m.width, height: m.height },
-                { standoff: 10, strokeColor: grey.stroke,
+              arrowBetween(authorM, m, { standoff: 10, strokeColor: grey.stroke,
                 strokeWidth: 2, endArrowhead: "diamond" })),
-            arrowBetween({ x: verifyM.x, y: verifyM.y, width: verifyM.width, height: verifyM.height },
-              { x: geomM.x, y: geomM.y, width: geomM.width, height: geomM.height },
-              { standoff: 10, strokeColor: grey.stroke,
+            arrowBetween(verifyM, geomM, { standoff: 10, strokeColor: grey.stroke,
               strokeWidth: 2, endArrowhead: "diamond", label: { text: "shared bounds", fontSize: 13 } }),
           ],
         });
@@ -281,11 +273,7 @@ await withAuthoring(async (author) => {
         panels.push({
           g, name: "7 · real assets: images and spliced library items",
           post: () => [
-            // BUG WORKAROUND: binding an arrow to an image element crashes the
-            // converter ("Cannot read properties of undefined (reading 'id')"),
-            // so the arrow starts from the logo's geometry without binding to it.
-            arrowBetween({ x: logo.x, y: logo.y, width: logo.width, height: logo.height },
-              dictCard, { standoff: 8, strokeColor: grey.stroke,
+            arrowBetween(logo, dictCard, { standoff: 8, strokeColor: grey.stroke,
               strokeWidth: 2, endArrowhead: "triangle", label: { text: "sha1", fontSize: 13, fontFamily: CODE } }),
           ],
         });

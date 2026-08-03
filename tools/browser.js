@@ -147,8 +147,10 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
 
     const api = {
       page,
-      convert: (skeleton) =>
-        guard("convert", () => page.evaluate((s) => window.__ex.convert(s), skeleton)),
+      convert: (skeleton, opts) =>
+        guard("convert", () =>
+          page.evaluate(([s, o]) => window.__ex.convert(s, o), [skeleton, opts ?? null]),
+        ),
       measureText: (items) =>
         guard("measureText", () => page.evaluate((i) => window.__ex.measureText(i), items)),
       imageSize: (file) =>

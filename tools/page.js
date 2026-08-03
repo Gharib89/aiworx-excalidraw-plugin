@@ -287,9 +287,9 @@ async function exportSvg({ elements, appState, files, exportingFrame, exportPadd
 }
 
 window.__ex = {
-  convert: async (skeleton) => {
+  convert: async (skeleton, opts) => {
     await ensureFonts(skeletonTexts(skeleton));
-    return convertToExcalidrawElements(skeleton);
+    return convertToExcalidrawElements(skeleton, opts ?? undefined);
   },
   fontStatus: () => ({
     registered: document.fonts.size,

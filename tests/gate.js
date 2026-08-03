@@ -44,6 +44,9 @@ const CASES = [
   { name: "foreign-json", exit: 1, expect: "not an Excalidraw document", errorCode: "not-excalidraw" },
   { name: "does-not-exist", exit: 2, expect: "cannot read", errorCode: "unreadable" },
   { name: "degenerate-zero-size", exit: 1, expect: "zero size", code: "degenerate" },
+  // a linear element carries no size of its own: it degenerates when its points
+  // coincide, which the zero-size branch never sees
+  { name: "degenerate-zero-length", exit: 1, expect: "zero length", code: "degenerate" },
   { name: "degenerate-non-finite", exit: 1, expect: "non-finite geometry", code: "non-finite-geometry" },
   { name: "unknown-type", exit: 1, expect: 'unknown element type "widget"', code: "unknown-type" },
   { name: "free-texts-overlap", exit: 1, expect: "free texts overlap", code: "free-text-overlap" },

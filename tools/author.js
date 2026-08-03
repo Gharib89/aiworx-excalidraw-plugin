@@ -410,7 +410,14 @@ function planBindingStitches(skeleton) {
             `declare the ${ref.type} as its own element with an id and bind with ${end}: { id }`,
         );
       }
-      el.id ??= freshId();
+      if (el.id == null) {
+        // a generated id colliding with an author id would make the converter
+        // silently drop an element — the very hole the duplicate-id guard closes
+        let id = freshId();
+        while (typeOf.has(id)) id = freshId();
+        typeOf.set(id, el.type);
+        el.id = id;
+      }
       stitches.push({ arrowId: el.id, end, targetId: ref.id });
       delete el[end];
     }
@@ -431,6 +438,12 @@ function applyBindingStitches(elements, stitches) {
   for (const { arrowId, end, targetId } of stitches) {
     const arrow = byId.get(arrowId);
     const target = byId.get(targetId);
+    if (!arrow || !target) {
+      throw new SkeletonError(
+        `the convert lost ${!arrow ? `arrow ${arrowId}` : `element ${targetId}`} that a ` +
+          `${end} binding was planned for`,
+      );
+    }
     const pts = outline(arrow);
     const [px, py] = end === "start" ? pts[0] : pts[pts.length - 1];
     const b = bounds(target);

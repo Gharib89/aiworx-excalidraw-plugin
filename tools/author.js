@@ -24,7 +24,7 @@ import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
-import { bounds, contains } from "./geometry.js";
+import { bounds, contains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
 import { stack, row, column, box, arrowBetween, flatten } from "./layout.js";
 
@@ -61,6 +61,8 @@ export class DocumentError extends NamedError {}
 export class AssetError extends NamedError {}
 /** A library file cannot be read, parsed, or the requested item found. */
 export class LibraryError extends NamedError {}
+
+const freshId = () => randomBytes(12).toString("base64url");
 
 /**
  * Wrap text to a pixel width using real measurements.
@@ -257,7 +259,6 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
   }
 
   const source = picked.elements.filter((e) => !e.isDeleted);
-  const freshId = () => randomBytes(12).toString("base64url");
   const idMap = new Map(source.map((e) => [e.id, freshId()]));
   const groupMap = new Map();
 
@@ -348,6 +349,7 @@ function validateSkeleton(built) {
   if (skeleton.length === 0) {
     throw new SkeletonError("build returned an empty skeleton — refusing to write an empty diagram");
   }
+  const ids = new Set();
   skeleton.forEach((el, i) => {
     if (!el || typeof el !== "object" || Array.isArray(el)) {
       throw new SkeletonError(`skeleton[${i}] is not an element object (${JSON.stringify(el)})`);
@@ -357,8 +359,104 @@ function validateSkeleton(built) {
         `skeleton[${i}] has unknown element type ${JSON.stringify(el.type)} — known: ${[...KNOWN].join(", ")}`,
       );
     }
+    // ids are preserved through the convert, where a collision makes the
+    // converter silently drop the second element (console.error only)
+    if (el.id != null) {
+      if (ids.has(el.id)) {
+        throw new SkeletonError(`skeleton[${i}] (${el.type}) reuses id ${JSON.stringify(el.id)}`);
+      }
+      ids.add(el.id);
+    }
   });
   return skeleton;
+}
+
+/** What the skeleton converter can bind an arrow to (transform.ts, 0.18.1). */
+const CONVERTER_BINDABLE = new Set(["rectangle", "ellipse", "diamond"]);
+
+/**
+ * Lift out of the skeleton every arrow binding the converter would break, and
+ * reject the forms it would silently mangle.
+ *
+ * A `start`/`end` ref whose target is an image or frame crashes the converter
+ * (soft assertNever, then a TypeError) even though the scene model binds these
+ * fully — so the ref is stripped here and the returned stitches are applied to
+ * the converted elements by applyBindingStitches. The inline id-less form of
+ * such a target has no element to stitch to, and `startBinding`/`endBinding`/
+ * `fixedPoint` are hard-nulled by newArrowElement: both get a SkeletonError
+ * instead of a silent drop.
+ */
+function planBindingStitches(skeleton) {
+  const typeOf = new Map(skeleton.filter((e) => e.id != null).map((e) => [e.id, e.type]));
+  const stitches = [];
+  for (const el of skeleton) {
+    if (el.type !== "arrow") continue;
+    for (const key of ["startBinding", "endBinding", "fixedPoint"]) {
+      if (el[key] !== undefined) {
+        throw new SkeletonError(
+          `arrow ${el.id ?? "(no id)"} carries ${key}, which the converter silently drops — ` +
+            `bind with start: { id } / end: { id } instead`,
+        );
+      }
+    }
+    for (const end of ["start", "end"]) {
+      const ref = el[end];
+      if (!ref || typeof ref !== "object") continue;
+      const targetType = ref.id != null ? typeOf.get(ref.id) : ref.type;
+      if (targetType === undefined || CONVERTER_BINDABLE.has(targetType)) continue;
+      if (ref.id == null) {
+        throw new SkeletonError(
+          `arrow ${end}: { type: ${JSON.stringify(ref.type)} } has no id to stitch a binding to — ` +
+            `declare the ${ref.type} as its own element with an id and bind with ${end}: { id }`,
+        );
+      }
+      if (el.id == null) {
+        // a generated id colliding with an author id would make the converter
+        // silently drop an element — the very hole the duplicate-id guard closes
+        let id = freshId();
+        while (typeOf.has(id)) id = freshId();
+        typeOf.set(id, el.type);
+        el.id = id;
+      }
+      stitches.push({ arrowId: el.id, end, targetId: ref.id });
+      delete el[end];
+    }
+  }
+  return stitches;
+}
+
+/**
+ * Stitch the bindings planBindingStitches lifted out back onto the converted
+ * elements: the binding pair the editor itself would write — `focus: 0` (the
+ * centre), `gap` measured from the arrow's endpoint to the target's box — plus
+ * the target's back-reference, which is what keeps the pair alive through
+ * restore's repairBindings.
+ */
+function applyBindingStitches(elements, stitches) {
+  if (stitches.length === 0) return elements;
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  for (const { arrowId, end, targetId } of stitches) {
+    const arrow = byId.get(arrowId);
+    const target = byId.get(targetId);
+    if (!arrow || !target) {
+      throw new SkeletonError(
+        `the convert lost ${!arrow ? `arrow ${arrowId}` : `element ${targetId}`} that a ` +
+          `${end} binding was planned for`,
+      );
+    }
+    const pts = outline(arrow);
+    const [px, py] = end === "start" ? pts[0] : pts[pts.length - 1];
+    const b = bounds(target);
+    const gap = Math.hypot(
+      Math.max(b.x1 - px, 0, px - b.x2),
+      Math.max(b.y1 - py, 0, py - b.y2),
+    );
+    arrow[`${end}Binding`] = { elementId: targetId, focus: 0, gap: Math.max(1, gap) };
+    if (!target.boundElements?.some((be) => be.id === arrowId)) {
+      target.boundElements = [...(target.boundElements ?? []), { id: arrowId, type: "arrow" }];
+    }
+  }
+  return elements;
 }
 
 /**
@@ -432,7 +530,11 @@ const buildContext = (ex, files) => ({
 async function authorInto(ex, { out, build, svg = true, background }) {
   const files = {};
   const skeleton = validateSkeleton(await build(buildContext(ex, files)));
-  const elements = bindToFrames(await ex.convert(skeleton));
+  const stitches = planBindingStitches(skeleton);
+  // regenerateIds: false — gate errors then name the author's own ids, and the
+  // stitches can find their arrows again; validateSkeleton enforced uniqueness
+  const converted = await ex.convert(skeleton, { regenerateIds: false });
+  const elements = bindToFrames(applyBindingStitches(converted, stitches));
   const appState = {
     viewBackgroundColor: background ?? palette.canvas,
     gridSize: 20,

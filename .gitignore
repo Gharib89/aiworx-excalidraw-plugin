@@ -1,4 +1,5 @@
 node_modules/
+.claude/worktrees/
 *.png
 !brand/*.png
 *.log

@@ -16,36 +16,69 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const gate = join(root, "tools/check.js");
 const fixture = (name) => join(root, "tests/fixtures", `${name}.excalidraw`);
 
+// `code` is the stable problem code the defect must carry in --json;
+// `errorCode` the same for file-level failures that never reach the rules.
 const CASES = [
   { name: "clean", exit: 0, expect: "no mechanical defects" },
-  { name: "duplicate-id", exit: 1, expect: "duplicate id dup" },
-  { name: "frames-overlap", exit: 1, expect: "frames overlap" },
-  { name: "missing-container", exit: 1, expect: "references missing container ghost" },
-  { name: "text-overflows-container", exit: 1, expect: "text overflows container" },
+  { name: "duplicate-id", exit: 1, expect: "duplicate id dup", code: "duplicate-id" },
+  { name: "frames-overlap", exit: 1, expect: "frames overlap", code: "frame-overlap" },
+  { name: "missing-container", exit: 1, expect: "references missing container ghost", code: "missing-container" },
+  { name: "text-overflows-container", exit: 1, expect: "text overflows container", code: "text-overflow" },
+  // the app wraps bound text into the padded interior, not the container's box —
+  // and for ellipse and diamond only the inscribed text area holds ink
+  { name: "text-overflows-padding", exit: 1, expect: "text overflows container", code: "text-overflow" },
+  { name: "text-overflows-ellipse", exit: 1, expect: "text overflows container", code: "text-overflow" },
+  { name: "text-overflows-diamond", exit: 1, expect: "text overflows container", code: "text-overflow" },
   // a shape clips its text, a line does not: the same width is a defect above
   // and correct rendering here
   { name: "arrow-label-wide", exit: 0, expect: "no mechanical defects" },
-  { name: "missing-frame", exit: 1, expect: "references missing frame ghost" },
-  { name: "escapes-frame", exit: 1, expect: "escapes frame" },
-  { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame" },
-  { name: "unbound-over-frame", exit: 1, expect: "without being bound to it" },
-  { name: "arrow-binding-missing", exit: 1, expect: "points at missing element ghost" },
-  { name: "empty", exit: 1, expect: "empty file" },
-  { name: "invalid-json", exit: 1, expect: "not valid JSON" },
-  { name: "foreign-json", exit: 1, expect: "not an Excalidraw document" },
-  { name: "does-not-exist", exit: 2, expect: "cannot read" },
-  { name: "degenerate-zero-size", exit: 1, expect: "zero size" },
-  { name: "degenerate-non-finite", exit: 1, expect: "non-finite geometry" },
-  { name: "unknown-type", exit: 1, expect: 'unknown element type "widget"' },
-  { name: "free-texts-overlap", exit: 1, expect: "free texts overlap" },
-  { name: "arrow-crosses-shape", exit: 1, expect: "crosses rectangle r1" },
-  { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target" },
-  { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray" },
-  { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1" },
-  { name: "text-over-image", exit: 1, expect: 'text "over the screenshot" sits over image i1' },
-  { name: "foreign-font", exit: 1, expect: "outside the house pair" },
-  { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary" },
-  { name: "malformed-element", exit: 1, expect: "element at index 1 is not an element object" },
+  { name: "missing-frame", exit: 1, expect: "references missing frame ghost", code: "missing-frame" },
+  { name: "escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
+  { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
+  { name: "unbound-over-frame", exit: 1, expect: "without being bound to it", code: "unbound-over-frame" },
+  // overlap is judged on the rotated outline, not its axis-aligned box
+  { name: "rotated-clear-of-frame", exit: 0, expect: "no mechanical defects" },
+  { name: "arrow-binding-missing", exit: 1, expect: "points at missing element ghost", code: "dangling-binding" },
+  { name: "empty", exit: 1, expect: "empty file", errorCode: "empty-file" },
+  { name: "invalid-json", exit: 1, expect: "not valid JSON", errorCode: "invalid-json" },
+  { name: "foreign-json", exit: 1, expect: "not an Excalidraw document", errorCode: "not-excalidraw" },
+  { name: "does-not-exist", exit: 2, expect: "cannot read", errorCode: "unreadable" },
+  { name: "degenerate-zero-size", exit: 1, expect: "zero size", code: "degenerate" },
+  // a linear element carries no size of its own: it degenerates when its points
+  // coincide, which the zero-size branch never sees
+  { name: "degenerate-zero-length", exit: 1, expect: "zero length", code: "degenerate" },
+  { name: "degenerate-non-finite", exit: 1, expect: "non-finite geometry", code: "non-finite-geometry" },
+  { name: "unknown-type", exit: 1, expect: 'unknown element type "widget"', code: "unknown-type" },
+  { name: "free-texts-overlap", exit: 1, expect: "free texts overlap", code: "free-text-overlap" },
+  { name: "rotated-texts-overlap", exit: 1, expect: "free texts overlap", code: "free-text-overlap" },
+  { name: "rotated-texts-clear", exit: 0, expect: "no mechanical defects" },
+  { name: "arrow-crosses-shape", exit: 1, expect: "crosses rectangle r1", code: "arrow-crossing" },
+  // a vertex inside the shape is still a pass-through; only a run that begins at
+  // the arrow's tail or is still open at its head is binding hygiene
+  { name: "arrow-vertex-inside-shape", exit: 1, expect: "crosses rectangle r1", code: "arrow-crossing" },
+  { name: "arrow-ends-inside-shape", exit: 0, expect: "no mechanical defects" },
+  { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target", code: "arrow-buried" },
+  { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray", code: "stray" },
+  { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // every run scores both themes: a pair that only fails once the dark filter
+  // has run is caught without any flag
+  { name: "dark-contrast", exit: 1, expect: "under the dark theme", code: "low-contrast" },
+  // opacity composes into the ratio: these colours pass solid and fail blended
+  { name: "low-contrast-opacity", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  { name: "low-contrast-ground-opacity", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // the browser treats an invalid opacity as the initial 1: the pale ink is
+  // scored solid and fails, instead of a NaN blend silently passing everything
+  { name: "opacity-non-numeric", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
+  // a colour the rule cannot parse is a problem, never a silent fallback…
+  { name: "unparseable-color", exit: 1, expect: "not a hex colour", code: "unparseable-color" },
+  { name: "transparent-ink", exit: 1, expect: "renders invisible", code: "unparseable-color" },
+  { name: "unparseable-canvas", exit: 1, expect: "viewBackgroundColor", code: "unparseable-color" },
+  // …but "transparent" as a fill legitimately means the canvas shows through
+  { name: "transparent-fill", exit: 0, expect: "no mechanical defects" },
+  { name: "text-over-image", exit: 1, expect: 'text "over the screenshot" sits over image i1', code: "text-over-image" },
+  { name: "foreign-font", exit: 1, expect: "outside the house pair", code: "foreign-font" },
+  { name: "image-missing-bytes", exit: 1, expect: "missing from the files dictionary", code: "missing-image-bytes" },
+  { name: "malformed-element", exit: 1, expect: "element at index 1 is not an element object", code: "malformed-element" },
 ];
 
 const fail = [];
@@ -60,6 +93,22 @@ for (const c of CASES) {
   check(`${c.name}: exits ${c.exit}`, r.status === c.exit, `got ${r.status}`);
   check(`${c.name}: names the defect`, output.includes(c.expect),
     output.includes(c.expect) ? `"${c.expect}"` : `expected "${c.expect}" in:\n${output.trim()}`);
+  if (c.code || c.errorCode) {
+    const j = spawnSync(process.execPath, [gate, "--json", fixture(c.name)], { encoding: "utf8" });
+    let f = null;
+    try {
+      f = JSON.parse(j.stdout).files[0];
+    } catch {}
+    if (c.code) {
+      check(`${c.name}: --json carries code ${c.code}`,
+        (f?.problems ?? []).some((p) => p.code === c.code && p.message.includes(c.expect)),
+        f ? JSON.stringify(f.problems.map((p) => p.code)) : j.stdout.trim().slice(0, 120));
+    } else {
+      check(`${c.name}: --json error carries code ${c.errorCode}`,
+        f?.error?.code === c.errorCode && f.error.message.includes(c.expect),
+        JSON.stringify(f?.error));
+    }
+  }
 }
 
 // ---- many files at once, and the machine-readable report ----
@@ -126,10 +175,14 @@ for (const c of CASES) {
     check("--json carries per-file problems and stats",
       doc.files[0].ok === true && doc.files[0].problems.length === 0 &&
         doc.files[0].stats.elements > 0 &&
-        doc.files[1].problems.some((p) => p.includes("duplicate id dup")),
+        doc.files[1].problems.some((p) => p.message.includes("duplicate id dup")),
+      JSON.stringify(doc.files[1].problems));
+    check("--json problems are coded objects naming their elements",
+      doc.files[1].problems.some((p) => p.code === "duplicate-id" && p.elements.join() === "dup"),
       JSON.stringify(doc.files[1].problems));
     check("--json names the read failure and nulls its stats",
-      /cannot read/.test(doc.files[2].error ?? "") && doc.files[2].stats === null,
+      doc.files[2].error?.code === "unreadable" &&
+        /cannot read/.test(doc.files[2].error.message) && doc.files[2].stats === null,
       JSON.stringify(doc.files[2]));
   }
 
@@ -143,6 +196,72 @@ for (const c of CASES) {
   const noArgs = run();
   check("no input is a usage error", noArgs.status === 2 && /usage: check\.js/.test(noArgs.stderr),
     `exit ${noArgs.status}`);
+}
+
+// ---- structured problem objects: per-code fields sit flat at top level ----
+//
+// The code registry is append-only and messages carry no contract, so machine
+// consumers key on these shapes. One fixture per field-bearing code.
+{
+  const jsonFile = (name) => {
+    const r = spawnSync(process.execPath, [gate, "--json", fixture(name)], { encoding: "utf8" });
+    return JSON.parse(r.stdout).files[0];
+  };
+  const find = (f, code) => (f.problems ?? []).find((p) => p.code === code);
+
+  const malformed = find(jsonFile("malformed-element"), "malformed-element");
+  check("malformed-element carries index and no elements",
+    malformed?.index === 1 && Array.isArray(malformed.elements) && malformed.elements.length === 0,
+    JSON.stringify(malformed));
+
+  const contrast = find(jsonFile("low-contrast-text"), "low-contrast");
+  check("low-contrast carries ratio, needs, ink, bg, theme",
+    typeof contrast?.ratio === "number" && contrast.ratio < contrast.needs &&
+      /^#[0-9A-Fa-f]{6}$/.test(contrast.ink) && /^#[0-9A-Fa-f]{6}$/.test(contrast.bg) &&
+      contrast.theme === "light" && contrast.elements.join() === "t1",
+    JSON.stringify(contrast));
+
+  // one run, both themes: a dark-only failure is stamped dark, and no light
+  // problem is invented for a pair that clears the light ratio
+  const darkOnly = (jsonFile("dark-contrast").problems ?? []).filter((p) => p.code === "low-contrast");
+  check("a dark-only failure yields exactly one problem, stamped theme dark",
+    darkOnly.length === 1 && darkOnly[0].theme === "dark", JSON.stringify(darkOnly));
+  const bothThemes = (jsonFile("low-contrast-text").problems ?? []).filter((p) => p.code === "low-contrast");
+  check("a pair failing both themes yields one problem per theme",
+    bothThemes.map((p) => p.theme).sort().join() === "dark,light", JSON.stringify(bothThemes.map((p) => p.theme)));
+
+  const named = find(jsonFile("unparseable-color"), "unparseable-color");
+  check("unparseable-color carries field and value and names the element",
+    named?.field === "strokeColor" && named.value === "salmon" && named.elements.join() === "t1",
+    JSON.stringify(named));
+  check("a flagged element gets no low-contrast score",
+    !find(jsonFile("unparseable-color"), "low-contrast"),
+    JSON.stringify(jsonFile("unparseable-color").problems));
+
+  const canvasProblem = find(jsonFile("unparseable-canvas"), "unparseable-color");
+  check("an unparseable canvas names no element and the rest is still scored",
+    canvasProblem?.field === "viewBackgroundColor" && canvasProblem.value === "papayawhip" &&
+      canvasProblem.elements.length === 0 && !find(jsonFile("unparseable-canvas"), "low-contrast"),
+    JSON.stringify(jsonFile("unparseable-canvas").problems));
+
+  const overImage = (jsonFile("text-over-image").problems ?? []).filter((p) => p.code === "text-over-image");
+  check("text-over-image is theme-independent: emitted once, no theme field",
+    overImage.length === 1 && !("theme" in overImage[0]), JSON.stringify(overImage));
+
+  const overflow = find(jsonFile("text-overflows-container"), "text-overflow");
+  check("text-overflow names text then container",
+    overflow?.elements.join() === "t1,r1", JSON.stringify(overflow));
+
+  const escape = find(jsonFile("escapes-frame"), "frame-escape");
+  check("frame-escape carries element and frame boxes",
+    escape?.elements.join() === "r1,f1" &&
+      [escape.element, escape.frame].every((b) => ["x1", "y1", "x2", "y2"].every((k) => typeof b?.[k] === "number")),
+    JSON.stringify(escape));
+
+  const buried = find(jsonFile("arrowhead-inside-target"), "arrow-buried");
+  check("arrow-buried carries depth and names arrow then target",
+    typeof buried?.depth === "number" && buried.depth > 0 && buried.elements.join() === "a1,r2",
+    JSON.stringify(buried));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall gate fixtures behave");

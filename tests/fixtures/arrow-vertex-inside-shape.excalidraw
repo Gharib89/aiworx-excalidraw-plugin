@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: an elbow arrow passes through a shape, turning at a vertex inside it",
+  "elements": [
+    { "id": "r1", "type": "rectangle", "x": 100, "y": 0, "width": 100, "height": 100 },
+    { "id": "a1", "type": "arrow", "x": 0, "y": 50, "width": 150, "height": 150,
+      "points": [[0, 0], [150, 0], [150, -150]] }
+  ],
+  "appState": {},
+  "files": {}
+}

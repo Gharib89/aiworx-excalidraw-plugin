@@ -1,0 +1,248 @@
+#!/usr/bin/env node
+/**
+ * Unit suite for spliceLibraryItem (#58, tools/author.js). Pure JSON in, out —
+ * no browser, so small libraries written to a temp dir pin the whole contract:
+ *
+ *   1. an item is picked by index or by name; every malformed selection and
+ *      every malformed library is a named LibraryError whose message says what
+ *      the library does hold
+ *   2. both library shapes splice: v2 `libraryItems` and legacy v1 `library`
+ *   3. every id is regenerated per splice — element ids and group ids — so the
+ *      same item places twice without colliding with itself or the scene
+ *   4. internal references follow the remap (frameId, containerId, bindings,
+ *      boundElements) and references pointing outside the item are dropped
+ *   5. the item lands with its top-left corner at `at` and reports its extent
+ *   6. an item whose every element is deleted splices to nothing — that is
+ *      current behavior, pinned here so fixing it shows up as a change
+ *      (#67 item 6 flips this pin)
+ *
+ * The stick-figure library (examples/) is the real-world case; everything that
+ * needs a specific shape is written inline, so the expectation and the input
+ * read together.
+ */
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spliceLibraryItem } from "../tools/author.js";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const outDir = mkdtempSync(join(tmpdir(), "splice-"));
+const LIB = join(root, "examples/stick-figure.excalidrawlib");
+console.log(`artifacts: ${outDir}`);
+
+const fail = [];
+const check = (name, cond, detail) => {
+  console.log(`${cond ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
+  if (!cond) fail.push(name);
+};
+const throwsWith = (errorName, fn) => {
+  try {
+    fn();
+    return { ok: false, detail: "returned instead of throwing" };
+  } catch (err) {
+    return { ok: err.name === errorName, message: String(err.message), detail: `${err.name}: ${String(err.message).split("\n")[0]}` };
+  }
+};
+
+/** A realistic full Excalidraw element, so only the case's own fields vary. */
+const el = (id, extra = {}) => ({
+  id, type: "rectangle", x: 0, y: 0, width: 40, height: 40, angle: 0,
+  strokeColor: "#1e1e1e", backgroundColor: "transparent", fillStyle: "solid",
+  strokeWidth: 2, strokeStyle: "solid", roughness: 1, opacity: 100,
+  groupIds: [], frameId: null, roundness: null, seed: 1, version: 1,
+  versionNonce: 1, isDeleted: false, link: null, locked: false, ...extra,
+});
+const library = (name, doc) => {
+  const path = join(outDir, `${name}.excalidrawlib`);
+  writeFileSync(path, JSON.stringify(doc));
+  return path;
+};
+
+// ---- 1. splicing regenerates ids and group ids ----
+{
+  const sourceIds = new Set(
+    JSON.parse(readFileSync(LIB, "utf8")).libraryItems[0].elements.map((e) => e.id),
+  );
+  const a = spliceLibraryItem(LIB);
+  const b = spliceLibraryItem(LIB);
+  check("a splice carries every element of the item", a.children.length === 5 && a.ids.length === 5);
+  check("spliced ids are regenerated", a.ids.every((id) => !sourceIds.has(id)), a.ids.join(", "));
+  check("two splices of one item share no ids", a.ids.every((id) => !b.ids.includes(id)));
+  const groupsA = new Set(a.children.flatMap((e) => e.groupIds));
+  const groupsB = new Set(b.children.flatMap((e) => e.groupIds));
+  check("the item's group survives under a fresh id",
+    groupsA.size === 1 && !groupsA.has("fig-group"),
+    [...groupsA].join(", "));
+  check("two splices get distinct group ids", [...groupsA].every((g) => !groupsB.has(g)));
+}
+
+// ---- 2. offset and extent ----
+{
+  const fig = spliceLibraryItem(LIB, { at: [100, 200] });
+  const minX = Math.min(...fig.children.map((e) => e.x));
+  const minY = Math.min(...fig.children.map((e) => e.y));
+  check("at: places the item's top-left corner", Math.abs(minX - 100) < 0.5 && Math.abs(minY - 200) < 0.5,
+    `min ${minX},${minY}`);
+  check("the group reports the item's extent",
+    Math.abs(fig.width - 36) < 0.5 && Math.abs(fig.height - 84) < 0.5,
+    `${fig.width}x${fig.height}`);
+  check("the group places like a layout item", fig.kind === "layout-group" && fig.x === 100 && fig.y === 200);
+}
+
+// ---- 3. selection, and every malformed input is a named error ----
+{
+  const byName = spliceLibraryItem(LIB, { item: "stick figure" });
+  check("an item selects by name", byName.children.length === 5);
+  const byIndex = spliceLibraryItem(LIB, { item: 0 });
+  check("an item selects by index", byIndex.children.length === 5);
+
+  const noName = throwsWith("LibraryError", () => spliceLibraryItem(LIB, { item: "no such item" }));
+  check("an unknown item name is a LibraryError", noName.ok, noName.detail);
+  // the message is the whole diagnosis: a generator that named the item wrong
+  // needs to see what the library actually holds, not just that it missed
+  check("the miss lists what the library holds",
+    noName.message?.includes('no item "no such item"') && noName.message.includes("has 1: stick figure"),
+    noName.message);
+  const noIndex = throwsWith("LibraryError", () => spliceLibraryItem(LIB, { item: 3 }));
+  check("an out-of-range index is a LibraryError", noIndex.ok, noIndex.detail);
+  check("the out-of-range miss also lists the items",
+    noIndex.message?.includes("no item 3") && noIndex.message.includes("has 1: stick figure"),
+    noIndex.message);
+
+  const missing = throwsWith("LibraryError", () => spliceLibraryItem(join(outDir, "nope.excalidrawlib")));
+  check("a missing library file is a LibraryError", missing.ok, missing.detail);
+  check("the unreadable file names the path and the read failure",
+    missing.message?.includes("cannot read library") && missing.message.includes("nope.excalidrawlib"),
+    missing.message);
+
+  const badJson = join(outDir, "bad.excalidrawlib");
+  writeFileSync(badJson, "{ not json");
+  const bad = throwsWith("LibraryError", () => spliceLibraryItem(badJson));
+  check("unparseable library JSON is a LibraryError", bad.ok, bad.detail);
+
+  const noItems = library("empty", { type: "excalidrawlib", version: 2, libraryItems: [] });
+  const empty = throwsWith("LibraryError", () => spliceLibraryItem(noItems));
+  check("a library with no items is a LibraryError", empty.ok, empty.detail);
+
+  // neither shape present at all — a scene handed to the library reader, say
+  const foreign = library("foreign", { type: "excalidraw", version: 2, elements: [] });
+  const notALibrary = throwsWith("LibraryError", () => spliceLibraryItem(foreign));
+  check("a document that is not a library is a LibraryError", notALibrary.ok, notALibrary.detail);
+  check("the non-library names the type it found",
+    notALibrary.message?.includes("no library items found") && notALibrary.message.includes('"excalidraw"'),
+    notALibrary.message);
+
+  // an item present but element-less is as unusable as a missing one
+  const hollow = library("hollow", { type: "excalidrawlib", version: 2, libraryItems: [{ name: "hollow", elements: [] }] });
+  const noElements = throwsWith("LibraryError", () => spliceLibraryItem(hollow));
+  check("an item with no elements is a LibraryError", noElements.ok, noElements.detail);
+}
+
+// ---- 4. v1 library format, and binding sanitisation ----
+{
+  const rect = el("a", {
+    boundElements: [{ id: "conn", type: "arrow" }, { id: "ghost", type: "arrow" }],
+  });
+  const arrow = el("conn", {
+    type: "arrow", x: 50, y: 20, width: 30, height: 0, seed: 2, versionNonce: 2,
+    points: [[0, 0], [30, 0]],
+    startBinding: { elementId: "a", focus: 0, gap: 10 },
+    endBinding: { elementId: "ghost", focus: 0, gap: 10 },
+  });
+  const v1 = library("v1", { type: "excalidrawlib", version: 1, library: [[rect, arrow]] });
+  const spliced = spliceLibraryItem(v1);
+  check("a v1 library splices", spliced.children.length === 2);
+  const [r, arr] = spliced.children;
+  check("an in-item binding is remapped", arr.startBinding?.elementId === r.id,
+    `${arr.startBinding?.elementId} vs ${r.id}`);
+  check("a binding pointing outside the item is dropped", arr.endBinding == null);
+  check("boundElements keeps only in-item references",
+    r.boundElements?.length === 1 && r.boundElements[0].id === arr.id,
+    JSON.stringify(r.boundElements));
+  // a v1 library has no names: index is the only handle
+  const v1ByName = throwsWith("LibraryError", () => spliceLibraryItem(v1, { item: "anything" }));
+  check("a v1 item has no name to select by", v1ByName.ok, v1ByName.detail);
+}
+
+// ---- 5. frame membership, containers, and groups all remap together ----
+//
+// A dangling frameId or containerId is exactly what the gate rejects
+// (missing-frame, missing-container), so the splice must either remap a
+// reference or null it — never carry the source id through.
+{
+  const panel = library("panel", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{
+      name: "panel",
+      elements: [
+        el("f1", { type: "frame", width: 200, height: 120, name: "panel" }),
+        el("r1", { x: 10, y: 10, frameId: "f1", groupIds: ["g1"] }),
+        el("t1", {
+          type: "text", x: 14, y: 14, width: 30, height: 20, text: "hi",
+          fontSize: 16, fontFamily: 1, containerId: "r1", frameId: "f1", groupIds: ["g1"],
+        }),
+        el("r2", { x: 60, y: 10, frameId: "outside-frame", groupIds: ["g1"] }),
+        el("t2", {
+          type: "text", x: 64, y: 14, width: 30, height: 20, text: "yo",
+          fontSize: 16, fontFamily: 1, containerId: "outside-container",
+        }),
+      ],
+    }],
+  });
+  const [frame, r1, t1, r2, t2] = spliceLibraryItem(panel).children;
+  const fresh = new Set([frame.id, r1.id, t1.id, r2.id, t2.id]);
+  check("no source id survives the splice",
+    fresh.size === 5 && ["f1", "r1", "t1", "r2", "t2"].every((id) => !fresh.has(id)),
+    [...fresh].join(", "));
+  check("frame membership follows the frame's fresh id", r1.frameId === frame.id && t1.frameId === frame.id,
+    `${r1.frameId}, ${t1.frameId} vs ${frame.id}`);
+  check("a frameId pointing outside the item is nulled", r2.frameId === null, JSON.stringify(r2.frameId));
+  check("a container reference follows its container", t1.containerId === r1.id,
+    `${t1.containerId} vs ${r1.id}`);
+  check("a containerId pointing outside the item is nulled", t2.containerId === null,
+    JSON.stringify(t2.containerId));
+  const groups = new Set([r1, t1, r2].flatMap((e) => e.groupIds));
+  check("one source group becomes one fresh group shared by its members",
+    groups.size === 1 && !groups.has("g1"), [...groups].join(", "));
+  check("an element with no source group joins none", frame.groupIds.length === 0 && t2.groupIds.length === 0,
+    JSON.stringify([frame.groupIds, t2.groupIds]));
+}
+
+// ---- 6. an all-deleted item: current behavior, pinned ----
+//
+// The element-less guard runs before the isDeleted filter, so an item of
+// nothing but tombstones clears the guard and then splices to an empty group
+// with a non-finite extent (Math.min/max over no boxes) instead of being
+// rejected the way a genuinely element-less item is. That asymmetry is a known
+// paper cut, tracked as #67 item 6 (move the guard after the filter) — when it
+// lands this case becomes a LibraryError and these expectations flip.
+{
+  const dead = library("dead", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{
+      name: "gone",
+      elements: [el("x", { isDeleted: true }), el("y", { isDeleted: true })],
+    }],
+  });
+  const gone = spliceLibraryItem(dead, { at: [10, 20] });
+  check("an all-deleted item splices to nothing, silently",
+    gone.children.length === 0 && gone.ids.length === 0, JSON.stringify(gone.ids));
+  check("the empty splice still claims the requested position",
+    gone.kind === "layout-group" && gone.x === 10 && gone.y === 20, `${gone.x},${gone.y}`);
+  check("the empty splice reports a non-finite extent",
+    !Number.isFinite(gone.width) && !Number.isFinite(gone.height), `${gone.width}x${gone.height}`);
+  // the deleted elements are dropped, not spliced as tombstones
+  const live = spliceLibraryItem(library("mixed", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{
+      name: "mixed",
+      elements: [el("keep", { width: 40, height: 40 }), el("drop", { x: 200, isDeleted: true })],
+    }],
+  }));
+  check("a deleted element is dropped from a live item",
+    live.children.length === 1 && live.width === 40, `${live.children.length} children, width ${live.width}`);
+}
+
+console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nspliceLibraryItem holds its contract");
+process.exit(fail.length ? 1 : 0);

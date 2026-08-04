@@ -31,8 +31,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const specifier = (...parts) => pathToFileURL(join(...parts)).href;
 /**
  * A cold Chromium launch plus the bundle load is ~20 s on a slow machine, so a
- * probe budget near that turns a passing assertion into a coin flip. The
- * fail-fast claims are timed by their own assertions, not by this ceiling.
+ * probe budget near that turns a passing assertion into a coin flip. This
+ * ceiling only has to catch a probe that hangs outright — no assertion below
+ * reads the clock; the fail-fast claim is proven by which error comes back.
  */
 const PROBE_TIMEOUT = 90_000;
 
@@ -47,7 +48,7 @@ function makeCopy() {
   const dir = mkdtempSync(join(tmpdir(), "pipeline-errors-"));
   mkdirSync(join(dir, "tools"));
   mkdirSync(join(dir, "dist"));
-  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json"]) {
+  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
     copyFileSync(join(root, f), join(dir, f));
   }
   copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));
@@ -115,6 +116,23 @@ const probe = (dir, env) =>
   check("stale bundle: fails before any browser work", !existsSync(marker));
 }
 
+// ---- 1a. stale bundle: a bundled dep resolved to a new version, no rebundle ----
+// `npm install` can move a floating range (react ^19) in the lockfile without
+// any source file changing — the stamp must move with the resolved versions.
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  const lockPath = join(dir, "package-lock.json");
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  lock.packages["node_modules/react"].version = "19.99.0";
+  writeFileSync(lockPath, JSON.stringify(lock));
+  const r = probe(dir);
+  check("dep bump: refuses to run", r.status !== 0, `exit ${r.status}`);
+  check("dep bump: names StaleBundleError", /StaleBundleError/.test(r.stderr),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
+  check("dep bump: fails before any browser work", !existsSync(marker));
+}
+
 // ---- 1b. control: the stub is wired in, so the marker's absence is evidence ----
 {
   const dir = makeCopy();
@@ -134,14 +152,19 @@ const probe = (dir, env) =>
   );
   // the copied fingerprint.js resolves paths relative to itself, so expectedFingerprint()
   // above hashed the copy's own sources — the stamp is valid for the copy
-  const start = Date.now();
   const r = probe(dir);
   check("broken bundle: exits non-zero", r.status !== 0, `exit ${r.status}`);
   check("broken bundle: names BundleLoadError", /BundleLoadError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("broken bundle: carries the page's exception", /boom: bundle exploded/.test(r.stderr));
-  check("broken bundle: fails fast, not by timeout", Date.now() - start < 20_000,
-    `${Date.now() - start}ms`);
+  // Which of the two racers won is in the message, not the clock: the ready-flag
+  // timeout reports "never signalled ready" (browser.js), the pageerror reject
+  // reports the exception above. The exception alone does not separate them —
+  // withIssues appends the collected pageerror to the timeout message too — so
+  // this is the assertion that pins the fast path. A wall-clock budget here
+  // measured the cold Chromium launch instead and flaked on a slow runner (#72).
+  check("broken bundle: fails fast, not by timeout", !/never signalled ready/.test(r.stderr),
+    r.stderr.match(/never signalled ready[^\n]*/)?.[0] ?? "");
 }
 
 // ---- 3. a throwing page call surfaces as a PageError naming the call ----
@@ -171,8 +194,13 @@ const probe = (dir, env) =>
   const tried = attempts(marker);
   check("no CHROME_PATH: the driver asks Chromium for the system Chrome",
     tried[0]?.channel === "chrome", JSON.stringify(tried[0]));
-  check("no CHROME_PATH: known executables follow the channel",
-    tried.length > 1 && tried.slice(1).every((t) => t.executablePath), `${tried.length} attempts`);
+  // the fallback paths are Linux locations, so which of them follow the channel
+  // depends on the machine: exactly those that exist here, in order, no others
+  const { CHROME_CANDIDATES } = await import(specifier(root, "tools/browser.js"));
+  const present = CHROME_CANDIDATES.filter((p) => existsSync(p));
+  check("no CHROME_PATH: exactly the installed candidates follow the channel",
+    JSON.stringify(tried.slice(1).map((t) => t.executablePath)) === JSON.stringify(present),
+    `${tried.length} attempts, ${present.length} candidates installed`);
   check("nothing launches: names ChromeLaunchError", /ChromeLaunchError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("nothing launches: names the override", /CHROME_PATH/.test(r.stderr));

@@ -37,7 +37,9 @@ Two traps it handles, both verified in `tools/smoke.js`:
    overflows the moment the real font renders.
 2. **Embedded fonts are subset to the rendered glyphs.** Warming with a short
    sample leaves most characters still falling back. The warm-up therefore covers
-   printable ASCII and re-warms whenever an unseen glyph appears.
+   printable ASCII and re-warms whenever an unseen glyph appears. A warm whose
+   faces fail to load or apply throws a `FontIntegrityError` and leaves the
+   previous warm intact — the next call re-warms from scratch.
 
 ## Commands
 
@@ -47,7 +49,6 @@ npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
-node tools/check.js d.excalidraw --dark   # ...scoring contrast on what a dark export renders
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
 node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
 ```
@@ -78,10 +79,11 @@ render of the example band.
 Dark exports are gated, not assumed. Excalidraw's dark theme is one CSS filter
 chain on the root `<svg>` — `invert(93%) hue-rotate(180deg)` — so every dark
 colour is a pure function of its light one. `tools/palette.js` therefore runs
-every contrast check against both themes, and `check.js --dark` scores a
-diagram's own colours the same way. The filter is not contrast-preserving: it
-compresses some opposing hue pairs, so a pair can clear 4.5:1 light and fail it
-dark. `tests/dark.js` pins the maths against Chrome's own filter pipeline.
+every contrast check against both themes, and `check.js` scores a diagram's own
+colours against both themes on every run — each `low-contrast` problem names
+the theme it failed under. The filter is not contrast-preserving: it compresses
+some opposing hue pairs, so a pair can clear 4.5:1 light and fail it dark.
+`tests/dark.js` pins the maths against Chrome's own filter pipeline.
 
 `npm test` runs on every push via GitHub Actions and writes only to a temporary
 directory — verification never touches tracked files.
@@ -94,7 +96,7 @@ skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, images, library splicing, in-process gate, one-session batches, revise round-trip
   layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap
-  check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect; --dark scores the dark export
+  check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
   geometry.js       one bounds definition shared by the gate and the frame binder
   color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included

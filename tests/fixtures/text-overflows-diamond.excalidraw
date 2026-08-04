@@ -1,0 +1,13 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: bound text fits the diamond's box but not its inscribed text area",
+  "elements": [
+    { "id": "d1", "type": "diamond", "x": 0, "y": 0, "width": 120, "height": 60,
+      "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": 32.5, "y": 21, "width": 55, "height": 18, "text": "half the width holds ink", "fontFamily": 6,
+      "containerId": "d1" }
+  ],
+  "appState": {},
+  "files": {}
+}

@@ -31,7 +31,7 @@ export class PageError extends NamedError {}
 /** Nothing in the search order produced a running browser. */
 export class ChromeLaunchError extends NamedError {}
 
-const CHROME_CANDIDATES = [
+export const CHROME_CANDIDATES = [
   "/usr/bin/google-chrome",
   "/usr/bin/google-chrome-stable",
   "/usr/bin/chromium",
@@ -147,8 +147,10 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
 
     const api = {
       page,
-      convert: (skeleton) =>
-        guard("convert", () => page.evaluate((s) => window.__ex.convert(s), skeleton)),
+      convert: (skeleton, opts) =>
+        guard("convert", () =>
+          page.evaluate(([s, o]) => window.__ex.convert(s, o), [skeleton, opts ?? null]),
+        ),
       measureText: (items) =>
         guard("measureText", () => page.evaluate((i) => window.__ex.measureText(i), items)),
       imageSize: (file) =>

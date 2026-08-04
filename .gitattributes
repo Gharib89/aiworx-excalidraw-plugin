@@ -1,0 +1,4 @@
+# LF everywhere, including Windows checkouts. The bundle fingerprint hashes
+# tools/page.js and tools/bundle.js byte-for-byte; a CRLF checkout would never
+# match the stamp and every browser call would refuse with StaleBundleError.
+* text=auto eol=lf

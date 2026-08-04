@@ -79,16 +79,11 @@ margin is `pass` stroke-on-own-fill at 4.24:1 against a 3:1 floor.
 
 The filter is not contrast-preserving, though — it compresses some opposing hue
 pairs toward each other. Dark green `#145A32` on pale salmon `#F5B7B1` clears
-4.84:1 light and only 4.20:1 dark. For off-palette colours, point the gate at the
-theme you ship:
-
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" diagram.excalidraw --dark
-```
-
-It scores the contrast rule on the colours the dark export renders. It is opt-in
-for the same reason `render.js --dark` is: a diagram only shipped light need not
-hold in a theme nobody exports it to.
+4.84:1 light and only 4.20:1 dark. The gate therefore scores the contrast rule
+against both themes on every run — each `low-contrast` problem names the theme
+it failed under, so an off-palette pair that only breaks dark still fails the
+gate. `render.js --dark` remains: that selects the exported output, it is not
+verification.
 
 ## Fonts
 

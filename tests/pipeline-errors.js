@@ -31,8 +31,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const specifier = (...parts) => pathToFileURL(join(...parts)).href;
 /**
  * A cold Chromium launch plus the bundle load is ~20 s on a slow machine, so a
- * probe budget near that turns a passing assertion into a coin flip. The
- * fail-fast claims are timed by their own assertions, not by this ceiling.
+ * probe budget near that turns a passing assertion into a coin flip. This
+ * ceiling only has to catch a probe that hangs outright — no assertion below
+ * reads the clock; the fail-fast claim is proven by which error comes back.
  */
 const PROBE_TIMEOUT = 90_000;
 
@@ -151,14 +152,19 @@ const probe = (dir, env) =>
   );
   // the copied fingerprint.js resolves paths relative to itself, so expectedFingerprint()
   // above hashed the copy's own sources — the stamp is valid for the copy
-  const start = Date.now();
   const r = probe(dir);
   check("broken bundle: exits non-zero", r.status !== 0, `exit ${r.status}`);
   check("broken bundle: names BundleLoadError", /BundleLoadError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
   check("broken bundle: carries the page's exception", /boom: bundle exploded/.test(r.stderr));
-  check("broken bundle: fails fast, not by timeout", Date.now() - start < 20_000,
-    `${Date.now() - start}ms`);
+  // Which of the two racers won is in the message, not the clock: the ready-flag
+  // timeout reports "never signalled ready" (browser.js), the pageerror reject
+  // reports the exception above. The exception alone does not separate them —
+  // withIssues appends the collected pageerror to the timeout message too — so
+  // this is the assertion that pins the fast path. A wall-clock budget here
+  // measured the cold Chromium launch instead and flaked on a slow runner (#72).
+  check("broken bundle: fails fast, not by timeout", !/never signalled ready/.test(r.stderr),
+    r.stderr.match(/never signalled ready[^\n]*/)?.[0] ?? "");
 }
 
 // ---- 3. a throwing page call surfaces as a PageError naming the call ----

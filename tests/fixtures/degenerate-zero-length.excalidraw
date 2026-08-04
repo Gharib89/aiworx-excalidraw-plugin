@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: line whose two points coincide",
+  "elements": [
+    { "id": "l1", "type": "line", "x": 100, "y": 100, "width": 0, "height": 0, "points": [[0, 0], [0, 0]] }
+  ],
+  "appState": {},
+  "files": {}
+}

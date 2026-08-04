@@ -60,9 +60,14 @@ const svgWidth = (path) => {
   const m = readFileSync(path, "utf8").match(/<svg[^>]*\swidth="([\d.]+)"/);
   return m ? Number(m[1]) : NaN;
 };
+const svgViewBoxWidth = (path) => {
+  const m = readFileSync(path, "utf8").match(/<svg[^>]*\sviewBox="0 0 ([\d.]+) [\d.]+"/);
+  return m ? Number(m[1]) : NaN;
+};
+// PNG width lives in the IHDR chunk: bytes 16–19, big-endian
+const pngWidth = (path) => readFileSync(path).readUInt32BE(16);
 
-// baseline: no padding. --scale 1 because the SVG width attribute carries the
-// device scale (crisp PNGs), which would double the padding delta below.
+// baseline: no padding, --scale 1 to keep the padding delta in CSS pixels
 const outA = mkdtempSync(join(tmpdir(), "render-cli-a-"));
 const a = render(example, "--out", outA, "--no-frames", "--scale", "1", "--padding", "0");
 check("baseline render exits 0", a.status === 0, a.stderr.trim());
@@ -109,6 +114,24 @@ if (d.status === 0) {
   const order = [...d.stdout.matchAll(/frame\d+\.png.*  (\S+)$/gm)].map((m) => m[1]);
   check("frames are numbered in reading order",
     order.join(",") === "left,right,below", order.join(","));
+}
+
+// ---- 3. --scale is applied exactly once ----
+// The SVG stays at natural size (width == viewBox) and the raster alone
+// carries the scale. Before the fix both carried it: exportScale defaulted to
+// devicePixelRatio inside the page, so PNGs came out scale².
+const outE = mkdtempSync(join(tmpdir(), "render-cli-e-"));
+const e = render(orderFixture, "--out", outE, "--frame", "1", "--scale", "1");
+check("scale-1 frame render exits 0", e.status === 0, e.stderr.trim());
+if (d.status === 0 && e.status === 0) {
+  const svgD = join(outD, "render-order.svg");
+  check("SVG width equals viewBox width at the default --scale 2",
+    Math.abs(svgWidth(svgD) - svgViewBoxWidth(svgD)) < 0.01,
+    `width ${svgWidth(svgD)}, viewBox ${svgViewBoxWidth(svgD)}`);
+  const w1 = pngWidth(join(outE, "render-order-frame01.png"));
+  const w2 = pngWidth(join(outD, "render-order-frame01.png"));
+  check("--scale 2 PNG is 2× the --scale 1 PNG, not 4×",
+    Math.abs(w2 - 2 * w1) <= 2, `scale1 ${w1}px, scale2 ${w2}px`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nrender CLI behaves");

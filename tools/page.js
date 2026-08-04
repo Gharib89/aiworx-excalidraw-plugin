@@ -273,6 +273,10 @@ async function exportSvg({ elements, appState, files, exportingFrame, exportPadd
       viewBackgroundColor: "#ffffff",
       exportWithDarkMode: false,
       ...appState,
+      // exportScale defaults to devicePixelRatio, which browser.js already sets
+      // via deviceScaleFactor for crisp PNG screenshots. Left unpinned it gets
+      // baked into the SVG width/height too, so rasters come out scale².
+      exportScale: 1,
     },
     files: files || {},
     // exportPadding is a top-level option of exportToSvg; inside appState it is ignored

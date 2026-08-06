@@ -26,10 +26,10 @@ try {
   const positional = [];
   let svg = true;
   let literal = false; // everything after -- is a path, even if it looks like a flag
-  // Any unrecognised dash-prefixed argument is a typo, not a path: `-json` read as
-  // a file name turns a mistyped flag into a confusing "cannot read", and
-  // `-no-svg` beside a real file was blamed on the file count instead of itself.
-  // A path that genuinely starts with a dash goes after `--`.
+  // Any unrecognised dash-prefixed argument is a typo, not a path: `-no-svg` read
+  // as a file name turns a mistyped flag into a confusing "cannot read", or, with
+  // a real file named too, gets blamed on the file count instead of itself. A path
+  // that genuinely starts with a dash goes after `--`.
   for (const a of argv) {
     if (literal || !a.startsWith("-")) {
       positional.push(a);

@@ -91,14 +91,16 @@ for (const c of INVALID) {
 // `-dark` after a real file was collected as a second positional and silently
 // dropped — a light-theme render with no diagnostic — while `-dark` before it
 // became the file name and came back as "cannot read". check.js closed this in
-// #76; this CLI now shares its vocabulary, `--` escape included.
+// #76; this CLI now shares its vocabulary, `--` escape included. Both spellings
+// that matter are covered: a bool flag (`-dark`) and a value flag (`-out`).
 {
   const scratch = mkdtempSync(join(tmpdir(), "render-cli-dash-"));
   const never = join(scratch, "never-created");
 
   const DASH = [
     { name: "single-dash flag after the file", args: [example, "-dark", "--out", never], arg: "-dark" },
-    { name: "single-dash flag before the file", args: ["-json", example, "--out", never], arg: "-json" },
+    { name: "single-dash flag before the file", args: ["-dark", example, "--out", never], arg: "-dark" },
+    { name: "single-dash value flag", args: [example, "-out", never], arg: "-out" },
     { name: "bare dash", args: ["-", example, "--out", never], arg: "-" },
   ];
   for (const c of DASH) {
@@ -110,6 +112,19 @@ for (const c of INVALID) {
   }
   // the guard fires during parsing, so no output directory is ever created
   check("a rejected argument renders nothing", !existsSync(never));
+
+  // A value flag must not swallow one either. `--out -dark` used to exit 0 having
+  // created a directory literally named "-dark" — the same silently-swallowed
+  // flag the guard exists to stop, one argument further along. Run from a scratch
+  // cwd so a regression pollutes a temp directory rather than the repo.
+  const cwd = mkdtempSync(join(tmpdir(), "render-cli-value-"));
+  const swallowed = spawnSync(process.execPath, [renderJs, example, "--out", "-dark"],
+    { encoding: "utf8", cwd });
+  check("a dash-prefixed value is refused: exits 2", swallowed.status === 2, `got ${swallowed.status}`);
+  check("a dash-prefixed value is refused: names the flag left without a value",
+    /UsageError: --out needs a value/.test(swallowed.stderr),
+    swallowed.stderr.trim().split("\n")[0]);
+  check("a dash-prefixed value creates no directory", !existsSync(join(cwd, "-dark")));
 }
 
 // ---- 1d. `--` still admits a genuinely dash-named file ----

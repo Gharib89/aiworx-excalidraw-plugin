@@ -77,8 +77,10 @@ All three CLIs share one argument vocabulary. Any argument starting with `-` tha
 is not a known flag is rejected as a typo (exit 2, naming the argument) rather
 than read as a file name — `-dark` is not `--dark`. Without that guard a mistyped
 flag becomes a bogus file path, or, when a real file is named alongside it, is
-silently dropped and you get the wrong output with no diagnostic. `--` ends the
-flags, which is how a path that really does start with a dash stays reachable.
+silently dropped and you get the wrong output with no diagnostic. A value flag
+will not swallow one either: `--out -dark` is a flag left without a value, not a
+directory named `-dark`. `--` ends the flags, which is how a path that really does
+start with a dash stays reachable.
 
 The two exit-code conventions differ deliberately. `check.js` reports the worst
 code across every file it was given, so "a file could not be read" (2) has to

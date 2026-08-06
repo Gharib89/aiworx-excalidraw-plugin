@@ -36,9 +36,8 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     // Any unrecognised dash-prefixed argument is a typo, not a path: `-dark` read
-    // as a positional is a flag silently dropped when a real file is named too,
-    // and `-json` becomes a bogus file path reported as "cannot read". A path that
-    // genuinely starts with a dash goes after `--`.
+    // as a positional is a flag silently dropped when a real file is named too.
+    // A path that genuinely starts with a dash goes after `--`.
     if (literal || !a.startsWith("-")) {
       opts._.push(a);
       continue;
@@ -53,7 +52,9 @@ function parseArgs(argv) {
       opts[name] = true;
     } else if (VALUE_FLAGS.has(name)) {
       const v = argv[++i];
-      if (v === undefined || v.startsWith("--")) {
+      // A dash-prefixed token is a flag under the same rule, never this flag's
+      // value: `--out -dark` must not create a directory named "-dark".
+      if (v === undefined || v.startsWith("-")) {
         throw new UsageError(`--${name} needs a value\n${USAGE}`);
       }
       opts[name] = v;

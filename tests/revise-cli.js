@@ -63,7 +63,7 @@ for (const c of INVALID) {
 check("a rejected input gets no SVG", !existsSync(join(badDir, "foreign.svg")));
 
 // A single-dash argument is a typo, never a path. The parser admitted anything
-// that did not start with `--`, so `-json` alone became a bogus file path and
+// that did not start with `--`, so `-no-svg` alone became a bogus file path and
 // came back as "cannot read", while `-no-svg` after a real file was collected as
 // a second positional and the error blamed the file count instead of the flag.
 // check.js closed this in #76; this CLI now shares its vocabulary.
@@ -72,8 +72,8 @@ check("a rejected input gets no SVG", !existsSync(join(badDir, "foreign.svg")));
   copyFileSync(example, copy);
   const DASH = [
     { name: "single-dash flag after the file", args: [copy, "-no-svg"], arg: "-no-svg" },
-    { name: "single-dash flag before the file", args: ["-json", copy], arg: "-json" },
-    { name: "single-dash flag alone", args: ["-json"], arg: "-json" },
+    { name: "single-dash flag before the file", args: ["-no-svg", copy], arg: "-no-svg" },
+    { name: "single-dash flag alone", args: ["-no-svg"], arg: "-no-svg" },
     { name: "bare dash", args: ["-"], arg: "-" },
   ];
   for (const c of DASH) {

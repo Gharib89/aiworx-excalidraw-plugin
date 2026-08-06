@@ -61,8 +61,15 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --json         # one ma
 ```
 
 A mistyped flag is refused rather than read as a file name: any unknown
-`-`-prefixed argument exits 2. A path that genuinely starts with a dash goes
-after `--`.
+`-`-prefixed argument exits 2, naming the argument. A path that genuinely starts
+with a dash goes after `--`, which ends the flags. `check.js`, `render.js` and
+`revise.js` all parse arguments this way, so `-dark` is an error rather than a
+silently dropped `--dark`.
+
+A batch reports the worst exit code across its files, so an unreadable input (2)
+outranks a file that failed the rules (1) instead of hiding behind it.
+`render.js` and `revise.js` have nothing to aggregate: they exit 1 for a document
+they refuse and keep 2 for an invocation that never named a file.
 
 Contrast is scored against both themes on every run: the dark theme is a CSS
 filter over the same colours and it does not preserve contrast ratios, so a

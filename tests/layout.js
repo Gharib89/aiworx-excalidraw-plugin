@@ -247,6 +247,11 @@ const throwsLayoutError = (fn) => {
     throwsLayoutError(() => arrowBetween(a, anonBox, { standoff: 10 })));
   check("an arrow to an unmeasured shape is still a LayoutError",
     throwsLayoutError(() => arrowBetween(a, { type: "rectangle", id: "unsized", x: 200, y: 0 })));
+  // an id on the group itself binds nothing — flatten drops groups, so that id
+  // names no element in the finished skeleton
+  plainGroup.id = "hand-set";
+  check("an id on the group itself does not make it bindable",
+    throwsLayoutError(() => arrowBetween(a, plainGroup, { standoff: 10 })));
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

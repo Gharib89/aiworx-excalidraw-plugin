@@ -134,11 +134,11 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
 }
 
 /**
- * Where an arrow anchors: a box group anchors on the rectangle it binds, so the
- * bounds and the binding can never name different elements. A group carrying an
- * id of its own but no shape anchors on itself — keep the fallback.
+ * Where an arrow anchors: a group anchors on the rectangle it binds, so the
+ * bounds and the binding can never name different elements. `requireBindable`
+ * has already rejected any group without that rectangle.
  */
-const anchorOf = (node) => (isGroup(node) ? (node.shape ?? node) : node);
+const anchorOf = (node) => (isGroup(node) ? node.shape : node);
 
 /**
  * One bounds definition: geometry.js applies rotation, so an arrow to a turned
@@ -156,7 +156,10 @@ const boundsOf = (el) => {
   return { x1, y1, x2, y2, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
 };
 
-const bindId = (node) => node?.id ?? node?.shape?.id;
+// An element binds by its own id; a group binds only through the shape it
+// exposes, because `flatten` drops groups — a group's own id, however it got
+// there, names nothing in the finished skeleton.
+const bindId = (node) => (isGroup(node) ? node.shape?.id : node?.id);
 
 /**
  * A group is only bindable through the shape it exposes. A plain `column`/`row`

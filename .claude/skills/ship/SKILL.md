@@ -20,7 +20,8 @@ phases below need; if any is missing, surface the gap — don't guess: the
 **test command** (run from a worktree), the **browser-verification** story
 (system Chrome, `CHROME_PATH`), the **full local-gate set CI runs** (not a fixed
 triad), **docs-sync rules**, the **commit-subject convention**, and **whether a
-review bot exists** (here: Copilot, on request only — phase 7 runs). This copy also ships
+review bot exists** (`CLAUDE.md`'s *Code review* section is the authority — it
+decides whether phase 7 runs and on what terms). This copy also ships
 the repo-specific deterministic steps as executables — see *Scripts* below.
 
 ## Scripts — deterministic steps are encoded, not prose

@@ -172,7 +172,7 @@ export function verifyDocument(data) {
   for (const a of arrows) {
     for (const end of ["startBinding", "endBinding"]) {
       const id = a[end]?.elementId;
-      if (id && !byId.get(id)) note("dangling-binding", `arrow ${a.id} ${end} points at missing element ${id}`, [a.id, id]);
+      if (id && !byId.get(id)) note("dangling-binding", `arrow ${a.id} ${end} points at ${fate(id)} element ${id}`, [a.id, id]);
     }
   }
 

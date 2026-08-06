@@ -1,0 +1,13 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: arrow bound to a tombstone, not to an absent element",
+  "elements": [
+    { "id": "a1", "type": "arrow", "x": 0, "y": 0, "width": 50, "height": 0,
+      "points": [[0, 0], [50, 0]],
+      "startBinding": { "elementId": "tomb" } },
+    { "id": "tomb", "type": "rectangle", "x": 100, "y": 0, "width": 120, "height": 50, "isDeleted": true }
+  ],
+  "appState": {},
+  "files": {}
+}

@@ -6,7 +6,11 @@
  * CLI face of reviseDiagram in tools/author.js.
  *
  * Usage:
- *   node tools/revise.js diagram.excalidraw [--no-svg]
+ *   node tools/revise.js [--no-svg] [--] diagram.excalidraw
+ *
+ * `--` ends the flags: the next argument is the file even if it starts with a
+ * dash. Any other dash-prefixed argument is rejected as a typo rather than read
+ * as a file name.
  *
  * Exit codes match the other CLIs: 2 for an invocation that never named a file
  * to revise, 1 for a document the pipeline refuses — unparseable, foreign, or
@@ -15,15 +19,22 @@
 import { reviseDiagram } from "./author.js";
 import { NamedError, UsageError } from "./errors.js";
 
-const USAGE = "usage: revise.js <file.excalidraw> [--no-svg]";
+const USAGE = "usage: revise.js [--no-svg] [--] <file.excalidraw>";
 
 try {
   const argv = process.argv.slice(2);
   const positional = [];
   let svg = true;
+  let literal = false; // everything after -- is a path, even if it looks like a flag
+  // Any unrecognised dash-prefixed argument is a typo, not a path: `-json` read as
+  // a file name turns a mistyped flag into a confusing "cannot read", and
+  // `-no-svg` beside a real file was blamed on the file count instead of itself.
+  // A path that genuinely starts with a dash goes after `--`.
   for (const a of argv) {
-    if (!a.startsWith("--")) {
+    if (literal || !a.startsWith("-")) {
       positional.push(a);
+    } else if (a === "--") {
+      literal = true;
     } else if (a === "--no-svg") {
       svg = false;
     } else {

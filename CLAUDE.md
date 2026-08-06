@@ -46,7 +46,18 @@ Manual. Bump the version in **both** `package.json` and `.claude-plugin/plugin.j
 
 ## Code review
 
-**No automated reviewer** (no Copilot ruleset, no CodeRabbit). Review = a deliberate self-review (`code-review` skill) on the diff + green CI. Don't skim it — nothing runs behind it.
+**GitHub Copilot reviews on request — never automatically.** No Copilot ruleset, no CodeRabbit: nothing reads a PR unless you ask it to. Request it explicitly, over REST (the GraphQL `--add-reviewer` path flakes 401 mid-session):
+
+```bash
+gh api -X POST repos/Gharib89/aiworx-excalidraw-plugin/pulls/<pr>/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+```
+
+**Two rounds maximum.** Round 1 on the opened PR; fix what's valid, then re-request for round 2. After round 2 stop asking — a third round buys noise, and if round 2 is still substantive that's a shape problem more rounds won't fix.
+
+**Triage, don't apply.** Copilot re-reads the whole PR each round and does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
+
+Copilot is a second pair of eyes, **not the gate**. The gate is still a deliberate self-review (`code-review` skill) on the diff + green CI — don't skim it.
 
 ## Agent skills
 

@@ -106,10 +106,10 @@ directory — verification never touches tracked files.
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, images, library splicing, in-process gate, one-session batches, revise round-trip
-  layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap
+  layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap (anchored on geometry.js bounds)
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
-  geometry.js       one bounds definition shared by the gate and the frame binder
+  geometry.js       one bounds definition shared by the gate, the frame binder and arrow anchoring
   color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included
   page.js           browser-side Excalidraw entry (measure, convert, export)
   browser.js        headless-Chromium driver around page.js

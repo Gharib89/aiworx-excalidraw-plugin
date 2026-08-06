@@ -18,6 +18,10 @@ Then, once per installation:
 npm install --omit=dev   # playwright-core only; the render bundle is committed
 ```
 
+Skip it and the first render or revise says so by name — `MissingDependencyError`
+carries the command above rather than a bare module-resolution error. `check.js`
+needs no dependencies at all.
+
 Rendering uses your **system Chrome** (no browser download) and finds it for you
 on macOS, Windows and Linux. Set `CHROME_PATH` to point at a specific executable
 — it takes precedence over anything discovered.
@@ -58,11 +62,17 @@ worst one seen — 2 if an input could not be read at all, 1 if any file failed 
 rules, 0 if every file is clean. `--json` replaces the human output with one
 document (`{ ok, files: [{ file, ok, error?, problems, stats }] }`) covering
 every file, for pre-commit hooks and CI aggregation; the exit codes are the same
-either way.
+either way. Any argument starting with `-` that is not a known flag is rejected
+as a typo rather than read as a file name; a path that really does start with a
+dash goes after `--`.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,
 or failing the gate — writing nothing in either case.
+
+`render.js` follows the same two codes: 2 for a bad invocation, 1 for an input it
+cannot read or parse. Every refusal from any of the three CLIs prints as
+`ErrorName: message`, never as a stack trace.
 
 `render.js` iteration knobs — invalid values are rejected with a `UsageError`:
 

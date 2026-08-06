@@ -244,7 +244,8 @@ Every id — element and group — is regenerated per splice, so one item can be
 placed twice without collision; bindings and `boundElements` that point outside
 the item are dropped rather than left dangling for the gate to reject. The
 helper accepts v1 and v2 `.excalidrawlib` files and throws a `LibraryError`
-naming what's wrong (unparseable file, no such item). Items containing text
+naming what's wrong (unparseable file, no such item, an item holding nothing but
+deleted elements). Items containing text
 still face the gate: fonts outside the house pair and low-contrast text fail,
 by design.
 

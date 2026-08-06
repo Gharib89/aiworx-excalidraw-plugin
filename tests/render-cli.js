@@ -121,8 +121,8 @@ for (const c of INVALID) {
   const swallowed = spawnSync(process.execPath, [renderJs, example, "--out", "-dark"],
     { encoding: "utf8", cwd });
   check("a dash-prefixed value is refused: exits 2", swallowed.status === 2, `got ${swallowed.status}`);
-  check("a dash-prefixed value is refused: names the flag left without a value",
-    /UsageError: --out needs a value/.test(swallowed.stderr),
+  check("a dash-prefixed value is refused: names both the flag and the token",
+    /UsageError: --out needs a value, got -dark/.test(swallowed.stderr),
     swallowed.stderr.trim().split("\n")[0]);
   check("a dash-prefixed value creates no directory", !existsSync(join(cwd, "-dark")));
 }

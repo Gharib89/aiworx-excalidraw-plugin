@@ -52,10 +52,12 @@ function parseArgs(argv) {
       opts[name] = true;
     } else if (VALUE_FLAGS.has(name)) {
       const v = argv[++i];
+      if (v === undefined) throw new UsageError(`--${name} needs a value\n${USAGE}`);
       // A dash-prefixed token is a flag under the same rule, never this flag's
-      // value: `--out -dark` must not create a directory named "-dark".
-      if (v === undefined || v.startsWith("-")) {
-        throw new UsageError(`--${name} needs a value\n${USAGE}`);
+      // value: `--out -dark` must not create a directory named "-dark". Name the
+      // token — a value *was* given, so a bare "needs a value" reads as a lie.
+      if (v.startsWith("-")) {
+        throw new UsageError(`--${name} needs a value, got ${v}\n${USAGE}`);
       }
       opts[name] = v;
     } else {

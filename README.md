@@ -108,6 +108,7 @@ tools/
   palette.js        derives brand/palette.json and verifies every contrast claim
   bundle.js         builds the committed dist/ bundle, fonts inlined, stamped with a source fingerprint
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
+  errors.js         the shared NamedError base every tool error derives from, plus the CLIs' UsageError
 tests/              layout units, gate fixtures, failure paths, render + revise CLI, author API suites
 dist/               committed browser bundle
 brand/              AIWorx palette

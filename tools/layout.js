@@ -11,14 +11,14 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { NamedError } from "./errors.js";
 
 const palette = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
 );
 
-export class LayoutError extends Error {
-  name = "LayoutError";
-}
+/** A group cannot be composed as asked — bad items, gaps, direction or align. */
+export class LayoutError extends NamedError {}
 
 const isGroup = (node) => node?.kind === "layout-group";
 

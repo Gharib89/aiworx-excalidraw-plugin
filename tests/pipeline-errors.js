@@ -48,7 +48,7 @@ function makeCopy() {
   const dir = mkdtempSync(join(tmpdir(), "pipeline-errors-"));
   mkdirSync(join(dir, "tools"));
   mkdirSync(join(dir, "dist"));
-  for (const f of ["tools/browser.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
+  for (const f of ["tools/browser.js", "tools/errors.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
     copyFileSync(join(root, f), join(dir, f));
   }
   copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));

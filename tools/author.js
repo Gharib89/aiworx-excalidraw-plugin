@@ -27,6 +27,7 @@ import { withExcalidraw } from "./browser.js";
 import { bounds, contains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
 import { stack, row, column, box, arrowBetween, flatten } from "./layout.js";
+import { NamedError } from "./errors.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
@@ -34,12 +35,6 @@ export const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"),
 export const PROSE = palette.fontFamily.prose;
 export const CODE = palette.fontFamily.code;
 
-class NamedError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
 /** The build callback returned something that is not a usable skeleton. */
 export class SkeletonError extends NamedError {}
 /**

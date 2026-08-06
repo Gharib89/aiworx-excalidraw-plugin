@@ -12,16 +12,11 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { expectedFingerprint, stampedFingerprint } from "./fingerprint.js";
+import { NamedError } from "./errors.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BUNDLE = join(root, "dist/excalidraw-page.js");
 
-class NamedError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = new.target.name;
-  }
-}
 /** The committed bundle does not match the current sources. */
 export class StaleBundleError extends NamedError {}
 /** The bundle loaded but never signalled ready. */

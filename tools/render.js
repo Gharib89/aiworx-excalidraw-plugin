@@ -19,10 +19,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname } from "node:path";
 import { withExcalidraw } from "./browser.js";
-
-class UsageError extends Error {
-  name = "UsageError";
-}
+import { UsageError } from "./errors.js";
 
 const USAGE =
   "usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames] " +
@@ -159,7 +156,7 @@ try {
     }
   }, { scale });
 } catch (err) {
-  if (err.name === "UsageError") {
+  if (err instanceof UsageError) {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
   }

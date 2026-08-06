@@ -9,8 +9,10 @@ Keys 1–2 already make the phase-4 docs-sync gate and the phase-3 browser
 verification no-ops by construction (nothing on the public surface changed;
 nothing browser-dependent to prove). On top of that:
 
-- **The phase-4 self-review still runs** — this repo has no auto-review bot, so
-  the self-review is the *only* review the change gets. It never collapses.
+- **The phase-4 self-review still runs** — nothing reviews this repo unless
+  asked, so the self-review is the review the change gets. It never collapses.
+- **Phase 7 still runs** — the Copilot rounds are cheap and a small diff is
+  quick to re-read; the small lane does not buy an exemption from them.
 - **Local gate (phase 5) = `scripts/local-gate.sh --small <test-file>`** — the
   bundle-fingerprint staleness check + the one regression test file (red→green
   proof). Lean on CI for the rest of the suite, the browser smoke, and the

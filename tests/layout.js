@@ -185,6 +185,42 @@ const throwsLayoutError = (fn) => {
       throwsLayoutError(() => arrowBetween(a, b, { label: { fontSize: 16 } })));
 }
 
+{
+  // a rotated source anchors on its rotated extent, not its unrotated box: a
+  // 100x50 rectangle at the origin turned a quarter turn occupies x 25..75
+  // (worked by hand from the corners about the centre 50,25), so the arrow
+  // leaves at 85 — the unrotated 110 would start 35px clear of the shape
+  const a = { type: "rectangle", id: "spun", x: 0, y: 0, width: 100, height: 50, angle: Math.PI / 2 };
+  const b = { type: "rectangle", id: "plain", x: 160, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10 });
+  check("a rotated source anchors on its rotated extent",
+    arrow.x === 85 && arrow.y === 25, `${arrow.x},${arrow.y}`);
+  check("a rotated source spans the real gap minus standoffs",
+    JSON.stringify(arrow.points) === "[[0,0],[65,0]]", JSON.stringify(arrow.points));
+}
+
+{
+  // a group is only bindable through the shape it exposes: a plain column/row
+  // has no element to bind, and an unbound arrow passes the gate then detaches
+  // on edit, so the call is rejected instead of silently producing one
+  const a = { type: "rectangle", id: "src", x: 0, y: 0, width: 100, height: 50 };
+  const plainGroup = column(
+    [{ type: "rectangle", id: "c1", width: 100, height: 40 },
+      { type: "rectangle", id: "c2", width: 100, height: 40 }],
+    { x: 200, y: 0, gap: 10 },
+  );
+  check("an arrow to a plain group is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, plainGroup, { standoff: 10 })));
+  check("an arrow from a plain group is a LayoutError",
+    throwsLayoutError(() => arrowBetween(plainGroup, a, { standoff: 10 })));
+  const anonBox = box({ type: "text", width: 60, height: 30 }, { padding: 10 });
+  column([anonBox], { x: 200, y: 0 });
+  check("an arrow to a box whose shape has no id is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, anonBox, { standoff: 10 })));
+  check("an arrow to an unmeasured shape is still a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, { type: "rectangle", id: "unsized", x: 200, y: 0 })));
+}
+
 // ---- flatten: mixed elements and groups, depth-first ----
 {
   const t = { type: "text", width: 10, height: 10 };

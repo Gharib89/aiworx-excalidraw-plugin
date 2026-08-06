@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { NamedError } from "./errors.js";
+import { bounds } from "./geometry.js";
 
 const palette = JSON.parse(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
@@ -132,14 +133,37 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
   };
 }
 
+/**
+ * Where an arrow anchors: a box group anchors on the rectangle it binds, so the
+ * bounds and the binding can never name different elements. Everything else
+ * anchors on itself.
+ */
+const anchorOf = (node) => (isGroup(node) ? (node.shape ?? node) : node);
+
+// one bounds definition — geometry.js applies rotation, so an arrow to a turned
+// shape reaches its real extent instead of its unrotated box
 const boundsOf = (el) => {
-  const { width, height } = extent(el);
-  const x = el.x ?? 0;
-  const y = el.y ?? 0;
-  return { x1: x, y1: y, x2: x + width, y2: y + height, cx: x + width / 2, cy: y + height / 2 };
+  extent(el); // reject an unmeasured item with layout's own message, before geometry sees NaN
+  const { x1, y1, x2, y2 } = bounds(anchorOf(el));
+  return { x1, y1, x2, y2, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
 };
 
 const bindId = (node) => node?.id ?? node?.shape?.id;
+
+/**
+ * A group is only bindable through the shape it exposes. A plain `column`/`row`
+ * exposes none, so an arrow to it would go in unbound — passing the gate, then
+ * detaching from the shape on the first edit in the app. Reject the call instead
+ * of writing an arrow that looks connected and is not.
+ */
+function requireBindable(node, side) {
+  if (isGroup(node) && !bindId(node)) {
+    throw new LayoutError(
+      `arrowBetween ${side} is a layout group with no element to bind — give its box an id ` +
+        `(box(child, { id: "…" })), or wrap a plain column/row in one`,
+    );
+  }
+}
 
 /** One step below body prose: an edge annotation, not a heading. */
 const LABEL_FONT_SIZE = 16;
@@ -174,6 +198,8 @@ function labelSpec(label) {
  * runs close to a neighbour.
  */
 export function arrowBetween(a, b, { standoff = 10, via = [], label, ...style } = {}) {
+  requireBindable(a, "source");
+  requireBindable(b, "target");
   const A = boundsOf(a);
   const B = boundsOf(b);
   const dxGap = Math.max(B.x1 - A.x2, A.x1 - B.x2);

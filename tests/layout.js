@@ -21,6 +21,10 @@ const check = (name, cond, detail) => {
   console.log(`${cond ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
   if (!cond) fail.push(name);
 };
+// rotated bounds run through Math.sin/cos, so compare rotation-derived pixels
+// with a tolerance — tight enough that a real anchoring regression is tens of
+// pixels wide and still fails
+const near = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
 const throwsLayoutError = (fn) => {
   try {
     fn();
@@ -194,9 +198,11 @@ const throwsLayoutError = (fn) => {
   const b = { type: "rectangle", id: "plain", x: 160, y: 0, width: 100, height: 50 };
   const arrow = arrowBetween(a, b, { standoff: 10 });
   check("a rotated source anchors on its rotated extent",
-    arrow.x === 85 && arrow.y === 25, `${arrow.x},${arrow.y}`);
+    near(arrow.x, 85) && near(arrow.y, 25), `${arrow.x},${arrow.y}`);
   check("a rotated source spans the real gap minus standoffs",
-    JSON.stringify(arrow.points) === "[[0,0],[65,0]]", JSON.stringify(arrow.points));
+    arrow.points.length === 2 && near(arrow.points[0][0], 0) && near(arrow.points[0][1], 0) &&
+      near(arrow.points[1][0], 65) && near(arrow.points[1][1], 0),
+    JSON.stringify(arrow.points));
 }
 {
   // the rotated *bounding box* is the anchor — the definition the gate scores
@@ -208,7 +214,7 @@ const throwsLayoutError = (fn) => {
   const b = { type: "rectangle", id: "plain", x: 250, y: 0, width: 100, height: 50 };
   const arrow = arrowBetween(a, b, { standoff: 10 });
   check("an oblique rotation anchors on the rotated bounding box",
-    Math.abs(arrow.x - 113.03) < 0.01 && arrow.y === 25, `${arrow.x},${arrow.y}`);
+    near(arrow.x, 113.03, 0.01) && near(arrow.y, 25), `${arrow.x},${arrow.y}`);
 }
 {
   // geometry reads x/y raw, so an item that was sized but never placed used to

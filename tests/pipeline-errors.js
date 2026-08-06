@@ -3,8 +3,9 @@
  * Failure-path suite for the browser pipeline (tools/browser.js). The happy
  * path is smoke.js's job; this file proves the loud-failure claims:
  *
- *   1. a committed bundle that no longer matches the sources is refused with
- *      a StaleBundleError before any browser launches
+ *   1. a committed bundle that no longer matches the sources — or a dist/ with
+ *      no loader page — is refused with a StaleBundleError before any browser
+ *      launches
  *   2. a bundle that throws on load surfaces the page's exception as a
  *      BundleLoadError immediately, not as a generic 30-second timeout
  *   3. a call that throws inside the page comes back as a PageError naming
@@ -17,7 +18,7 @@
  * call.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, readFileSync, symlinkSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, readFileSync, rmSync, symlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -54,7 +55,7 @@ function makeCopy({ deps = true } = {}) {
   for (const f of ["tools/browser.js", "tools/errors.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
     copyFileSync(join(root, f), join(dir, f));
   }
-  copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));
+  for (const f of ["dist/excalidraw-page.js", "dist/index.html"]) copyFileSync(join(root, f), join(dir, f));
   // the copy resolves playwright-core through the real install. "junction" is the
   // one directory link Windows creates without elevation; ignored on POSIX.
   if (deps) symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
@@ -143,6 +144,22 @@ const probe = (dir, env) =>
   const r = probe(dir);
   check("stub control: a fresh bundle does reach the launch", existsSync(marker),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? `exit ${r.status}`);
+}
+
+// ---- 1c. missing loader page: the same refusal as a missing bundle ----
+// Chrome loads the bundle by navigating to dist/index.html, so an old dist/ that
+// predates the loader would otherwise fail as a navigation error or a blank-page
+// timeout — neither of which names the remedy. The freshness check owns it.
+{
+  const dir = makeCopy();
+  const marker = stubChromium(dir);
+  rmSync(join(dir, "dist/index.html"));
+  const r = probe(dir);
+  check("missing loader: refuses to run", r.status !== 0, `exit ${r.status}`);
+  check("missing loader: names StaleBundleError", /StaleBundleError/.test(r.stderr),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
+  check("missing loader: tells the user to rebundle", /npm run bundle/.test(r.stderr));
+  check("missing loader: fails before any browser work", !existsSync(marker));
 }
 
 // ---- 2. broken bundle with a valid stamp: page error surfaces, fast ----

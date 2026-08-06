@@ -8,15 +8,17 @@
  * generic 30-second timeout tells the caller nothing.
  */
 import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { expectedFingerprint, stampedFingerprint } from "./fingerprint.js";
 import { NamedError } from "./errors.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BUNDLE = join(root, "dist/excalidraw-page.js");
+/** The page Chrome navigates to; its only job is a relative <script src> at BUNDLE. */
+const LOADER = join(root, "dist/index.html");
 
-/** The committed bundle does not match the current sources. */
+/** The committed dist/ is incomplete or does not match the current sources. */
 export class StaleBundleError extends NamedError {}
 /** The bundle loaded but never signalled ready. */
 export class BundleLoadError extends NamedError {}
@@ -100,6 +102,13 @@ function assertFreshBundle() {
   if (!existsSync(BUNDLE)) {
     throw new StaleBundleError(`Bundle missing at ${BUNDLE}. Run: npm run bundle`);
   }
+  // A dist/ built before the loader existed would otherwise reach the browser
+  // and come back as Chrome's own error page or a blank-page timeout — neither
+  // names the remedy. The fingerprint covers the bundle's inputs, not the
+  // loader, so its presence is checked here instead.
+  if (!existsSync(LOADER)) {
+    throw new StaleBundleError(`Loader page missing at ${LOADER}. Run: npm run bundle`);
+  }
   const expected = expectedFingerprint();
   const stamped = stampedFingerprint(BUNDLE);
   if (stamped !== expected) {
@@ -141,17 +150,26 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
 
     // A bundle that throws on load would otherwise sit out the full timeout;
     // racing the ready flag against the first pageerror fails immediately and
-    // names the actual exception. Registered before the script is injected —
-    // the throw happens synchronously during evaluation.
+    // names the actual exception. Registered before the navigation — the throw
+    // happens synchronously while the loader's script evaluates.
     let rejectLoad;
     const loadFailed = new Promise((_, rej) => (rejectLoad = rej));
     loadFailed.catch(() => {});
     const onLoadError = (e) =>
       rejectLoad(new BundleLoadError(withIssues(`the bundle threw while loading: ${e.message}`)));
     page.on("pageerror", onLoadError);
-    await page.goto("about:blank");
-    await page.addScriptTag({ path: BUNDLE });
     try {
+      // Chrome reads the bundle off disk through the loader's relative script
+      // tag. Handing the same bytes to addScriptTag({ path }) instead read the
+      // file in Node and shipped all 7.88 MB to the page as a CDP string, which
+      // cost more than the browser launch itself. pathToFileURL, never a
+      // hand-built "file://" + path: it is what gets drive letters and spaces
+      // right. The navigation is where the bundle now parses, so it is also
+      // where a browser-side failure lands — hence the named error, not a raw
+      // Playwright message about a closed target.
+      await page.goto(pathToFileURL(LOADER).href).catch((err) => {
+        throw new BundleLoadError(withIssues(`the loader page failed to open: ${err.message}`));
+      });
       await Promise.race([
         page.waitForFunction("window.__exReady === true", { timeout: 30_000 }),
         loadFailed,

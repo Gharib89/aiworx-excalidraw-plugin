@@ -50,7 +50,7 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ```bash
 npm test                          # layout + gate fixtures + dark theme + failure paths + render/revise CLIs + palette + author API + assets + browser smoke
 npm run smoke                     # browser smoke suite alone
-npm run bundle                    # rebuild dist/excalidraw-page.js from node_modules
+npm run bundle                    # rebuild dist/ (bundle + loader page) from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
@@ -112,16 +112,16 @@ tools/
   geometry.js       one bounds definition shared by the gate, the frame binder and arrow anchoring
   color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included
   page.js           browser-side Excalidraw entry (measure, convert, export)
-  browser.js        headless-Chromium driver around page.js
+  browser.js        headless-Chromium driver around page.js; Chrome loads the bundle off disk via dist/index.html
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs
   revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place
   smoke.js          browser smoke suite proving measurement, conversion, export and raster survival
   palette.js        derives brand/palette.json and verifies every contrast claim
-  bundle.js         builds the committed dist/ bundle, fonts inlined, stamped with a source fingerprint
+  bundle.js         builds the committed dist/ bundle and its loader page, fonts inlined, stamped with a source fingerprint
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
   errors.js         the shared NamedError base every tool error derives from, plus UsageError and DocumentError
 tests/              layout units, gate fixtures, failure paths, render + revise CLI, author API suites
-dist/               committed browser bundle
+dist/               committed browser bundle and the loader page Chrome navigates to
 brand/              AIWorx palette
 examples/           worked generator (gen-example.js) and its committed output
 ```

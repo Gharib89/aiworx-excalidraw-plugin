@@ -61,10 +61,20 @@ if (leftover) {
 // to run a committed bundle that no longer matches the sources.
 appendFileSync(outFile, `\n${FINGERPRINT_MARKER}${expectedFingerprint()}\n`);
 
+// The loader page browser.js navigates to. Letting Chrome pull the bundle off
+// disk through a relative <script src> is 3-4x faster than handing the same
+// bytes to addScriptTag, which reads the file in Node and ships all of it to the
+// page as a string over CDP. The charset is explicit because a file: document
+// otherwise guesses, and the bundle carries non-ASCII.
+const loaderFile = join(root, "dist/index.html");
+const loader = `<!doctype html><meta charset="utf-8"><script src="excalidraw-page.js"></script>\n`;
+writeFileSync(loaderFile, loader);
+
 const out = Object.entries(result.metafile.outputs);
 for (const [file, meta] of out) {
   console.log(`${file}  ${(meta.bytes / 1024 / 1024).toFixed(2)} MB`);
 }
+console.log(`dist/index.html  ${Buffer.byteLength(loader)} B  (loader page)`);
 console.log(
   src === scrubbed ? "no third-party keys found" : "stripped third-party collab config",
 );

@@ -19,7 +19,7 @@ CI (`.github/workflows/ci.yml`): `npm test` on a **3-OS matrix** (ubuntu / macos
 
 ## Bundle discipline
 
-Touching a **bundle input** — `tools/page.js`, `tools/bundle.js`, or a lockfile-resolved version of `@excalidraw/excalidraw` / `react` / `react-dom` / `esbuild` (that's exactly what `tools/fingerprint.js` hashes) — requires `npm run bundle` and committing the rebuilt `dist/` **in the same change**; otherwise the stamped fingerprint mismatches and every browser call refuses to run.
+Touching a **bundle input** — `tools/page.js`, `tools/bundle.js`, or a lockfile-resolved version of `@excalidraw/excalidraw` / `react` / `react-dom` / `esbuild` (that's exactly what `tools/fingerprint.js` hashes) — requires `npm run bundle` and committing the rebuilt `dist/` **in the same change**; otherwise the stamped fingerprint mismatches and every browser call refuses to run. `dist/` holds two shipped files — the bundle and `dist/index.html`, the loader page Chrome navigates to — and `.gitignore` un-ignores them **by name**, so any new `dist/` file needs its own un-ignore line or it is silently left uncommitted.
 
 ## Branch & worktree discipline
 

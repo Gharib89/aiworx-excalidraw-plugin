@@ -25,9 +25,13 @@ Browser verification
   - <what was run: smoke / targeted render / tests/<area>.js>  → <pass | handed to you>
   - OS-specific claims: <none | proven by CI leg: <os>>
 
-Self-review (code-review skill — the review gate; no bot in this repo)
+Self-review (code-review skill — the review gate)
   - <comment> → <fixed | rejected: reason | n/a>
   ...
+
+Copilot (requested, <n>/2 rounds)
+  - round <n>: <comment> → <fixed in <sha> | declined: reason>
+  ...                                     (or: clean — no comments)
 
 Local gate:  tests <✓/✗> · fingerprint <✓/✗> · bundle-repro <✓/✗/n/a> · clean-tree <✓/✗>
 Docs-sync:   <ran: files | skipped: reason>

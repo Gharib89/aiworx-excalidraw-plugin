@@ -1,32 +1,42 @@
 # Phase 7 — driving an automated review to convergence
 
-**Dormant in this repo: no review bot is configured** (no Copilot ruleset, no
-CodeRabbit). Phase 7 skips; phase-4 self-review + green CI is the review gate.
-This file exists so the pipeline doesn't lose the mechanics if a bot is ever
-added — if one is, record its role in `CLAUDE.md` and this phase reactivates.
+**In this repo: GitHub Copilot, on request only, two rounds maximum** (no Copilot
+ruleset, no CodeRabbit — nothing auto-reviews). Phase-4 self-review + green CI is
+still the gate; these rounds are a second pair of eyes on top. `CLAUDE.md`'s
+*Code review* section is the authority on the policy; this file holds the
+mechanics.
 
 A review bot re-reads the **whole PR** on each round, so treat every round's
 output as a fresh read of the committed tree, not a conversation.
 
-Two reviewer roles, assigned by project instructions:
+## The two rounds
 
-- **Round-1 reviewer** — auto-reviews once on PR creation and is **dispositioned
-  once**: address each thread, or decline with evidence. **Never re-requested in
-  the ship flow** (a plain push does not re-trigger it).
-- **Iterating reviewer** — a push-triggered bot (if the repo runs one) that
-  **re-reviews automatically on every push** and **owns iteration**. Its rounds
-  are free; drive them to quiet: address or decline with evidence, reply **on
-  each review thread** ("fixed in `<sha>`" / decline + evidence), batch fixes
-  into one push per round, and use its thread-resolution mechanism only once
-  **every** thread carries a disposition.
+Copilot is a **requested** reviewer: it never triggers itself, and a plain push
+does **not** re-trigger it. Each round is an explicit request:
 
-**Converged = the iterating reviewer quiet on the latest push + every one of its
-threads dispositioned and resolved + every round-1 thread dispositioned.** With
-only a round-1 reviewer, converged = its threads dispositioned + green CI. Each
-reviewer's dispositions get their **own block** in the merge summary.
+```bash
+gh api -X POST repos/<owner>/<repo>/pulls/<pr>/requested_reviewers \
+  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
+```
 
-If the iterating reviewer stays substantive round after round, that's a shape
-problem more rounds won't fix — stop and report, don't loop forever.
+(REST, not `--add-reviewer` — the GraphQL path flakes 401 mid-session.)
+
+- **Round 1** — request it once the PR is open and CI is running. Triage every
+  comment: fix the valid ones in one batched push, reply on each thread
+  (`fixed in <sha>` / decline + evidence).
+- **Round 2** — re-request after that push, so it reads the corrected tree. Same
+  triage. **Then stop**: two rounds is the cap.
+
+**Converged = every comment from both rounds dispositioned + green CI.** A round
+that returns nothing is a pass, not a miss — but only if you actually requested
+it. Copilot's dispositions get their **own block** in the merge summary.
+
+If round 2 is still substantive, that's a shape problem more rounds won't fix —
+stop and report rather than requesting a third.
+
+**Triage, don't apply.** Copilot does not know this repo's constraints: verify
+every nit against the **pinned** dependency versions, harden rather than rip out
+capability, and reject known non-issues with a one-line reason.
 
 ## Poll mechanics
 

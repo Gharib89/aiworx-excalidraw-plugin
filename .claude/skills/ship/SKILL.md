@@ -20,7 +20,7 @@ phases below need; if any is missing, surface the gap — don't guess: the
 **test command** (run from a worktree), the **browser-verification** story
 (system Chrome, `CHROME_PATH`), the **full local-gate set CI runs** (not a fixed
 triad), **docs-sync rules**, the **commit-subject convention**, and **whether a
-review bot exists** (this repo runs none — phase 7 skips). This copy also ships
+review bot exists** (here: Copilot, on request only — phase 7 runs). This copy also ships
 the repo-specific deterministic steps as executables — see *Scripts* below.
 
 ## Scripts — deterministic steps are encoded, not prose
@@ -218,8 +218,9 @@ docs-sync edits — (it runs its two axes on their own tiers — opus for code, 
 for spec). **Auto-triage** each finding: harden rather than rip out capability,
 verify nits against the **pinned** dependency versions, reject known non-issues; fix
 the valid ones; record a one-line disposition per finding for the merge summary.
-This repo has **no automated reviewer** — this self-review plus green CI *is*
-the review gate, so don't skim it.
+Nothing reviews this repo unless asked, so this self-review plus green CI *is*
+the review gate — don't skim it. The requested Copilot rounds in phase 7 are a
+second pair of eyes on top, not a substitute for it.
 
 **5 · Local gate.** *Precondition:* phase 3 passed **or** the class is `docs` — if
 neither holds, you skipped a verification; stop and go back.
@@ -244,9 +245,12 @@ template**, fill it in honestly; otherwise write a plain body that keeps the
 PR) so a scheduled run won't re-pick it.
 
 **7 · Review-bot loop.** **Only if the repo has an automated reviewer configured**
-(per project instructions — never an assumption). **This repo runs none — skip:**
-phase-4 self-review plus green CI is the review gate. If one is ever added, its
-mechanics live in **[reference/review-loop.md](reference/review-loop.md)**.
+(per project instructions — never an assumption). **Here: GitHub Copilot, on
+request only, two rounds maximum** — request it on the opened PR, triage what
+comes back, fix the valid findings, re-request once, then stop. Nothing arrives
+unless you ask, so a silent PR means you skipped the phase, not that the
+reviewer passed. Mechanics, poll loop, and the infra-flake rails:
+**[reference/review-loop.md](reference/review-loop.md)**.
 
 **8 · CI.** CI runs from PR-open. `scripts/poll-pr.sh <pr>` covers this phase: it
 reports the check conclusions (all three OS legs + the bundle job) and surfaces
@@ -272,7 +276,7 @@ worktree. Summary format and merge mechanics:
   the floor, revocation.
 - `reference/implement.md` — phases 1–3: spec precedence, change classification,
   external-claim verification, verify-where-it-failed (the OS caveat).
-- `reference/review-loop.md` — phase 7: dormant here (no bot); the round-1 vs
-  iterating reviewer roles for if one is ever added.
+- `reference/review-loop.md` — phase 7: requesting Copilot, the two-round cap,
+  triage rails and infra-flake handling.
 - `reference/merge-gate.md` — phase 9: the merge-summary template and the
   squash-merge / cleanup mechanics.

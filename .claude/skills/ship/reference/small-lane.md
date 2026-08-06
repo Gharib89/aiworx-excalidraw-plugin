@@ -24,7 +24,7 @@ nothing browser-dependent to prove). On top of that:
 ## The floor — never collapses
 
 The worktree (phase 0), **one regression test** proving any behavior change, the
-**self-review** (the only review — no bot behind it), the **fingerprint check**
+**self-review** (the gate — Copilot only ever adds to it), the **fingerprint check**
 (a stale committed bundle silently reproduces the bugs the sources fixed), the
 PR, CI, and the **merge gate**.
 

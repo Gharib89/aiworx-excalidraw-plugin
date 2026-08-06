@@ -12,11 +12,8 @@
  * to revise, 1 for a document the pipeline refuses — unparseable, foreign, or
  * failing the gate — with nothing written in either case.
  */
-import { reviseDiagram } from "./author.js";
-
-class UsageError extends Error {
-  name = "UsageError";
-}
+import { reviseDiagram, DocumentError, GateError } from "./author.js";
+import { UsageError } from "./errors.js";
 
 const USAGE = "usage: revise.js <file.excalidraw> [--no-svg]";
 
@@ -40,11 +37,11 @@ try {
 
   await reviseDiagram({ file: positional[0], svg });
 } catch (err) {
-  if (err.name === "UsageError") {
+  if (err instanceof UsageError) {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
   }
-  if (err.name === "DocumentError" || err.name === "GateError") {
+  if (err instanceof DocumentError || err instanceof GateError) {
     console.error(`${err.name}: ${err.message}`);
     process.exit(1);
   }

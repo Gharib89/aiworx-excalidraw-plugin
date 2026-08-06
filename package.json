@@ -13,7 +13,7 @@
     "setup": "npm install --omit=dev",
     "dev": "npm install && npm run bundle",
     "smoke": "node tools/smoke.js",
-    "test": "node tests/layout.js && node tests/wrap.js && node tests/splice.js && node tests/gate.js && node tests/dark.js && node tests/pipeline-errors.js && node tests/font-warm.js && node tests/render-cli.js && node tests/revise-cli.js && node tools/palette.js && node tests/author-api.js && node tests/converter-contract.js && node tests/assets.js && node tests/example-paths.js && npm run smoke"
+    "test": "node tests/error-classes.js && node tests/layout.js && node tests/wrap.js && node tests/splice.js && node tests/gate.js && node tests/dark.js && node tests/pipeline-errors.js && node tests/font-warm.js && node tests/render-cli.js && node tests/revise-cli.js && node tools/palette.js && node tests/author-api.js && node tests/converter-contract.js && node tests/assets.js && node tests/example-paths.js && npm run smoke"
   },
   "dependencies": {
     "playwright-core": "^1.56.0"

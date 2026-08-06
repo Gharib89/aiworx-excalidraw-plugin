@@ -8,4 +8,5 @@ node_modules/
 # ~/.gitignore_global ignores dist/, so un-ignore it here explicitly.
 !dist/
 !dist/excalidraw-page.js
+!dist/index.html
 .DS_Store

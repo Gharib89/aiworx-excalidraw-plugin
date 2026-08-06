@@ -34,6 +34,15 @@ const check = (name, cond, detail) => {
 };
 
 await withExcalidraw(async (ex) => {
+  // 0. Chrome loads the bundle off disk itself. Shipping 7.88 MB to the page as
+  // a CDP string was the dominant cost of opening a session; a file: origin is
+  // the tell that the loader page did the work instead. The font checks below
+  // (4) and the raster loop (7) run in this same page, so they are also what
+  // proves the origin change did not cost the embedded @font-face rules or the
+  // srcless iframe's same-origin scriptability.
+  check("the bundle is loaded off disk, not injected",
+    new URL(ex.page.url()).protocol === "file:", ex.page.url());
+
   // 1. measurement
   const ITEMS = [
     { text: "convert()", fontSize: 20, fontFamily: NUNITO },

@@ -74,7 +74,7 @@ const out = Object.entries(result.metafile.outputs);
 for (const [file, meta] of out) {
   console.log(`${file}  ${(meta.bytes / 1024 / 1024).toFixed(2)} MB`);
 }
-console.log(`dist/index.html  ${loader.length} B  (loader page)`);
+console.log(`dist/index.html  ${Buffer.byteLength(loader)} B  (loader page)`);
 console.log(
   src === scrubbed ? "no third-party keys found" : "stripped third-party collab config",
 );

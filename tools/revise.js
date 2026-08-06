@@ -12,8 +12,8 @@
  * to revise, 1 for a document the pipeline refuses — unparseable, foreign, or
  * failing the gate — with nothing written in either case.
  */
-import { reviseDiagram, DocumentError, GateError } from "./author.js";
-import { UsageError } from "./errors.js";
+import { reviseDiagram } from "./author.js";
+import { NamedError, UsageError } from "./errors.js";
 
 const USAGE = "usage: revise.js <file.excalidraw> [--no-svg]";
 
@@ -41,7 +41,10 @@ try {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
   }
-  if (err instanceof DocumentError || err instanceof GateError) {
+  // One branch for every named error: the document and gate refusals this CLI
+  // owns, and whatever the pipeline beneath raises — a stale bundle, no Chrome,
+  // an uninstalled checkout. A stack trace is for a bug in this code alone.
+  if (err instanceof NamedError) {
     console.error(`${err.name}: ${err.message}`);
     process.exit(1);
   }

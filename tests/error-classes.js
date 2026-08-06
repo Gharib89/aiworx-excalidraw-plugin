@@ -24,7 +24,7 @@ import {
 // browser.js is imported for its error classes only — importing the module never
 // launches Chrome, so this suite still runs without one.
 import {
-  StaleBundleError, BundleLoadError, PageError, ChromeLaunchError,
+  StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
 } from "../tools/browser.js";
 import { LayoutError } from "../tools/layout.js";
 
@@ -46,7 +46,7 @@ const sources = readdirSync(toolsDir)
 const DERIVED = [
   UsageError,
   SkeletonError, GateError, WrapError, DocumentError, AssetError, LibraryError,
-  StaleBundleError, BundleLoadError, PageError, ChromeLaunchError,
+  StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
   LayoutError,
 ];
 

@@ -12,7 +12,7 @@
  * Exits non-zero on any mismatch.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, existsSync, readdirSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +52,37 @@ for (const c of INVALID) {
   check(`${c.name}: exits 2`, r.status === 2, `got ${r.status}`);
   check(`${c.name}: names UsageError`, /UsageError/.test(r.stderr),
     r.stderr.trim().split("\n")[0]);
+}
+
+// ---- 1b. a refused input is named, never a raw Node stack ----
+//
+// Argument validation was the only path with a catch; everything the filesystem
+// or JSON.parse could throw escaped as an unhandled rejection. These are the
+// three that a user actually hits, and each must come back as `Name: message`
+// with a stack-free stderr, the way revise.js reports the same conditions.
+{
+  const scratch = mkdtempSync(join(tmpdir(), "render-cli-refuse-"));
+  const badJson = join(scratch, "bad.excalidraw");
+  writeFileSync(badJson, "{ not json");
+  const occupied = join(scratch, "occupied");
+  writeFileSync(occupied, "a file where a directory was asked for");
+  const empty = join(scratch, "empty.excalidraw");
+  writeFileSync(empty, JSON.stringify({ type: "excalidraw", elements: [], appState: {} }));
+
+  const REFUSED = [
+    { name: "missing input file", args: [join(scratch, "nope.excalidraw")], status: 1, error: "DocumentError", says: "cannot read" },
+    { name: "unparseable input", args: [badJson], status: 1, error: "DocumentError", says: "not valid JSON" },
+    { name: "element-less input", args: [empty], status: 1, error: "DocumentError", says: "has no elements" },
+    { name: "--out naming a file", args: [example, "--out", occupied], status: 2, error: "UsageError", says: "output directory" },
+  ];
+  for (const c of REFUSED) {
+    const r = render(...c.args);
+    check(`${c.name}: exits ${c.status}`, r.status === c.status, `got ${r.status}`);
+    check(`${c.name}: names ${c.error}`, r.stderr.includes(`${c.error}:`) && r.stderr.includes(c.says),
+      r.stderr.trim().split("\n")[0]);
+    check(`${c.name}: prints no stack trace`, !/^\s+at\s/m.test(r.stderr),
+      r.stderr.trim().split("\n").slice(0, 2).join(" | "));
+  }
 }
 
 // ---- 2. rendering knobs, against real renders ----

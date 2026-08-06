@@ -19,3 +19,11 @@ export class NamedError extends Error {
 
 /** A CLI was invoked wrongly: print the usage text, exit 2, do nothing else. */
 export class UsageError extends NamedError {}
+
+/**
+ * The input file is not a parseable Excalidraw document. It lives here rather
+ * than beside the authoring API because every tool that opens a file raises it —
+ * render.js would otherwise load the whole authoring module for one class.
+ * Re-exported from tools/author.js, which is where the API documents it.
+ */
+export class DocumentError extends NamedError {}

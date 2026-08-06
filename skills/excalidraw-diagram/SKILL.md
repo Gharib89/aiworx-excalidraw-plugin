@@ -60,6 +60,10 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw b.excalidraw   # batch:
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --json         # one machine-readable report
 ```
 
+A mistyped flag is refused rather than read as a file name: any unknown
+`-`-prefixed argument exits 2. A path that genuinely starts with a dash goes
+after `--`.
+
 Contrast is scored against both themes on every run: the dark theme is a CSS
 filter over the same colours and it does not preserve contrast ratios, so a
 pair can clear 4.5:1 light and fail it dark — each failure names the theme it

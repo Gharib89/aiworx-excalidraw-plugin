@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname } from "node:path";
 import { withExcalidraw } from "./browser.js";
-import { UsageError } from "./errors.js";
+import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
   "usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames] " +
@@ -104,17 +104,31 @@ try {
   }
   const stem = basename(input, extname(input));
 
-  const data = JSON.parse(readFileSync(input, "utf8"));
+  let raw;
+  try {
+    raw = readFileSync(input, "utf8");
+  } catch (err) {
+    throw new DocumentError(`${input}: cannot read — ${err.message}`);
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    throw new DocumentError(`${input}: not valid JSON — ${err.message}`);
+  }
   if (!Array.isArray(data.elements) || data.elements.length === 0) {
-    console.error(`ERROR: ${input} has no elements`);
-    process.exit(1);
+    throw new DocumentError(`${input}: has no elements`);
   }
   const frameCount = data.elements.filter((e) => e.type === "frame" && !e.isDeleted).length;
   if (frameNo !== undefined && frameNo > frameCount) {
     throw new UsageError(`--frame ${frameNo} requested but ${input} has ${frameCount} frame(s)`);
   }
 
-  mkdirSync(outDir, { recursive: true });
+  try {
+    mkdirSync(outDir, { recursive: true });
+  } catch (err) {
+    throw new UsageError(`cannot create output directory ${outDir} — ${err.message}`);
+  }
 
   await withExcalidraw(async (ex) => {
     const restored = await ex.restore(data);
@@ -159,6 +173,12 @@ try {
   if (err instanceof UsageError) {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
+  }
+  // One branch for every named error: the refused document here, and whatever
+  // the pipeline beneath raises — a stale bundle, no Chrome, a page failure.
+  if (err instanceof NamedError) {
+    console.error(`${err.name}: ${err.message}`);
+    process.exit(1);
   }
   throw err;
 }

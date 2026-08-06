@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: bound text whose container is a tombstone, not absent",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 10, "y": 10, "width": 90, "height": 25, "text": "orphan", "fontFamily": 6,
+      "containerId": "tomb" },
+    { "id": "tomb", "type": "rectangle", "x": 0, "y": 0, "width": 120, "height": 50, "isDeleted": true }
+  ],
+  "appState": {},
+  "files": {}
+}

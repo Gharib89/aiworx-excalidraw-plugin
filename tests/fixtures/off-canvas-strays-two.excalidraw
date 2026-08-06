@@ -1,0 +1,13 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: two separate coordinate typos that happen to be nearer each other than to the diagram",
+  "elements": [
+    { "id": "r1", "type": "rectangle", "x": 0, "y": 0, "width": 100, "height": 100 },
+    { "id": "r2", "type": "rectangle", "x": 150, "y": 0, "width": 100, "height": 100 },
+    { "id": "s1", "type": "rectangle", "x": 10000, "y": 0, "width": 50, "height": 50 },
+    { "id": "s2", "type": "rectangle", "x": 16000, "y": 0, "width": 50, "height": 50 }
+  ],
+  "appState": {},
+  "files": {}
+}

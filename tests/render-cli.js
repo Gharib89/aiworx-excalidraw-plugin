@@ -12,7 +12,7 @@
  * Exits non-zero on any mismatch.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,6 +83,50 @@ for (const c of INVALID) {
     check(`${c.name}: prints no stack trace`, !/^\s+at\s/m.test(r.stderr),
       r.stderr.trim().split("\n").slice(0, 2).join(" | "));
   }
+}
+
+// ---- 1c. a single-dash argument is a typo, never a path ----
+//
+// The parser admitted anything that did not start with `--` as a positional, so
+// `-dark` after a real file was collected as a second positional and silently
+// dropped — a light-theme render with no diagnostic — while `-dark` before it
+// became the file name and came back as "cannot read". check.js closed this in
+// #76; this CLI now shares its vocabulary, `--` escape included.
+{
+  const scratch = mkdtempSync(join(tmpdir(), "render-cli-dash-"));
+  const never = join(scratch, "never-created");
+
+  const DASH = [
+    { name: "single-dash flag after the file", args: [example, "-dark", "--out", never], arg: "-dark" },
+    { name: "single-dash flag before the file", args: ["-json", example, "--out", never], arg: "-json" },
+    { name: "bare dash", args: ["-", example, "--out", never], arg: "-" },
+  ];
+  for (const c of DASH) {
+    const r = render(...c.args);
+    check(`${c.name}: exits 2`, r.status === 2, `got ${r.status}`);
+    check(`${c.name}: names the offending argument`,
+      r.stderr.includes(`UsageError: unknown flag ${c.arg}`),
+      r.stderr.trim().split("\n")[0]);
+  }
+  // the guard fires during parsing, so no output directory is ever created
+  check("a rejected argument renders nothing", !existsSync(never));
+}
+
+// ---- 1d. `--` still admits a genuinely dash-named file ----
+//
+// What makes the strict guard above tenable. The child runs from the scratch
+// directory so the argument itself begins with a dash — an absolute path never
+// would, and the escape would go untested.
+{
+  const scratch = mkdtempSync(join(tmpdir(), "render-cli-literal-"));
+  copyFileSync(example, join(scratch, "-dashed.excalidraw"));
+  const r = spawnSync(
+    process.execPath,
+    [renderJs, "--no-frames", "--scale", "1", "--", "-dashed.excalidraw"],
+    { encoding: "utf8", cwd: scratch },
+  );
+  check("-- admits a dash-named input", r.status === 0, r.stderr.trim().split("\n")[0]);
+  check("-- renders the dash-named file", existsSync(join(scratch, "-dashed.svg")), r.stdout.trim());
 }
 
 // ---- 2. rendering knobs, against real renders ----

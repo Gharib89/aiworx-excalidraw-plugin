@@ -71,8 +71,9 @@ bad invocation and 1 on a document the pipeline refuses — unparseable, foreign
 or failing the gate — writing nothing in either case.
 
 `render.js` follows the same two codes: 2 for a bad invocation, 1 for an input it
-cannot read or parse. Every refusal from any of the three CLIs prints as
-`ErrorName: message`, never as a stack trace.
+cannot read, parse, or find any elements in. Both it and `revise.js` print every
+refusal as `ErrorName: message` — never a stack trace, whatever fails beneath
+them (a stale bundle, no Chrome, an uninstalled checkout).
 
 `render.js` iteration knobs — invalid values are rejected with a `UsageError`:
 
@@ -118,7 +119,7 @@ tools/
   palette.js        derives brand/palette.json and verifies every contrast claim
   bundle.js         builds the committed dist/ bundle, fonts inlined, stamped with a source fingerprint
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
-  errors.js         the shared NamedError base every tool error derives from, plus the CLIs' UsageError
+  errors.js         the shared NamedError base every tool error derives from, plus UsageError and DocumentError
 tests/              layout units, gate fixtures, failure paths, render + revise CLI, author API suites
 dist/               committed browser bundle
 brand/              AIWorx palette

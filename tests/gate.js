@@ -67,6 +67,7 @@ const CASES = [
   // two elements and one gap between them: the gap is the defect, so it is
   // reported once — not once per end (counted below)
   { name: "off-canvas-stray-pair", exit: 1, expect: "off-canvas stray", code: "stray" },
+  { name: "off-canvas-strays-two", exit: 1, expect: "off-canvas stray", code: "stray" },
   { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
   // every run scores both themes: a pair that only fails once the dark filter
   // has run is caught without any flag
@@ -137,6 +138,13 @@ for (const c of CASES) {
   check("an outlier beside a cluster is still named alone",
     trio.length === 1 && trio[0].elements.includes("s1"),
     JSON.stringify(trio.map((p) => p.elements)));
+  // Two elements that are nearer each other than to the diagram are still two
+  // typos, not one gap: collapsing every mutually-nearest pair would silence the
+  // second one, so the collapse is confined to a document that holds nothing else.
+  const two = strays("off-canvas-strays-two");
+  check("two separate strays are both named",
+    two.length === 2 && ["s1", "s2"].every((id) => two.some((p) => p.elements.includes(id))),
+    JSON.stringify(two.map((p) => p.elements)));
 }
 
 // ---- many files at once, and the machine-readable report ----

@@ -38,7 +38,9 @@ async function loadChromium() {
   try {
     return (await import("playwright-core")).chromium;
   } catch (err) {
-    if (err?.code === "ERR_MODULE_NOT_FOUND" && /playwright-core/.test(err.message)) {
+    // The package itself, not something missing inside it: a broken install is a
+    // different fault and `npm install --omit=dev` is not its remedy.
+    if (err?.code === "ERR_MODULE_NOT_FOUND" && err.message.includes("Cannot find package 'playwright-core'")) {
       throw new MissingDependencyError(
         "playwright-core is not installed — this checkout has no runtime dependencies yet. " +
           "Run: npm install --omit=dev",

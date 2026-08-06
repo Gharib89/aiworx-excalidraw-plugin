@@ -19,8 +19,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname } from "node:path";
 import { withExcalidraw } from "./browser.js";
-import { DocumentError } from "./author.js";
-import { NamedError, UsageError } from "./errors.js";
+import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
   "usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames] " +
@@ -118,8 +117,7 @@ try {
     throw new DocumentError(`${input}: not valid JSON — ${err.message}`);
   }
   if (!Array.isArray(data.elements) || data.elements.length === 0) {
-    console.error(`ERROR: ${input} has no elements`);
-    process.exit(1);
+    throw new DocumentError(`${input}: has no elements`);
   }
   const frameCount = data.elements.filter((e) => e.type === "frame" && !e.isDeleted).length;
   if (frameNo !== undefined && frameNo > frameCount) {
@@ -176,10 +174,8 @@ try {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
   }
-  // Every error the tools raise derives from NamedError, so one branch covers
-  // the refused document here and everything the pipeline can throw beneath it —
-  // a stale bundle, no Chrome, a page failure. A stack trace is for a bug in
-  // this code, not for a condition the tools already named.
+  // One branch for every named error: the refused document here, and whatever
+  // the pipeline beneath raises — a stale bundle, no Chrome, a page failure.
   if (err instanceof NamedError) {
     console.error(`${err.name}: ${err.message}`);
     process.exit(1);

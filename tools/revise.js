@@ -41,10 +41,9 @@ try {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
   }
-  // Every error the tools raise derives from NamedError, so one branch covers the
-  // document and gate refusals this CLI owns and everything the pipeline beneath
-  // it can throw — a stale bundle, no Chrome, an uninstalled checkout. A stack
-  // trace is for a bug in this code, not for a condition the tools already named.
+  // One branch for every named error: the document and gate refusals this CLI
+  // owns, and whatever the pipeline beneath raises — a stale bundle, no Chrome,
+  // an uninstalled checkout. A stack trace is for a bug in this code alone.
   if (err instanceof NamedError) {
     console.error(`${err.name}: ${err.message}`);
     process.exit(1);

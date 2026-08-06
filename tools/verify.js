@@ -241,27 +241,18 @@ export function verifyDocument(data) {
   const placeable = els.filter((e) => !nonFinite.has(e.id));
   if (placeable.length > 1) {
     const boxes = placeable.map(bounds);
-    // nearest neighbour of each element, as an index and a distance
-    const nearest = boxes.map((box, i) => {
-      let at = -1;
-      let dist = Infinity;
-      boxes.forEach((b, j) => {
-        if (j === i) return;
-        const d = gap(box, b);
-        if (d < dist) {
-          dist = d;
-          at = j;
-        }
-      });
-      return { at, dist };
-    });
+    // A document of two elements holds exactly one gap, and each end measures it
+    // as "the distance to anything else" — so both ends report the same defect.
+    // Name it once, at the first element. Deliberately not generalised to any
+    // mutually-nearest pair: with a third element present, two elements far from
+    // it and from each other are two separate coordinate typos, and suppressing
+    // one of them would hide a real stray.
+    const oneGap = placeable.length === 2;
     placeable.forEach((e, i) => {
-      const { at, dist } = nearest[i];
-      if (!Number.isFinite(dist) || dist <= STRAY_GAP) return;
-      // Two elements that are each other's nearest neighbour describe one gap,
-      // not two defects — report it at the lower index and skip the other end.
-      if (nearest[at].at === i && at < i) return;
-      note("stray", `${e.type} ${e.id} is an off-canvas stray (${round(dist)}px from anything else)`, [e.id]);
+      const nearest = Math.min(...boxes.map((b, j) => (i === j ? Infinity : gap(boxes[i], b))));
+      if (Number.isFinite(nearest) && nearest > STRAY_GAP && !(oneGap && i > 0)) {
+        note("stray", `${e.type} ${e.id} is an off-canvas stray (${round(nearest)}px from anything else)`, [e.id]);
+      }
     });
   }
 

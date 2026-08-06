@@ -27,7 +27,10 @@ import { withExcalidraw } from "./browser.js";
 import { bounds, contains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
 import { stack, row, column, box, arrowBetween, flatten } from "./layout.js";
-import { NamedError } from "./errors.js";
+import { NamedError, DocumentError } from "./errors.js";
+
+/** The input file is not a parseable Excalidraw document. Defined in errors.js. */
+export { DocumentError };
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
@@ -50,8 +53,6 @@ export class GateError extends NamedError {
 }
 /** Text cannot be wrapped to the requested width. */
 export class WrapError extends NamedError {}
-/** The input file is not a parseable Excalidraw document. */
-export class DocumentError extends NamedError {}
 /** An image asset cannot be read, recognised, or sized. */
 export class AssetError extends NamedError {}
 /** A library file cannot be read, parsed, or the requested item found. */
@@ -248,18 +249,18 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
   }
   const picked =
     typeof item === "string" ? items.find((it) => it.name === item) : items[item];
-  const noSuchItem = () => {
+  const noSuchItemError = () => {
     const names = items.map((it, i) => it.name ?? `#${i}`).join(", ");
     return new LibraryError(`${path}: no item ${JSON.stringify(item)} — has ${items.length}: ${names}`);
   };
-  if (!picked || !Array.isArray(picked.elements)) throw noSuchItem();
+  if (!picked || !Array.isArray(picked.elements)) throw noSuchItemError();
 
   // The emptiness check sits after the filter, not before it: an item holding
   // nothing but tombstones has as little to splice as one holding nothing at
   // all, and letting it through leaves Math.min/max with no boxes to measure —
   // a group whose width is -Infinity, which poisons every layout downstream.
   const source = picked.elements.filter((e) => !e.isDeleted);
-  if (source.length === 0) throw noSuchItem();
+  if (source.length === 0) throw noSuchItemError();
   const idMap = new Map(source.map((e) => [e.id, freshId()]));
   const groupMap = new Map();
 

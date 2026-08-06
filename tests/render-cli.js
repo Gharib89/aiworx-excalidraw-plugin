@@ -66,10 +66,13 @@ for (const c of INVALID) {
   writeFileSync(badJson, "{ not json");
   const occupied = join(scratch, "occupied");
   writeFileSync(occupied, "a file where a directory was asked for");
+  const empty = join(scratch, "empty.excalidraw");
+  writeFileSync(empty, JSON.stringify({ type: "excalidraw", elements: [], appState: {} }));
 
   const REFUSED = [
     { name: "missing input file", args: [join(scratch, "nope.excalidraw")], status: 1, error: "DocumentError", says: "cannot read" },
     { name: "unparseable input", args: [badJson], status: 1, error: "DocumentError", says: "not valid JSON" },
+    { name: "element-less input", args: [empty], status: 1, error: "DocumentError", says: "has no elements" },
     { name: "--out naming a file", args: [example, "--out", occupied], status: 2, error: "UsageError", says: "output directory" },
   ];
   for (const c of REFUSED) {

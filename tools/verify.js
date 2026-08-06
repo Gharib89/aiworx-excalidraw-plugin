@@ -58,6 +58,12 @@ export function verifyDocument(data) {
     return false;
   });
   const els = wellFormed.filter((e) => !e.isDeleted);
+  // The rules run over live elements only, so a reference into a tombstone
+  // resolves to nothing here. It is still a different defect from a reference
+  // into thin air, and the author fixes it differently — undelete versus
+  // re-point — so the message names which one it is.
+  const tombstoned = new Set(wellFormed.filter((e) => e.isDeleted).map((e) => e.id));
+  const fate = (id) => (tombstoned.has(id) ? "deleted" : "missing");
   const frames = els.filter((e) => e.type === "frame");
   const others = els.filter((e) => e.type !== "frame");
   const byId = new Map(els.map((e) => [e.id, e]));
@@ -105,7 +111,7 @@ export function verifyDocument(data) {
   for (const t of texts.filter((e) => e.containerId)) {
     const c = byId.get(t.containerId);
     if (!c) {
-      note("missing-container", `text "${preview(t.text)}" references missing container ${t.containerId}`, [t.id, t.containerId]);
+      note("missing-container", `text "${preview(t.text)}" references ${fate(t.containerId)} container ${t.containerId}`, [t.id, t.containerId]);
       continue;
     }
     // A shape clips the text inside it; a line does not. An arrow's label is
@@ -126,7 +132,7 @@ export function verifyDocument(data) {
   for (const e of others.filter((e) => e.frameId)) {
     const f = byId.get(e.frameId);
     if (!f) {
-      note("missing-frame", `element ${e.id} (${e.type}) references missing frame ${e.frameId}`, [e.id, e.frameId]);
+      note("missing-frame", `element ${e.id} (${e.type}) references ${fate(e.frameId)} frame ${e.frameId}`, [e.id, e.frameId]);
       continue;
     }
     if (!contains(bounds(f), bounds(e))) {
@@ -235,11 +241,27 @@ export function verifyDocument(data) {
   const placeable = els.filter((e) => !nonFinite.has(e.id));
   if (placeable.length > 1) {
     const boxes = placeable.map(bounds);
+    // nearest neighbour of each element, as an index and a distance
+    const nearest = boxes.map((box, i) => {
+      let at = -1;
+      let dist = Infinity;
+      boxes.forEach((b, j) => {
+        if (j === i) return;
+        const d = gap(box, b);
+        if (d < dist) {
+          dist = d;
+          at = j;
+        }
+      });
+      return { at, dist };
+    });
     placeable.forEach((e, i) => {
-      const nearest = Math.min(...boxes.map((b, j) => (i === j ? Infinity : gap(boxes[i], b))));
-      if (Number.isFinite(nearest) && nearest > STRAY_GAP) {
-        note("stray", `${e.type} ${e.id} is an off-canvas stray (${round(nearest)}px from anything else)`, [e.id]);
-      }
+      const { at, dist } = nearest[i];
+      if (!Number.isFinite(dist) || dist <= STRAY_GAP) return;
+      // Two elements that are each other's nearest neighbour describe one gap,
+      // not two defects — report it at the lower index and skip the other end.
+      if (nearest[at].at === i && at < i) return;
+      note("stray", `${e.type} ${e.id} is an off-canvas stray (${round(dist)}px from anything else)`, [e.id]);
     });
   }
 

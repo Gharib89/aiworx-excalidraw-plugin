@@ -19,7 +19,8 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname } from "node:path";
 import { withExcalidraw } from "./browser.js";
-import { UsageError } from "./errors.js";
+import { DocumentError } from "./author.js";
+import { NamedError, UsageError } from "./errors.js";
 
 const USAGE =
   "usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames] " +
@@ -104,7 +105,18 @@ try {
   }
   const stem = basename(input, extname(input));
 
-  const data = JSON.parse(readFileSync(input, "utf8"));
+  let raw;
+  try {
+    raw = readFileSync(input, "utf8");
+  } catch (err) {
+    throw new DocumentError(`${input}: cannot read — ${err.message}`);
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    throw new DocumentError(`${input}: not valid JSON — ${err.message}`);
+  }
   if (!Array.isArray(data.elements) || data.elements.length === 0) {
     console.error(`ERROR: ${input} has no elements`);
     process.exit(1);
@@ -114,7 +126,11 @@ try {
     throw new UsageError(`--frame ${frameNo} requested but ${input} has ${frameCount} frame(s)`);
   }
 
-  mkdirSync(outDir, { recursive: true });
+  try {
+    mkdirSync(outDir, { recursive: true });
+  } catch (err) {
+    throw new UsageError(`cannot create output directory ${outDir} — ${err.message}`);
+  }
 
   await withExcalidraw(async (ex) => {
     const restored = await ex.restore(data);
@@ -159,6 +175,14 @@ try {
   if (err instanceof UsageError) {
     console.error(`UsageError: ${err.message}`);
     process.exit(2);
+  }
+  // Every error the tools raise derives from NamedError, so one branch covers
+  // the refused document here and everything the pipeline can throw beneath it —
+  // a stale bundle, no Chrome, a page failure. A stack trace is for a bug in
+  // this code, not for a condition the tools already named.
+  if (err instanceof NamedError) {
+    console.error(`${err.name}: ${err.message}`);
+    process.exit(1);
   }
   throw err;
 }

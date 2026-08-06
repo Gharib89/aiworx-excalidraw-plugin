@@ -62,6 +62,21 @@ for (const c of INVALID) {
 // nothing was written next to the rejected inputs
 check("a rejected input gets no SVG", !existsSync(join(badDir, "foreign.svg")));
 
+// A failure raised beneath the authoring API — no browser, a stale bundle, a
+// missing runtime dependency — is a named error too, and the CLI owes it the
+// same treatment as its own: name and exit code, never a raw stack.
+{
+  const r = spawnSync(process.execPath, [reviseJs, example], {
+    encoding: "utf8",
+    env: { ...process.env, CHROME_PATH: join(badDir, "no-such-chrome") },
+  });
+  check("an unlaunchable browser exits 1", r.status === 1, `got ${r.status}`);
+  check("an unlaunchable browser names ChromeLaunchError",
+    /ChromeLaunchError:/.test(r.stderr), firstErrorLine(r));
+  check("an unlaunchable browser prints no stack trace", !/^\s+at\s/m.test(r.stderr),
+    r.stderr.trim().split("\n").slice(0, 2).join(" | "));
+}
+
 // ---- 2. happy path: hand-edit, revise, the gate passes again ----
 
 /** A copy of the example with its title dragged out of its frame — a real hand edit. */

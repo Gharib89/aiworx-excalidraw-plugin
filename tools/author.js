@@ -248,12 +248,18 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
   }
   const picked =
     typeof item === "string" ? items.find((it) => it.name === item) : items[item];
-  if (!picked || !Array.isArray(picked.elements) || picked.elements.length === 0) {
+  const noSuchItem = () => {
     const names = items.map((it, i) => it.name ?? `#${i}`).join(", ");
-    throw new LibraryError(`${path}: no item ${JSON.stringify(item)} — has ${items.length}: ${names}`);
-  }
+    return new LibraryError(`${path}: no item ${JSON.stringify(item)} — has ${items.length}: ${names}`);
+  };
+  if (!picked || !Array.isArray(picked.elements)) throw noSuchItem();
 
+  // The emptiness check sits after the filter, not before it: an item holding
+  // nothing but tombstones has as little to splice as one holding nothing at
+  // all, and letting it through leaves Math.min/max with no boxes to measure —
+  // a group whose width is -Infinity, which poisons every layout downstream.
   const source = picked.elements.filter((e) => !e.isDeleted);
+  if (source.length === 0) throw noSuchItem();
   const idMap = new Map(source.map((e) => [e.id, freshId()]));
   const groupMap = new Map();
 

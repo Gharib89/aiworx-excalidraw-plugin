@@ -12,9 +12,8 @@
  *   4. internal references follow the remap (frameId, containerId, bindings,
  *      boundElements) and references pointing outside the item are dropped
  *   5. the item lands with its top-left corner at `at` and reports its extent
- *   6. an item whose every element is deleted splices to nothing — that is
- *      current behavior, pinned here so fixing it shows up as a change
- *      (#67 item 6 flips this pin)
+ *   6. an item whose every element is deleted is refused like an element-less
+ *      one, rather than splicing to an empty group with a non-finite extent
  *
  * The stick-figure library (examples/) is the real-world case; everything that
  * needs a specific shape is written inline, so the expectation and the input
@@ -209,14 +208,13 @@ const library = (name, doc) => {
     JSON.stringify([frame.groupIds, t2.groupIds]));
 }
 
-// ---- 6. an all-deleted item: current behavior, pinned ----
+// ---- 6. an item with nothing live in it is refused, not spliced to nothing ----
 //
-// The element-less guard runs before the isDeleted filter, so an item of
-// nothing but tombstones clears the guard and then splices to an empty group
-// with a non-finite extent (Math.min/max over no boxes) instead of being
-// rejected the way a genuinely element-less item is. That asymmetry is a known
-// paper cut, tracked as #67 item 6 (move the guard after the filter) — when it
-// lands this case becomes a LibraryError and these expectations flip.
+// The element-less guard runs after the isDeleted filter, so an item of nothing
+// but tombstones is rejected exactly like a genuinely element-less one. Before
+// this it cleared the guard and produced an empty group whose extent was
+// Math.min/max over no boxes — width -Infinity, silently poisoning whatever
+// laid it out.
 {
   const dead = library("dead", {
     type: "excalidrawlib", version: 2,
@@ -225,13 +223,11 @@ const library = (name, doc) => {
       elements: [el("x", { isDeleted: true }), el("y", { isDeleted: true })],
     }],
   });
-  const gone = spliceLibraryItem(dead, { at: [10, 20] });
-  check("an all-deleted item splices to nothing, silently",
-    gone.children.length === 0 && gone.ids.length === 0, JSON.stringify(gone.ids));
-  check("the empty splice still claims the requested position",
-    gone.kind === "layout-group" && gone.x === 10 && gone.y === 20, `${gone.x},${gone.y}`);
-  check("the empty splice reports a non-finite extent",
-    !Number.isFinite(gone.width) && !Number.isFinite(gone.height), `${gone.width}x${gone.height}`);
+  const allDeleted = throwsWith("LibraryError", () => spliceLibraryItem(dead, { at: [10, 20] }));
+  check("an all-deleted item is a LibraryError, not an empty group",
+    allDeleted.ok, allDeleted.detail);
+  check("the refusal names the item it could not use",
+    allDeleted.message?.includes("no item 0 — has 1: gone"), allDeleted.message);
   // the deleted elements are dropped, not spliced as tombstones
   const live = spliceLibraryItem(library("mixed", {
     type: "excalidrawlib", version: 2,

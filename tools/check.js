@@ -23,8 +23,12 @@ const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw 
 const inputs = [];
 let json = false;
 let literal = false; // everything after -- is a path, even if it looks like a flag
+// Any unrecognised dash-prefixed argument is a typo, not a path: `-json` read as
+// a file name turns a mistyped flag into a confusing "cannot read" — or, worse,
+// silently drops the flag when a real file is named too. A path that genuinely
+// starts with a dash goes after `--`.
 for (const arg of process.argv.slice(2)) {
-  if (literal || !arg.startsWith("--")) inputs.push(arg);
+  if (literal || !arg.startsWith("-")) inputs.push(arg);
   else if (arg === "--") literal = true;
   else if (arg === "--json") json = true;
   else {

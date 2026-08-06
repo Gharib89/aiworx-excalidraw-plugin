@@ -23,6 +23,10 @@ const CASES = [
   { name: "duplicate-id", exit: 1, expect: "duplicate id dup", code: "duplicate-id" },
   { name: "frames-overlap", exit: 1, expect: "frames overlap", code: "frame-overlap" },
   { name: "missing-container", exit: 1, expect: "references missing container ghost", code: "missing-container" },
+  // a referent that is present but tombstoned is deleted, not missing: the rules
+  // read past isDeleted, so the message must not send the author hunting for an
+  // element the file still holds
+  { name: "deleted-container", exit: 1, expect: "references deleted container tomb", code: "missing-container" },
   { name: "text-overflows-container", exit: 1, expect: "text overflows container", code: "text-overflow" },
   // the app wraps bound text into the padded interior, not the container's box —
   // and for ellipse and diamond only the inscribed text area holds ink
@@ -33,6 +37,7 @@ const CASES = [
   // and correct rendering here
   { name: "arrow-label-wide", exit: 0, expect: "no mechanical defects" },
   { name: "missing-frame", exit: 1, expect: "references missing frame ghost", code: "missing-frame" },
+  { name: "deleted-frame", exit: 1, expect: "references deleted frame tomb", code: "missing-frame" },
   { name: "escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
   { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
   { name: "unbound-over-frame", exit: 1, expect: "without being bound to it", code: "unbound-over-frame" },
@@ -59,6 +64,9 @@ const CASES = [
   { name: "arrow-ends-inside-shape", exit: 0, expect: "no mechanical defects" },
   { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target", code: "arrow-buried" },
   { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray", code: "stray" },
+  // two elements and one gap between them: the gap is the defect, so it is
+  // reported once — not once per end (counted below)
+  { name: "off-canvas-stray-pair", exit: 1, expect: "off-canvas stray", code: "stray" },
   { name: "low-contrast-text", exit: 1, expect: "needs 4.5:1", code: "low-contrast" },
   // every run scores both themes: a pair that only fails once the dark filter
   // has run is caught without any flag
@@ -111,6 +119,26 @@ for (const c of CASES) {
   }
 }
 
+// ---- one gap is one stray problem ----
+//
+// The rule measures each element's nearest neighbour, so two elements far from
+// each other are each other's nearest and both clear the threshold. That is one
+// gap seen twice, not two defects: the pair fixture must yield exactly one
+// stray, and the three-element fixture must still name the single outlier.
+{
+  const strays = (name) => {
+    const j = spawnSync(process.execPath, [gate, "--json", fixture(name)], { encoding: "utf8" });
+    return JSON.parse(j.stdout).files[0].problems.filter((p) => p.code === "stray");
+  };
+  const pair = strays("off-canvas-stray-pair");
+  check("two elements one gap apart report one stray, not two",
+    pair.length === 1, JSON.stringify(pair.map((p) => p.elements)));
+  const trio = strays("off-canvas-stray");
+  check("an outlier beside a cluster is still named alone",
+    trio.length === 1 && trio[0].elements.includes("s1"),
+    JSON.stringify(trio.map((p) => p.elements)));
+}
+
 // ---- many files at once, and the machine-readable report ----
 //
 // The single-file cases above are the compatibility contract: this section only
@@ -155,6 +183,23 @@ for (const c of CASES) {
   const markerJson = run("--json", "--", CLEAN);
   check("-- composes with a flag before it",
     markerJson.status === 0 && JSON.parse(markerJson.stdout).files.length === 1, `exit ${markerJson.status}`);
+
+  // A mistyped flag must never be read as a file path. Single-dash spellings of
+  // the real flags are the likely typo, and treating one as an input turns a
+  // typo into "cannot read -json" — or, with a real file also named, into a
+  // silently ignored flag.
+  for (const typo of ["-json", "-dark", "-"]) {
+    const bad = run(typo, CLEAN);
+    check(`${typo} is rejected as an unknown flag`,
+      bad.status === 2 && bad.stderr.includes(`unknown flag ${typo}`),
+      `exit ${bad.status}: ${bad.stderr.trim().split("\n")[0]}`);
+  }
+  // …and a real file whose name starts with a dash still reaches the gate
+  // through the end-of-options marker.
+  const dashed = run("--", "-dashed.excalidraw");
+  check("-- still admits a dash-named path as an input",
+    dashed.status === 2 && dashed.stderr.includes("-dashed.excalidraw: cannot read"),
+    `exit ${dashed.status}: ${dashed.stderr.trim().split("\n")[0]}`);
 
   // --json: one document, exit codes unchanged
   const j = run(CLEAN, DIRTY, ABSENT, "--json");

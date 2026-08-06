@@ -43,8 +43,11 @@ const check = (name, cond, detail) => {
   if (!cond) fail.push(name);
 };
 
-/** Copy just enough of the plugin for withExcalidraw to run. */
-function makeCopy() {
+/**
+ * Copy just enough of the plugin for withExcalidraw to run. `deps: false` leaves
+ * the copy without node_modules — a fresh checkout that has not been installed.
+ */
+function makeCopy({ deps = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pipeline-errors-"));
   mkdirSync(join(dir, "tools"));
   mkdirSync(join(dir, "dist"));
@@ -54,7 +57,7 @@ function makeCopy() {
   copyFileSync(join(root, "dist/excalidraw-page.js"), join(dir, "dist/excalidraw-page.js"));
   // the copy resolves playwright-core through the real install. "junction" is the
   // one directory link Windows creates without elevation; ignored on POSIX.
-  symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
+  if (deps) symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");
   return dir;
 }
 
@@ -219,6 +222,23 @@ const probe = (dir, env) =>
     tried.length === 1 && tried[0].executablePath === "/opt/my/chrome", JSON.stringify(tried));
   check("CHROME_PATH wins: no channel discovery",
     tried.every((t) => t.channel === undefined), JSON.stringify(tried));
+}
+
+// ---- 5. a checkout that was never installed names the install step ----
+// The runtime dependency is playwright-core and nothing else, so the first thing
+// a fresh clone hits is its absence. A bare ERR_MODULE_NOT_FOUND names an
+// internal specifier and no remedy; this is the one failure whose fix is a
+// single documented command, so the error has to carry it.
+{
+  const dir = makeCopy({ deps: false });
+  const r = probe(dir);
+  check("no playwright-core: exits non-zero", r.status !== 0, `exit ${r.status}`);
+  check("no playwright-core: names MissingDependencyError", /MissingDependencyError/.test(r.stderr),
+    r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
+  check("no playwright-core: names the install step", /npm install --omit=dev/.test(r.stderr),
+    r.stderr.trim().split("\n")[0]);
+  check("no playwright-core: the raw loader error does not reach the user",
+    !/ERR_MODULE_NOT_FOUND/.test(r.stderr), r.stderr.trim().split("\n")[0]);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nfailure paths are loud");

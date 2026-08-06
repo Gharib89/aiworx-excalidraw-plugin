@@ -7,7 +7,6 @@
  * rethrown as a named Node error carrying the page's console output — a
  * generic 30-second timeout tells the caller nothing.
  */
-import { chromium } from "playwright-core";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -25,6 +24,29 @@ export class BundleLoadError extends NamedError {}
 export class PageError extends NamedError {}
 /** Nothing in the search order produced a running browser. */
 export class ChromeLaunchError extends NamedError {}
+/** A runtime dependency is not installed — the checkout was never `npm install`ed. */
+export class MissingDependencyError extends NamedError {}
+
+/**
+ * playwright-core is loaded on first use, not at import time. A static import
+ * would make an uninstalled checkout die with the loader's bare
+ * ERR_MODULE_NOT_FOUND before any of this file runs — an error that names an
+ * internal specifier and no remedy. Deferring it puts the failure inside a
+ * catch that can name the one command that fixes it.
+ */
+async function loadChromium() {
+  try {
+    return (await import("playwright-core")).chromium;
+  } catch (err) {
+    if (err?.code === "ERR_MODULE_NOT_FOUND" && /playwright-core/.test(err.message)) {
+      throw new MissingDependencyError(
+        "playwright-core is not installed — this checkout has no runtime dependencies yet. " +
+          "Run: npm install --omit=dev",
+      );
+    }
+    throw err;
+  }
+}
 
 export const CHROME_CANDIDATES = [
   "/usr/bin/google-chrome",
@@ -50,6 +72,7 @@ export const CHROME_CANDIDATES = [
  * a browser, which is exactly what this plugin exists not to do.
  */
 async function launchChrome(options) {
+  const chromium = await loadChromium();
   const override = process.env.CHROME_PATH;
   const asPath = (executablePath) => ({ executablePath });
   const present = CHROME_CANDIDATES.filter((p) => existsSync(p));

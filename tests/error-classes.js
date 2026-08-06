@@ -21,6 +21,8 @@ import { NamedError, UsageError } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, DocumentError, AssetError, LibraryError,
 } from "../tools/author.js";
+// browser.js is imported for its error classes only — importing the module never
+// launches Chrome, so this suite still runs without one.
 import {
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError,
 } from "../tools/browser.js";

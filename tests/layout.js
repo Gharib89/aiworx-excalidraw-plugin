@@ -198,6 +198,28 @@ const throwsLayoutError = (fn) => {
   check("a rotated source spans the real gap minus standoffs",
     JSON.stringify(arrow.points) === "[[0,0],[65,0]]", JSON.stringify(arrow.points));
 }
+{
+  // the rotated *bounding box* is the anchor — the definition the gate scores
+  // against — so an oblique angle stops the arrow on the box, not on the slanted
+  // edge. The same 100x50 rectangle at 45 degrees has corners (worked by hand
+  // about the centre 50,25) spanning x -3.03..103.03, so the arrow leaves at
+  // 113.03. Pinned to keep that a decision rather than an accident.
+  const a = { type: "rectangle", id: "oblique", x: 0, y: 0, width: 100, height: 50, angle: Math.PI / 4 };
+  const b = { type: "rectangle", id: "plain", x: 250, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10 });
+  check("an oblique rotation anchors on the rotated bounding box",
+    Math.abs(arrow.x - 113.03) < 0.01 && arrow.y === 25, `${arrow.x},${arrow.y}`);
+}
+{
+  // geometry reads x/y raw, so an item that was sized but never placed used to
+  // produce an all-NaN arrow — silently unbound, the very thing this rejects
+  const unplaced = { type: "rectangle", id: "unplaced", width: 100, height: 50 };
+  const b = { type: "rectangle", id: "far", x: 200, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(unplaced, b, { standoff: 10 });
+  check("an unplaced item is read at the origin, never as NaN",
+    arrow.x === 110 && arrow.y === 25 && arrow.points.every(([px, py]) => Number.isFinite(px) && Number.isFinite(py)),
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
 
 {
   // a group is only bindable through the shape it exposes: a plain column/row
@@ -214,7 +236,7 @@ const throwsLayoutError = (fn) => {
   check("an arrow from a plain group is a LayoutError",
     throwsLayoutError(() => arrowBetween(plainGroup, a, { standoff: 10 })));
   const anonBox = box({ type: "text", width: 60, height: 30 }, { padding: 10 });
-  column([anonBox], { x: 200, y: 0 });
+  column([anonBox], { x: 200, y: 0 }); // place it clear of `a`, so only the missing id can fail
   check("an arrow to a box whose shape has no id is a LayoutError",
     throwsLayoutError(() => arrowBetween(a, anonBox, { standoff: 10 })));
   check("an arrow to an unmeasured shape is still a LayoutError",

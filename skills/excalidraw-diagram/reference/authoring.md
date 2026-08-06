@@ -174,7 +174,10 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   (absolute) and keeps its corners with `roundness: null` set for you.
 - `arrowBetween` anchors on the same rotation-aware bounds the gate uses, so an
   arrow to a shape carrying an `angle` reaches its *turned* extent rather than
-  the upright box it was authored in.
+  the upright box it was authored in. Those bounds are the rotated *bounding
+  box*, so at a right angle the arrow meets the edge, while at an oblique one it
+  stops on the box a little clear of the slanted edge — check the render when a
+  diagram leans on rotated shapes.
 - An arrow binds to a real element, so each end must be one. A `box` works
   because it exposes its rectangle — but only if that rectangle has an `id`. A
   plain `column`/`row` group exposes no element at all, so passing one is a

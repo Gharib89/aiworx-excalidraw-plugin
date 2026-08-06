@@ -135,16 +135,24 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
 
 /**
  * Where an arrow anchors: a box group anchors on the rectangle it binds, so the
- * bounds and the binding can never name different elements. Everything else
- * anchors on itself.
+ * bounds and the binding can never name different elements. A group carrying an
+ * id of its own but no shape anchors on itself — keep the fallback.
  */
 const anchorOf = (node) => (isGroup(node) ? (node.shape ?? node) : node);
 
-// one bounds definition — geometry.js applies rotation, so an arrow to a turned
-// shape reaches its real extent instead of its unrotated box
+/**
+ * One bounds definition: geometry.js applies rotation, so an arrow to a turned
+ * shape reaches its real extent instead of the upright box it was authored in.
+ * That extent is the rotated *bounding box* — the same definition the gate
+ * scores against — so at an oblique angle the anchor sits on the box rather
+ * than on the shape's slanted edge.
+ */
 const boundsOf = (el) => {
-  extent(el); // reject an unmeasured item with layout's own message, before geometry sees NaN
-  const { x1, y1, x2, y2 } = bounds(anchorOf(el));
+  extent(el); // an unmeasured item fails here, with layout's own message
+  const target = anchorOf(el);
+  // this module reads a missing x/y as the origin (so do shift/place); geometry
+  // reads them raw, so default them here instead of handing it NaN
+  const { x1, y1, x2, y2 } = bounds({ ...target, x: target.x ?? 0, y: target.y ?? 0 });
   return { x1, y1, x2, y2, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
 };
 

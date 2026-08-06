@@ -172,6 +172,23 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   them. Where the two shapes' cross ranges overlap the arrow runs level through
   the overlap's centre. A routed path goes in as `via: [[x, y], …]` waypoints
   (absolute) and keeps its corners with `roundness: null` set for you.
+- `arrowBetween` anchors on the same rotation-aware bounds the gate uses, so an
+  arrow to a shape carrying an `angle` reaches its *turned* extent rather than
+  the upright box it was authored in. Those bounds are the rotated *bounding
+  box*, so at a right angle the arrow meets the edge, while at an oblique one it
+  stops on the box a little clear of the slanted edge — check the render when a
+  diagram leans on rotated shapes.
+- An arrow binds to a real element, so each end must be one. A `box` works
+  because it exposes its rectangle — but only if that rectangle has an `id`. A
+  plain `column`/`row` group exposes no element at all, so passing one is a
+  `LayoutError`: an unbound arrow would pass the gate and then come loose from
+  the shape on the first edit in the app. Give the box an `id`, or wrap the
+  column in one:
+
+  ```js
+  const card = box(column([head, body], { gap: 12 }), { padding: 20, id: "card" });
+  arrowBetween(other, card, { standoff: 10 });   // binds through card.shape.id
+  ```
 - `label` annotates the edge: `arrowBetween(a, b, { label: "writes" })` binds
   measured text to the arrow at 16px in the house prose font. Pass an object —
   `{ label: { text: "12 ms", fontSize: 20, fontFamily: CODE } }` — to override.

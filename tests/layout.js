@@ -21,6 +21,10 @@ const check = (name, cond, detail) => {
   console.log(`${cond ? "PASS" : "FAIL"}  ${name}${detail ? `  — ${detail}` : ""}`);
   if (!cond) fail.push(name);
 };
+// rotated bounds run through Math.sin/cos, so compare rotation-derived pixels
+// with a tolerance — tight enough that a real anchoring regression is tens of
+// pixels wide and still fails
+const near = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
 const throwsLayoutError = (fn) => {
   try {
     fn();
@@ -183,6 +187,71 @@ const throwsLayoutError = (fn) => {
   check("a label with no text is a LayoutError",
     throwsLayoutError(() => arrowBetween(a, b, { label: "" })) &&
       throwsLayoutError(() => arrowBetween(a, b, { label: { fontSize: 16 } })));
+}
+
+{
+  // a rotated source anchors on its rotated extent, not its unrotated box: a
+  // 100x50 rectangle at the origin turned a quarter turn occupies x 25..75
+  // (worked by hand from the corners about the centre 50,25), so the arrow
+  // leaves at 85 — the unrotated 110 would start 35px clear of the shape
+  const a = { type: "rectangle", id: "spun", x: 0, y: 0, width: 100, height: 50, angle: Math.PI / 2 };
+  const b = { type: "rectangle", id: "plain", x: 160, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10 });
+  check("a rotated source anchors on its rotated extent",
+    near(arrow.x, 85) && near(arrow.y, 25), `${arrow.x},${arrow.y}`);
+  check("a rotated source spans the real gap minus standoffs",
+    arrow.points.length === 2 && near(arrow.points[0][0], 0) && near(arrow.points[0][1], 0) &&
+      near(arrow.points[1][0], 65) && near(arrow.points[1][1], 0),
+    JSON.stringify(arrow.points));
+}
+{
+  // the rotated *bounding box* is the anchor — the definition the gate scores
+  // against — so an oblique angle stops the arrow on the box, not on the slanted
+  // edge. The same 100x50 rectangle at 45 degrees has corners (worked by hand
+  // about the centre 50,25) spanning x -3.03..103.03, so the arrow leaves at
+  // 113.03. Pinned to keep that a decision rather than an accident.
+  const a = { type: "rectangle", id: "oblique", x: 0, y: 0, width: 100, height: 50, angle: Math.PI / 4 };
+  const b = { type: "rectangle", id: "plain", x: 250, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10 });
+  check("an oblique rotation anchors on the rotated bounding box",
+    near(arrow.x, 113.03, 0.01) && near(arrow.y, 25), `${arrow.x},${arrow.y}`);
+}
+{
+  // geometry reads x/y raw, so an item that was sized but never placed used to
+  // produce an all-NaN arrow — silently unbound, the very thing this rejects
+  const unplaced = { type: "rectangle", id: "unplaced", width: 100, height: 50 };
+  const b = { type: "rectangle", id: "far", x: 200, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(unplaced, b, { standoff: 10 });
+  check("an unplaced item is read at the origin, never as NaN",
+    arrow.x === 110 && arrow.y === 25 && arrow.points.every(([px, py]) => Number.isFinite(px) && Number.isFinite(py)),
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+
+{
+  // a group is only bindable through the shape it exposes: a plain column/row
+  // has no element to bind, and an unbound arrow passes the gate then detaches
+  // on edit, so the call is rejected instead of silently producing one
+  const a = { type: "rectangle", id: "src", x: 0, y: 0, width: 100, height: 50 };
+  const plainGroup = column(
+    [{ type: "rectangle", id: "c1", width: 100, height: 40 },
+      { type: "rectangle", id: "c2", width: 100, height: 40 }],
+    { x: 200, y: 0, gap: 10 },
+  );
+  check("an arrow to a plain group is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, plainGroup, { standoff: 10 })));
+  check("an arrow from a plain group is a LayoutError",
+    throwsLayoutError(() => arrowBetween(plainGroup, a, { standoff: 10 })));
+  const anonBox = box({ type: "text", width: 60, height: 30 }, { padding: 10 });
+  column([anonBox], { x: 200, y: 0 }); // place it clear of `a`, so only the missing id can fail
+  check("an arrow to a box whose shape has no id is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, anonBox, { standoff: 10 })));
+  check("an arrow to an unmeasured shape is still a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, { type: "rectangle", id: "unsized", x: 200, y: 0 })));
+  // an id on the group itself binds nothing — flatten drops groups, so that id
+  // names no element in the finished skeleton
+  plainGroup.id = "hand-set";
+  check("an id on the group itself does not make it bindable",
+    throwsLayoutError(() => arrowBetween(a, plainGroup, { standoff: 10 })));
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

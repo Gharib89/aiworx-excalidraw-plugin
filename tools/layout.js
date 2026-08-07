@@ -119,7 +119,10 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
   if ("angle" in shapeProps) {
     const { angle } = shapeProps;
     if (!Number.isFinite(angle)) {
-      throw new LayoutError(`box angle must be a finite number, got ${JSON.stringify(angle)}`);
+      // NaN and Infinity stringify to null as JSON, and a bigint throws — show
+      // the value the way its own type reads instead
+      const got = typeof angle === "string" ? JSON.stringify(angle) : String(angle);
+      throw new LayoutError(`box angle must be a finite number, got ${got}`);
     }
     if (angle !== 0) {
       throw new LayoutError(

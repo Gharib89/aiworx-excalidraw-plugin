@@ -122,6 +122,10 @@ const throwsLayoutError = (fn) => {
     throwsLayoutError(() => box(content(), { angle: NaN })));
   check("box rejects a non-numeric angle",
     throwsLayoutError(() => box(content(), { angle: "0" })));
+  // a bigint is neither finite nor stringifiable as JSON — the refusal must
+  // still be a LayoutError, not a TypeError from rendering the message
+  check("box rejects a bigint angle",
+    throwsLayoutError(() => box(content(), { angle: 1n })));
   let message = "";
   try {
     box(content(), { angle: Math.PI / 4 });

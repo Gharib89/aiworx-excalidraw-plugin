@@ -30,6 +30,10 @@ jq -e '.labels[] | select(.name == "agent-working")' <<<"$ISS" >/dev/null \
 # context, not a blocker. The timeline hydrates each source PR in full, so the
 # bodies are already in this payload — no extra call, and no extra 401 surface.
 #
+# Fenced blocks and inline code spans come out of the body first: a PR that
+# quotes "Closes #<n>" while discussing another PR is talking about the issue,
+# not claiming it — the same distinction this whole rail exists to draw.
+#
 # Matched with jq's Oniguruma, not grep: \b and case-insensitivity behave the
 # same on GNU and BSD userlands, and jq is already a hard dependency here. The
 # `(#[0-9]+[\s,]+(and[\s,]+)?)*` run before the interpolated issue number is
@@ -39,7 +43,9 @@ XREF=$(api "repos/{owner}/{repo}/issues/$N/timeline" --paginate \
       [.[][] | select(.event == "cross-referenced")
        | .source.issue | select(.pull_request != null)
        | {number, state, merged: (.pull_request.merged_at != null),
-          closes: ((.body // "") | test(
+          closes: ((.body // "")
+            | gsub("(?s)```.*?```"; "") | gsub("`[^`]*`"; "")
+            | test(
             "\\b(clos(e[sd]?|ing)|fix(e[sd]|ing)?|resolv(e[sd]?|ing))"
             + "\\s+(#[0-9]+[\\s,]+(and[\\s,]+)?)*#" + $n + "\\b"; "i"))}]
       | unique_by(.number)

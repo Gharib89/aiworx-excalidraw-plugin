@@ -109,6 +109,39 @@ const throwsLayoutError = (fn) => {
   check("box renders shape under content", els[0] === g.shape && els[1] === body);
   check("box group extent matches the shape", g.width === 140 && g.height === 90);
 }
+{
+  // box positions its content by translation alone, so an angle on the
+  // rectangle would leave the content upright and clear of the shape — the
+  // rotation has to be refused at author time
+  const content = () => ({ type: "text", width: 100, height: 50 });
+  check("box rejects a rotating angle",
+    throwsLayoutError(() => box(content(), { angle: Math.PI / 4 })));
+  check("box rejects a negative rotating angle",
+    throwsLayoutError(() => box(content(), { angle: -Math.PI / 2 })));
+  check("box rejects a non-finite angle",
+    throwsLayoutError(() => box(content(), { angle: NaN })));
+  check("box rejects a non-numeric angle",
+    throwsLayoutError(() => box(content(), { angle: "0" })));
+  // a bigint is neither finite nor stringifiable as JSON — the refusal must
+  // still be a LayoutError, not a TypeError from rendering the message
+  check("box rejects a bigint angle",
+    throwsLayoutError(() => box(content(), { angle: 1n })));
+  let message = "";
+  try {
+    box(content(), { angle: Math.PI / 4 });
+  } catch (err) {
+    message = String(err.message);
+  }
+  check("the rotation refusal names the bound-label alternative",
+    /\blabel\b/.test(message) && /rotat/.test(message), message);
+  // zero is the renderer's default and means "no rotation": a caller computing
+  // angles must not be broken for its upright cases
+  const upright = box(content(), { padding: 20, id: "flat" });
+  const zeroed = box(content(), { padding: 20, id: "flat", angle: 0 });
+  check("box accepts angle 0 as the no-op it is",
+    JSON.stringify(zeroed.shape) === JSON.stringify(upright.shape),
+    JSON.stringify(zeroed.shape));
+}
 
 // ---- arrowBetween: the arrow owns the gap ----
 {

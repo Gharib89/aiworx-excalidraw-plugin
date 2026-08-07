@@ -13,6 +13,8 @@
  *   5. startBinding/endBinding/fixedPoint in a skeleton arrow are silently
  *      nulled by the converter, so they are a named error pointing at start/end
  *   6. rectangle/ellipse/diamond targets still bind through the converter itself
+ *   7. bound text inherits its container's angle — the alternative `box` names
+ *      when it refuses to rotate its own content (#77)
  */
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -171,6 +173,28 @@ await withAuthoring(async (author) => {
     check("trio targets still bind through the converter",
       arrow?.startBinding?.elementId === "left" && arrow?.endBinding?.elementId === "right",
       `${JSON.stringify(arrow?.startBinding)} / ${JSON.stringify(arrow?.endBinding)}`);
+  }
+
+  // ---- 7. bound text inherits its container's angle ----
+  // this is the route `box` sends a rotated caller to (#77): `box` refuses an
+  // angle because it never rotates its content, and the error names bound text
+  // as the alternative. Pin the converter promise that makes that advice true.
+  {
+    const out = join(outDir, "rotated-label.excalidraw");
+    const angle = Math.PI / 4;
+    const { elements } = await author({
+      out, svg: false,
+      build: async () => [
+        rect("turned", 0, { angle, label: { text: "rotated target", fontFamily: 6, strokeColor: "#1e1e1e" } }),
+      ],
+    });
+    const container = elements.find((e) => e.id === "turned");
+    const text = elements.find((e) => e.type === "text");
+    check("a skeleton label binds to its rotated container",
+      text?.containerId === container?.id, `containerId ${text?.containerId}`);
+    check("bound text shares the container's angle",
+      text?.angle === container?.angle && container?.angle === angle,
+      `text ${text?.angle} / container ${container?.angle}`);
   }
 });
 

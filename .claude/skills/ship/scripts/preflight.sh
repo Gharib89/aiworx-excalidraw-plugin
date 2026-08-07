@@ -32,8 +32,8 @@ jq -e '.labels[] | select(.name == "agent-working")' <<<"$ISS" >/dev/null \
 #
 # Matched with jq's Oniguruma, not grep: \b and case-insensitivity behave the
 # same on GNU and BSD userlands, and jq is already a hard dependency here. The
-# `(#[0-9]+[\s,]+(and[\s,]+)?)*` run before the back-reference is what lets a
-# multi-issue "Closes #75, #81" claim count for #81 and not just for #75.
+# `(#[0-9]+[\s,]+(and[\s,]+)?)*` run before the interpolated issue number is
+# what lets a multi-issue "Closes #75, #81" count for #81, not just for #75.
 XREF=$(api "repos/{owner}/{repo}/issues/$N/timeline" --paginate \
   | jq -s --arg n "$N" '
       [.[][] | select(.event == "cross-referenced")

@@ -49,8 +49,20 @@ Run `scripts/merge-and-verify.sh <pr> <issue>` — it squash-merges via REST wit
 the PR title as the squash subject (the release history reads it, so the title
 must already be the Conventional-Commit line), re-verifies the PR actually
 merged, deletes the remote branch (this repo does **not** auto-delete branches
-on merge), and confirms the linked issue closed (closing it if the
-`Closes #<issue>` keyword didn't).
+on merge), fast-forwards the local base branch onto the squash commit, and
+confirms the linked issue closed (closing it if the `Closes #<issue>` keyword
+didn't).
+
+The base-branch update runs where the branch actually lives — this script runs
+from the feature worktree, where a plain `git pull` would pull the base *into*
+the feature branch. It fast-forwards the checkout holding the base branch (the
+main checkout), or moves the ref directly when no checkout holds it — and that
+ref move is fast-forward-checked by hand, so a diverged local base is never
+silently discarded. It is best-effort throughout: the merge has already landed,
+so a base checkout that is diverged, or dirty in a way that collides with the
+incoming commit, reports `base_branch_updated: false` rather than failing. If
+it does, reconcile that checkout by hand before the next run branches off a
+stale base.
 
 Then clean up the local workspace: a squash-merged branch isn't an ancestor of
 the default branch, so local branch deletion needs a force delete, and exiting

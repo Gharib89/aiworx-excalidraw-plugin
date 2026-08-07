@@ -144,9 +144,12 @@ their logic. Set the `code-review` skill's per-axis tiers yourself when you invo
 mechanical helpers at the cheap tier (table above).
 
 **0 · Isolate.** **Pre-flight:** run `scripts/preflight.sh <issue>` — if it
-reports not actionable (closed, existing open/merged PR, existing branch,
-already claimed), **stop and report** its reasons instead of opening a
-duplicate. Then create an isolated workspace on a fresh branch off the default
+reports not actionable (closed, an existing open/merged PR that claims to
+*close* it, existing branch, already claimed), **stop and report** its reasons
+instead of opening a duplicate. Its `mentions` array lists live PRs that merely
+name the issue — the "spun this out of the PR I was working on" pattern — which
+is context to carry into phase 1, never a reason to stop. Then create an
+isolated workspace on a fresh branch off the default
 branch — `EnterWorktree`, or `scripts/isolate.sh <type> <slug> <issue>` when
 that tool is absent (it also installs the runtime deps a worktree needs). Name
 the branch `<type>/<slug>-<issue>` where `<type>` matches the issue (feat/fix/…).

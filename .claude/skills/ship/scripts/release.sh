@@ -17,9 +17,11 @@
 #
 #   scripts/release.sh <issue> [--handback]
 #
-# Prints JSON {released, already, handed_back}. Exit 0 = the claim is gone (and
-# the hand-back landed, if asked for); 1 = it isn't, so the caller must say so
-# rather than report a clean stop; 2 = bad arguments.
+# Prints JSON {released, already, handed_back} once the claim is gone, or
+# {released: false, error} if the release call itself failed — same shape split
+# merge-and-verify.sh uses. Exit 0 = the claim is gone (and the hand-back landed,
+# if asked for); 1 = it isn't, so the caller must say so rather than report a
+# clean stop; 2 = bad arguments.
 set -uo pipefail
 N="${1:?usage: release.sh <issue> [--handback]}"
 shift

@@ -41,12 +41,15 @@ api -X DELETE "repos/{owner}/{repo}/git/refs/heads/$BRANCH" >/dev/null 2>&1 || B
 # Best-effort: the merge already landed, so a dirty or diverged base checkout
 # is reported, not fatal.
 BASE_UPDATED=false
-if git fetch --quiet origin "$BASE" 2>/dev/null; then
+if git fetch --quiet origin "$BASE"; then
   BASE_WT=$(git worktree list --porcelain \
     | awk -v b="branch refs/heads/$BASE" '/^worktree /{p=substr($0,10)} $0==b{print p; exit}')
   if [ -n "$BASE_WT" ]; then
-    git -C "$BASE_WT" merge --ff-only "origin/$BASE" >/dev/null 2>&1 && BASE_UPDATED=true
-  else
+    git -C "$BASE_WT" merge --ff-only "origin/$BASE" >/dev/null && BASE_UPDATED=true
+  elif ! git rev-parse --verify -q "refs/heads/$BASE" >/dev/null \
+       || git merge-base --is-ancestor "refs/heads/$BASE" "refs/remotes/origin/$BASE"; then
+    # No checkout holds it, so there is no `merge --ff-only` to lean on — do the
+    # fast-forward check by hand rather than force-moving a diverged local base.
     git update-ref "refs/heads/$BASE" "refs/remotes/origin/$BASE" && BASE_UPDATED=true
   fi
 fi

@@ -25,34 +25,30 @@ jq -e '.labels[] | select(.name == "agent-working")' <<<"$ISS" >/dev/null \
 # PRs referencing the issue, via cross-referenced timeline events. A bare
 # cross-reference is undirected — it fires whether the PR implements the issue
 # or merely names it (the "spun this out of the PR I was working on" pattern) —
-# so each live candidate is re-read for a closing keyword aimed at THIS issue.
-# Only a claimed close is in-flight work; a mention is context, not a blocker.
-PRS=$(api "repos/{owner}/{repo}/issues/$N/timeline" --paginate \
-  | jq -s '[.[][] | select(.event == "cross-referenced")
-            | .source.issue | select(.pull_request != null)
-            | {number, state, merged: (.pull_request.merged_at != null)}]
-           | unique_by(.number)') || exit 1
-CLOSING=()
-MENTIONS=()
-for P in $(jq -r '.[] | select(.state == "open" or .merged) | .number' <<<"$PRS"); do
-  PRJ=$(api "repos/{owner}/{repo}/pulls/$P") || exit 1
-  # Matched with jq's Oniguruma, not grep: \b and case-insensitivity behave the
-  # same on GNU and BSD userlands, and jq is already a hard dependency here.
-  if jq -e --arg n "$N" '(.body // "")
-        | test("\\b(clos(e[sd]?|ing)|fix(e[sd]|es)?|resolv(e[sd]?|ing))\\s+#" + $n + "\\b"; "i")' \
-        <<<"$PRJ" >/dev/null; then
-    CLOSING+=("$P")
-  else
-    MENTIONS+=("$P")
-  fi
-done
-[ "${#CLOSING[@]}" -gt 0 ] \
-  && REASONS+=("existing PR(s) claiming to close #$N: [$(IFS=,; echo "${CLOSING[*]}")]")
-if [ "${#MENTIONS[@]}" -gt 0 ]; then
-  MENTIONS_JSON=$(printf '%s\n' "${MENTIONS[@]}" | jq -s 'map(tonumber)')
-else
-  MENTIONS_JSON='[]'
-fi
+# so each live candidate is split on whether its body carries a closing keyword
+# aimed at THIS issue. Only a claimed close is in-flight work; a mention is
+# context, not a blocker. The timeline hydrates each source PR in full, so the
+# bodies are already in this payload — no extra call, and no extra 401 surface.
+#
+# Matched with jq's Oniguruma, not grep: \b and case-insensitivity behave the
+# same on GNU and BSD userlands, and jq is already a hard dependency here. The
+# `(#[0-9]+[\s,]+(and[\s,]+)?)*` run before the back-reference is what lets a
+# multi-issue "Closes #75, #81" claim count for #81 and not just for #75.
+XREF=$(api "repos/{owner}/{repo}/issues/$N/timeline" --paginate \
+  | jq -s --arg n "$N" '
+      [.[][] | select(.event == "cross-referenced")
+       | .source.issue | select(.pull_request != null)
+       | {number, state, merged: (.pull_request.merged_at != null),
+          closes: ((.body // "") | test(
+            "\\b(clos(e[sd]?|ing)|fix(e[sd]|ing)?|resolv(e[sd]?|ing))"
+            + "\\s+(#[0-9]+[\\s,]+(and[\\s,]+)?)*#" + $n + "\\b"; "i"))}]
+      | unique_by(.number)
+      | [.[] | select(.state == "open" or .merged)]
+      | {closing: [.[] | select(.closes)       | .number],
+         mentions: [.[] | select(.closes | not) | .number]}') || exit 1
+CLOSING=$(jq -c .closing <<<"$XREF")
+MENTIONS_JSON=$(jq -c .mentions <<<"$XREF")
+[ "$CLOSING" != "[]" ] && REASONS+=("existing PR(s) claiming to close #$N: $CLOSING")
 
 # Remote branch already pushed for this issue (…-<issue> naming convention).
 BR=$(git ls-remote --heads origin "*-$N" | awk '{print $2}' | sed 's|refs/heads/||' | paste -sd, -) || exit 1

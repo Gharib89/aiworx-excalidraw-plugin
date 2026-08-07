@@ -110,8 +110,27 @@ export const row = (items, opts = {}) => stack(items, { ...opts, direction: "row
  * Wrap content in a rectangle sized by padding — a card whose height follows
  * its measured content. Shape props (id, colours, roundness…) pass through;
  * the returned group exposes the rectangle as `.shape` so arrows can bind it.
+ *
+ * A rotating `angle` is refused: the content is placed by translation alone, so
+ * it would stay upright while the rectangle turned. `angle: 0` is the
+ * renderer's default and passes as the no-op it is.
  */
 export function box(child, { padding = 20, ...shapeProps } = {}) {
+  if ("angle" in shapeProps) {
+    const { angle } = shapeProps;
+    if (!Number.isFinite(angle)) {
+      throw new LayoutError(`box angle must be a finite number, got ${JSON.stringify(angle)}`);
+    }
+    if (angle !== 0) {
+      throw new LayoutError(
+        `box does not rotate its content: angle ${angle} would turn the rectangle and leave ` +
+          "the content upright and clear of it. Put the text on the shape instead — a rectangle " +
+          'with `label: { text }` and the `angle` on it, whose bound text the converter rotates ' +
+          "with its container.",
+      );
+    }
+    delete shapeProps.angle;
+  }
   const s = extent(child);
   const shape = {
     type: "rectangle",

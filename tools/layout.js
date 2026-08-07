@@ -123,10 +123,9 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
     }
     if (angle !== 0) {
       throw new LayoutError(
-        `box does not rotate its content: angle ${angle} would turn the rectangle and leave ` +
-          "the content upright and clear of it. Put the text on the shape instead — a rectangle " +
-          'with `label: { text }` and the `angle` on it, whose bound text the converter rotates ' +
-          "with its container.",
+        `box does not rotate its content, so angle ${angle} would turn the rectangle and leave ` +
+          "the content upright beside it — put the text on the shape as a label instead " +
+          "(a rectangle carrying both angle and label: { text }), which rotates with its container",
       );
     }
     delete shapeProps.angle;

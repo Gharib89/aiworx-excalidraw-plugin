@@ -13,6 +13,8 @@
  *   5. startBinding/endBinding/fixedPoint in a skeleton arrow are silently
  *      nulled by the converter, so they are a named error pointing at start/end
  *   6. rectangle/ellipse/diamond targets still bind through the converter itself
+ *   7. bound text inherits its container's angle — the alternative `box` names
+ *      when it refuses to rotate its own content (#77)
  */
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";

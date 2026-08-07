@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: a rotated ellipse's own ink pokes past its frame",
+  "elements": [
+    { "id": "f1", "type": "frame", "x": 0, "y": 0, "width": 200, "height": 200, "name": "host" },
+    { "id": "e1", "type": "ellipse", "x": 110, "y": 70, "width": 140, "height": 60,
+      "angle": 0.7853981633974483, "frameId": "f1" }
+  ],
+  "appState": {},
+  "files": {}
+}

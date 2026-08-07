@@ -91,11 +91,50 @@ function separated(pts, other) {
   return false;
 }
 
-export const contains = (outer, inner, pad = 0.5) =>
-  inner.x1 >= outer.x1 - pad &&
-  inner.y1 >= outer.y1 - pad &&
-  inner.x2 <= outer.x2 + pad &&
-  inner.y2 <= outer.y2 + pad;
+/**
+ * Whether `inner` sits entirely inside `outer`, rotation honoured, with `pad` px
+ * of slack — no point of inner's ink pokes past any edge of outer's outline.
+ * Judging this on axis-aligned boxes reports a rotated ellipse or diamond as
+ * escaping while its ink still fits, because the corners of its rotated box are
+ * empty. So ink is what counts: ellipse and diamond are the ellipse inscribed in
+ * their box (the same shape model as `shapeDepth` — exact for an ellipse, and
+ * for a diamond an approximation that swells past its edges towards its
+ * vertices, so containment errs towards reporting), everything else its outline,
+ * and linear elements their box, as `outlinesOverlap` does.
+ */
+export function outlineContains(outer, inner, pad = 0.5) {
+  const poly = convexOutline(outer);
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i];
+    const [x2, y2] = poly[(i + 1) % poly.length];
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (!len) continue;
+    // Outward unit normal of this edge, then how far past it inner reaches.
+    // `convexOutline` always winds top-left → top-right → bottom-right, which
+    // rotation preserves, so (dy, -dx) points away from the interior.
+    const n = [(y2 - y1) / len, (x1 - x2) / len];
+    if (support(inner, n) - (x1 * n[0] + y1 * n[1]) > pad) return false;
+  }
+  return true;
+}
+
+/** How far an element's ink reaches in direction `n` (a unit vector). */
+function support(e, [nx, ny]) {
+  if (e.type === "ellipse" || e.type === "diamond") {
+    const a = Math.abs(e.width ?? 0) / 2;
+    const b = Math.abs(e.height ?? 0) / 2;
+    const angle = e.angle ?? 0;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // the ellipse's own axes in world space
+    const u = nx * cos + ny * sin;
+    const v = -nx * sin + ny * cos;
+    return (e.x + a) * nx + (e.y + b) * ny + Math.hypot(a * u, b * v);
+  }
+  let max = -Infinity;
+  for (const [px, py] of convexOutline(e)) max = Math.max(max, px * nx + py * ny);
+  return max;
+}
 
 /** Shortest distance between two boxes; 0 when they touch or overlap. */
 export function gap(a, b) {

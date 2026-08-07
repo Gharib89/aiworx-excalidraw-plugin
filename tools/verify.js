@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bounds, outline, outlinesOverlap, contains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
+import { bounds, outline, outlinesOverlap, outlineContains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
 import { blend, contrast, normalizeHex, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -128,14 +128,18 @@ export function verifyDocument(data) {
     }
   }
 
-  // 5. every element bound to a frame must sit inside it
+  // 5. every element bound to a frame must sit inside it, judged on ink: the
+  //    corners of a rotated ellipse's box are empty, so a box test reports it
+  //    escaping while the shape still fits. The reported boxes stay the boxes —
+  //    for a rotated ellipse the overhang they show is the box's, larger than
+  //    the ink's.
   for (const e of others.filter((e) => e.frameId)) {
     const f = byId.get(e.frameId);
     if (!f) {
       note("missing-frame", `element ${e.id} (${e.type}) references ${fate(e.frameId)} frame ${e.frameId}`, [e.id, e.frameId]);
       continue;
     }
-    if (!contains(bounds(f), bounds(e))) {
+    if (!outlineContains(f, e)) {
       const b = bounds(e);
       const fb = bounds(f);
       note(

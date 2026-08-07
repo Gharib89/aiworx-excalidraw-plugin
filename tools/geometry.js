@@ -96,10 +96,11 @@ function separated(pts, other) {
  * of slack — no point of inner's ink pokes past any edge of outer's outline.
  * Judging this on axis-aligned boxes reports a rotated ellipse or diamond as
  * escaping while its ink still fits, because the corners of its rotated box are
- * empty. So ink is what counts: ellipse and diamond are their inscribed ellipse
- * (the same shape model as `shapeDepth`, slightly generous near a diamond's
- * vertices, so containment errs towards reporting), everything else its
- * outline, and linear elements their box, as `outlinesOverlap` does.
+ * empty. So ink is what counts: ellipse and diamond are the ellipse inscribed in
+ * their box (the same shape model as `shapeDepth` — exact for an ellipse, and
+ * for a diamond an approximation that swells past its edges towards its
+ * vertices, so containment errs towards reporting), everything else its outline,
+ * and linear elements their box, as `outlinesOverlap` does.
  */
 export function outlineContains(outer, inner, pad = 0.5) {
   const poly = convexOutline(outer);

@@ -119,6 +119,41 @@ function assertFreshBundle() {
   }
 }
 
+/** How long the close below waits for a browser that may never answer. */
+const CLOSE_TIMEOUT_MS = 10_000;
+
+/**
+ * Close the browser, but never wait forever for it.
+ *
+ * Playwright's graceful close force-kills the child only if the protocol call
+ * *rejects*; a Chrome that is alive but unresponsive never answers it, and
+ * close() then stays pending forever. Every CLI funnels through one `finally`
+ * that awaits this, so a wedged Chrome would wedge the whole tool — worst case
+ * for an agent-driven caller waiting on process exit.
+ *
+ * Giving up waiting is the entire fallback: Playwright's own exit handler
+ * force-kills the child when this process exits, so there is no kill plumbing
+ * of ours to add. A close that *rejects* still propagates — that is Playwright
+ * reporting a real fault, not a hang.
+ */
+export async function closeBrowser(browser, timeoutMs = CLOSE_TIMEOUT_MS) {
+  let timer;
+  const gaveUp = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(true), timeoutMs);
+  });
+  try {
+    const timedOut = await Promise.race([browser.close().then(() => false), gaveUp]);
+    if (timedOut) {
+      console.error(
+        `warning: the browser did not close within ${timeoutMs}ms — ` +
+          `leaving it to the exit handler`,
+      );
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Open a page with the Excalidraw bundle loaded and hand it to `fn`.
  * The returned api mirrors window.__ex, marshalled over page.evaluate.
@@ -247,6 +282,9 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
     };
     return await fn(api);
   } finally {
-    await browser.close();
+    // Cleanup that matters must not live here: Ctrl-C is Playwright's, and it
+    // exits the process itself (graceful close, then exit 130), so this block
+    // never runs on SIGINT.
+    await closeBrowser(browser);
   }
 }

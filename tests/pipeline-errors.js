@@ -12,6 +12,8 @@
  *      the failing operation
  *   4. Chrome is looked for in the documented order, and finding none names
  *      the CHROME_PATH override
+ *   5. a checkout with no runtime dependencies names the install step
+ *   6. a Chrome that never answers the close call does not wedge the tool
  *
  * The copy-based probes run against a throwaway copy of the pipeline so the
  * repo stays clean; the page-error probe runs the real pipeline with a bad
@@ -256,6 +258,36 @@ const probe = (dir, env) =>
     r.stderr.trim().split("\n")[0]);
   check("no playwright-core: the raw loader error does not reach the user",
     !/ERR_MODULE_NOT_FOUND/.test(r.stderr), r.stderr.trim().split("\n")[0]);
+}
+
+// ---- 6. a Chrome that is alive but unresponsive does not wedge the tool ----
+// Playwright's graceful close force-kills only when the protocol call *rejects*;
+// a call that never answers leaves close() pending forever, and every CLI funnels
+// through the one finally that awaits it. The close is raced against a timer, so
+// the probe is the driver's own close step with a browser that never answers.
+{
+  const { closeBrowser } = await import(specifier(root, "tools/browser.js"));
+  const warnings = [];
+  const realError = console.error;
+  console.error = (msg) => warnings.push(String(msg));
+  let closed = false;
+  let afterWedged = -1;
+  try {
+    await closeBrowser({ close: () => new Promise(() => {}) }, 50);
+    closed = true;
+    // counted before the healthy close, or "one warning in total" would pass
+    // just as well with the two cases swapped
+    afterWedged = warnings.length;
+    await closeBrowser({ close: async () => {} }, 50);
+  } finally {
+    console.error = realError;
+  }
+  check("wedged close: gives up waiting instead of hanging", closed);
+  check("wedged close: says the browser was left to the exit handler", afterWedged === 1,
+    JSON.stringify(warnings));
+  check("wedged close: names the timeout it waited", /50/.test(warnings[0] ?? ""), warnings[0] ?? "");
+  check("healthy close: says nothing", warnings.length === afterWedged,
+    JSON.stringify(warnings.slice(afterWedged)));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nfailure paths are loud");

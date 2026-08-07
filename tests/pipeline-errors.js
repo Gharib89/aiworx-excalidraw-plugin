@@ -12,6 +12,7 @@
  *      the failing operation
  *   4. Chrome is looked for in the documented order, and finding none names
  *      the CHROME_PATH override
+ *   5. a checkout with no runtime dependencies names the install step
  *   6. a Chrome that never answers the close call does not wedge the tool
  *
  * The copy-based probes run against a throwaway copy of the pipeline so the
@@ -270,18 +271,23 @@ const probe = (dir, env) =>
   const realError = console.error;
   console.error = (msg) => warnings.push(String(msg));
   let closed = false;
+  let afterWedged = -1;
   try {
     await closeBrowser({ close: () => new Promise(() => {}) }, 50);
     closed = true;
+    // counted before the healthy close, or "one warning in total" would pass
+    // just as well with the two cases swapped
+    afterWedged = warnings.length;
     await closeBrowser({ close: async () => {} }, 50);
   } finally {
     console.error = realError;
   }
   check("wedged close: gives up waiting instead of hanging", closed);
-  check("wedged close: says the browser was left to the exit handler", warnings.length === 1,
+  check("wedged close: says the browser was left to the exit handler", afterWedged === 1,
     JSON.stringify(warnings));
   check("wedged close: names the timeout it waited", /50/.test(warnings[0] ?? ""), warnings[0] ?? "");
-  check("healthy close: says nothing", warnings.length === 1, JSON.stringify(warnings.slice(1)));
+  check("healthy close: says nothing", warnings.length === afterWedged,
+    JSON.stringify(warnings.slice(afterWedged)));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nfailure paths are loud");

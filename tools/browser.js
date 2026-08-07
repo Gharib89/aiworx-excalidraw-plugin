@@ -142,7 +142,8 @@ export async function closeBrowser(browser, timeoutMs = CLOSE_TIMEOUT_MS) {
     timer = setTimeout(() => resolve(true), timeoutMs);
   });
   try {
-    if (await Promise.race([browser.close().then(() => false), gaveUp])) {
+    const timedOut = await Promise.race([browser.close().then(() => false), gaveUp]);
+    if (timedOut) {
       console.error(
         `warning: the browser did not close within ${timeoutMs}ms — ` +
           `leaving it to the exit handler`,

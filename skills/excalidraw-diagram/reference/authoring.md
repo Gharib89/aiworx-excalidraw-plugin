@@ -178,6 +178,19 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   box*, so at a right angle the arrow meets the edge, while at an oblique one it
   stops on the box a little clear of the slanted edge — check the render when a
   diagram leans on rotated shapes.
+- `box` refuses an `angle`: it places its content by translation alone, so a
+  rotation would turn the rectangle and leave the content upright and clear of
+  it. Passing a non-zero (or non-finite) `angle` is a `LayoutError`; `angle: 0`
+  is the no-op default and still passes. To rotate a labelled shape, put the
+  text *on* the shape instead — a rectangle carrying both `angle` and
+  `label: { text }` — because the converter rotates bound text with its
+  container:
+
+  ```js
+  { type: "rectangle", id: "turned", x: 0, y: 0, width: 160, height: 60,
+    angle: Math.PI / 4, strokeColor: p.roles.local.stroke,
+    label: { text: "rotated", fontFamily: 6, strokeColor: p.grey.stroke } }
+  ```
 - An arrow binds to a real element, so each end must be one. A `box` works
   because it exposes its rectangle — but only if that rectangle has an `id`. A
   plain `column`/`row` group exposes no element at all, so passing one is a

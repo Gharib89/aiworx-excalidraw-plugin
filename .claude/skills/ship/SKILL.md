@@ -38,6 +38,7 @@ gh's 401 flake, output projection).
 | `scripts/preflight.sh <issue>` | 0 pre-flight | yes |
 | `scripts/isolate.sh <type> <slug> <issue>` | 0 worktree (when `EnterWorktree` is absent) | no |
 | `scripts/claim.sh <issue>` | 1 claim | yes |
+| `scripts/release.sh <issue> [--handback]` | any blocked stop after the claim; 9 (called by `merge-and-verify.sh`) | yes |
 | `scripts/local-gate.sh [--small <test-file>]` | 5 local gate | no |
 | `scripts/poll-pr.sh <pr> [--await-review <login>]` | 7/8 poll | yes |
 | `scripts/merge-and-verify.sh <pr> [issue]` | 9 on approval | yes |
@@ -68,7 +69,11 @@ stale-bundle refusal, CI) gets a bounded self-fix-and-retry (~2 attempts). Still
 red after that, or the failure means the approach is wrong → **stop and report**;
 never merge on red. Make the report a **fast yes**: attach the concrete evidence
 (failing output / render) and, if cheap, a **verified-working alternative** — a
-one-glance approve-or-redirect, not an open-ended "what now?".
+one-glance approve-or-redirect, not an open-ended "what now?". **Whenever you
+stop short of the merge having already claimed the issue** — here, or at either
+of the other rails — release the claim first
+(`scripts/release.sh <issue> --handback`), or it outlives the run and blocks
+every future one.
 
 ## Argument
 
@@ -166,7 +171,9 @@ it's too vague to plan, stop and ask** (the ambiguity rail).
 **Claim it before implementing** — `scripts/claim.sh <issue>` (idempotent) marks
 the issue in-progress so a concurrent run can't double-pick it; skip if there's
 no issue. Don't claim if you stopped on the ambiguity rail; if you claim then
-stop blocked, hand the issue back.
+stop blocked, hand the issue back with `scripts/release.sh <issue> --handback`
+(drops the claim and applies `needs-triage`, since claiming stripped
+`ready-for-agent` — releasing alone would leave the issue in no triage bucket).
 
 **2 · Implement.** Classify the change as `docs` / `code` / `infra`, announce the
 class and the skip path it implies — **and whether it passes the three lane keys**

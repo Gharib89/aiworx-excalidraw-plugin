@@ -97,34 +97,24 @@ function separated(pts, other) {
  * Judging this on axis-aligned boxes reports a rotated ellipse or diamond as
  * escaping while its ink still fits, because the corners of its rotated box are
  * empty. So ink is what counts: ellipse and diamond are their inscribed ellipse
- * (the same shape model as `shapeDepth` — a diamond's own corners sit just
- * inside that ellipse, so containment errs towards reporting), everything else
- * its outline, and linear elements their box, as `outlinesOverlap` does.
+ * (the same shape model as `shapeDepth`, slightly generous near a diamond's
+ * vertices, so containment errs towards reporting), everything else its
+ * outline, and linear elements their box, as `outlinesOverlap` does.
  */
 export function outlineContains(outer, inner, pad = 0.5) {
   const poly = convexOutline(outer);
-  const winding = shoelace(poly) >= 0 ? 1 : -1;
   for (let i = 0; i < poly.length; i++) {
     const [x1, y1] = poly[i];
     const [x2, y2] = poly[(i + 1) % poly.length];
     const len = Math.hypot(x2 - x1, y2 - y1);
     if (!len) continue;
-    // outward unit normal of this edge, and how far past it inner reaches
-    const n = [(winding * (y2 - y1)) / len, (winding * (x1 - x2)) / len];
+    // Outward unit normal of this edge, then how far past it inner reaches.
+    // `convexOutline` always winds top-left → top-right → bottom-right, which
+    // rotation preserves, so (dy, -dx) points away from the interior.
+    const n = [(y2 - y1) / len, (x1 - x2) / len];
     if (support(inner, n) - (x1 * n[0] + y1 * n[1]) > pad) return false;
   }
   return true;
-}
-
-/** Twice the signed area of a polygon; its sign is the winding direction. */
-function shoelace(pts) {
-  let sum = 0;
-  for (let i = 0; i < pts.length; i++) {
-    const [x1, y1] = pts[i];
-    const [x2, y2] = pts[(i + 1) % pts.length];
-    sum += x1 * y2 - x2 * y1;
-  }
-  return sum;
 }
 
 /** How far an element's ink reaches in direction `n` (a unit vector). */

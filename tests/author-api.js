@@ -214,6 +214,17 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
     JSON.stringify(revised.appState));
 }
 
+// revise clears the membership geometry no longer supports — but it reads the
+// same ink the gate does, so a rotated ellipse that fits keeps its frame
+{
+  const turned = join(outDir, "rotated-in-frame.excalidraw");
+  cpSync(join(root, "tests/fixtures/rotated-ellipse-in-frame.excalidraw"), turned);
+  await reviseDiagram({ file: turned, svg: false });
+  const ellipse = JSON.parse(readFileSync(turned, "utf8")).elements.find((e) => e.type === "ellipse");
+  check("a rotated ellipse inside its frame keeps its membership",
+    ellipse.frameId === "f1", `frameId ${ellipse.frameId}`);
+}
+
 // revise rejects what it cannot parse, named
 {
   const bad = join(outDir, "bad.excalidraw");

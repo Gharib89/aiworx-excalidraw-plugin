@@ -128,7 +128,11 @@ export function verifyDocument(data) {
     }
   }
 
-  // 5. every element bound to a frame must sit inside it
+  // 5. every element bound to a frame must sit inside it, judged on ink: the
+  //    corners of a rotated ellipse's box are empty, so a box test reports it
+  //    escaping while the shape still fits. The reported boxes stay the boxes —
+  //    for a rotated ellipse the overhang they show is the box's, larger than
+  //    the ink's.
   for (const e of others.filter((e) => e.frameId)) {
     const f = byId.get(e.frameId);
     if (!f) {

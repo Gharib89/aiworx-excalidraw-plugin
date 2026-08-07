@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Merge mechanics (ship phase 9 — run only AFTER the human says "merge"):
 # squash-merge via REST, re-verify merged state, delete the remote branch,
-# fast-forward the local base branch onto the squash commit, and confirm the
-# linked issue closed (closing it if the Closes-keyword didn't).
+# fast-forward the local base branch onto the squash commit, confirm the linked
+# issue closed (closing it if the Closes-keyword didn't), and release the
+# agent-working claim phase 1 took.
 # REST throughout — gh's GraphQL merge path flakes 401; every call retries once.
 #
 #   scripts/merge-and-verify.sh <pr> [issue]
@@ -12,6 +13,7 @@
 set -uo pipefail
 PR="${1:?usage: merge-and-verify.sh <pr> [issue]}"
 ISSUE="${2:-}"
+HERE=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 api() { gh api "$@" || { sleep 2; gh api "$@"; }; }
 
@@ -55,6 +57,7 @@ if git fetch --quiet origin "$BASE"; then
 fi
 
 ISSUE_STATE=null
+CLAIM_RELEASED=null
 if [ -n "$ISSUE" ]; then
   sleep 3  # give the Closes-keyword automation a beat
   STATE=$(api "repos/{owner}/{repo}/issues/$ISSUE" | jq -r .state)
@@ -64,11 +67,22 @@ if [ -n "$ISSUE" ]; then
     STATE=$(api "repos/{owner}/{repo}/issues/$ISSUE" | jq -r .state)
   fi
   ISSUE_STATE="\"$STATE\""
+
+  # A claim left behind outlives the run and blocks the issue if it is ever
+  # reopened. Best-effort like the branch delete: the merge already landed, so a
+  # failed release is reported, not fatal. No --handback here — the issue is
+  # closed and already carries its category label.
+  if "$HERE/release.sh" "$ISSUE" >/dev/null 2>&1; then
+    CLAIM_RELEASED=true
+  else
+    CLAIM_RELEASED=false
+  fi
 fi
 
 jq -n --arg subject "$TITLE (#$PR)" --arg branch "$BRANCH" --arg base "$BASE" \
   --argjson deleted "$BRANCH_DELETED" --argjson base_updated "$BASE_UPDATED" \
-  --argjson issue_state "$ISSUE_STATE" \
+  --argjson issue_state "$ISSUE_STATE" --argjson claim_released "$CLAIM_RELEASED" \
   '{merged: true, squash_subject: $subject, branch: $branch,
     remote_branch_deleted: $deleted, base_branch: $base,
-    base_branch_updated: $base_updated, issue_state: $issue_state}'
+    base_branch_updated: $base_updated, issue_state: $issue_state,
+    claim_released: $claim_released}'

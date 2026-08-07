@@ -63,7 +63,7 @@ Copilot is a second pair of eyes, **not the gate**. The gate is still a delibera
 
 ### Shipping an issue
 
-`/ship <issue>` (`.claude/skills/ship/`) drives an issue to a merge-ready PR unattended, stopping at a human merge gate. It claims via `ready-for-agent` → `agent-working`, works in a worktree, and squash-merges on approval. Its `scripts/local-gate.sh` mirrors the CI checks locally.
+`/ship <issue>` (`.claude/skills/ship/`) drives an issue to a merge-ready PR unattended, stopping at a human merge gate. It claims via `ready-for-agent` → `agent-working`, works in a worktree, squash-merges on approval, and releases the claim on merge — or hands the issue back to `needs-triage` if it stops blocked. Its `scripts/local-gate.sh` mirrors the CI checks locally.
 
 ### Issue tracker
 

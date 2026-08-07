@@ -49,9 +49,11 @@ Run `scripts/merge-and-verify.sh <pr> <issue>` — it squash-merges via REST wit
 the PR title as the squash subject (the release history reads it, so the title
 must already be the Conventional-Commit line), re-verifies the PR actually
 merged, deletes the remote branch (this repo does **not** auto-delete branches
-on merge), fast-forwards the local base branch onto the squash commit, and
-confirms the linked issue closed (closing it if the `Closes #<issue>` keyword
-didn't).
+on merge), fast-forwards the local base branch onto the squash commit, confirms
+the linked issue closed (closing it if the `Closes #<issue>` keyword didn't),
+and releases the `agent-working` claim phase 1 took — reported as
+`claim_released`. A claim left on a closed issue is harmless until someone
+reopens it, at which point pre-flight refuses the issue forever.
 
 The base-branch update runs where the branch actually lives — this script runs
 from the feature worktree, where a plain `git pull` would pull the base *into*

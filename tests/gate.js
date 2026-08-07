@@ -44,6 +44,10 @@ const CASES = [
   // overlap is judged on the rotated outline, not its axis-aligned box
   { name: "rotated-clear-of-frame", exit: 0, expect: "no mechanical defects" },
   { name: "arrow-binding-missing", exit: 1, expect: "points at missing element ghost", code: "dangling-binding" },
+  // the same distinction the container and frame rules already draw: a referent
+  // the file still holds, tombstoned, is deleted — the author undeletes it,
+  // where an absent one has to be re-pointed
+  { name: "deleted-binding", exit: 1, expect: "points at deleted element tomb", code: "dangling-binding" },
   { name: "empty", exit: 1, expect: "empty file", errorCode: "empty-file" },
   { name: "invalid-json", exit: 1, expect: "not valid JSON", errorCode: "invalid-json" },
   { name: "foreign-json", exit: 1, expect: "not an Excalidraw document", errorCode: "not-excalidraw" },

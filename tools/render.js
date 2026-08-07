@@ -10,6 +10,8 @@
  *     [--dark]             export with Excalidraw's dark theme filter
  *     [--padding N]        export padding in px
  *     [--background COLOR] override the canvas colour (e.g. "#121212", "transparent")
+ *     [--]                 end of flags: the next argument is the file even if it
+ *                          starts with a dash
  *
  * The per-frame PNGs are the point: a wide multi-frame diagram is unreadable as
  * a single image, and frame-by-frame is how layout defects actually get caught.
@@ -22,27 +24,40 @@ import { withExcalidraw } from "./browser.js";
 import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
-  "usage: render.js <file.excalidraw> [--out DIR] [--scale N] [--no-frames] " +
-  "[--frame N] [--dark] [--padding N] [--background COLOR]";
+  "usage: render.js [--out DIR] [--scale N] [--no-frames] [--frame N] [--dark] " +
+  "[--padding N] [--background COLOR] [--] <file.excalidraw>";
 
 const VALUE_FLAGS = new Set(["out", "scale", "frame", "padding", "background"]);
 const BOOL_FLAGS = new Set(["no-frames", "dark"]);
 
 function parseArgs(argv) {
   const opts = { _: [] };
+  let literal = false; // everything after -- is a path, even if it looks like a flag
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (!a.startsWith("--")) {
+    // Any unrecognised dash-prefixed argument is a typo, not a path: `-dark` read
+    // as a positional is a flag silently dropped when a real file is named too.
+    // A path that genuinely starts with a dash goes after `--`.
+    if (literal || !a.startsWith("-")) {
       opts._.push(a);
       continue;
     }
+    if (a === "--") {
+      literal = true;
+      continue;
+    }
+    if (!a.startsWith("--")) throw new UsageError(`unknown flag ${a}\n${USAGE}`);
     const name = a.slice(2);
     if (BOOL_FLAGS.has(name)) {
       opts[name] = true;
     } else if (VALUE_FLAGS.has(name)) {
       const v = argv[++i];
-      if (v === undefined || v.startsWith("--")) {
-        throw new UsageError(`--${name} needs a value\n${USAGE}`);
+      if (v === undefined) throw new UsageError(`--${name} needs a value\n${USAGE}`);
+      // A dash-prefixed token is a flag under the same rule, never this flag's
+      // value: `--out -dark` must not create a directory named "-dark". Name the
+      // token — a value *was* given, so a bare "needs a value" reads as a lie.
+      if (v.startsWith("-")) {
+        throw new UsageError(`--${name} needs a value, got ${v}\n${USAGE}`);
       }
       opts[name] = v;
     } else {

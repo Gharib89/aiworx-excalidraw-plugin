@@ -62,9 +62,7 @@ worst one seen — 2 if an input could not be read at all, 1 if any file failed 
 rules, 0 if every file is clean. `--json` replaces the human output with one
 document (`{ ok, files: [{ file, ok, error?, problems, stats }] }`) covering
 every file, for pre-commit hooks and CI aggregation; the exit codes are the same
-either way. Any argument starting with `-` that is not a known flag is rejected
-as a typo rather than read as a file name; a path that really does start with a
-dash goes after `--`.
+either way.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,
@@ -74,6 +72,22 @@ or failing the gate — writing nothing in either case.
 cannot read, parse, or find any elements in. Both it and `revise.js` print every
 refusal as `ErrorName: message` — never a stack trace, whatever fails beneath
 them (a stale bundle, no Chrome, an uninstalled checkout).
+
+All three CLIs share one argument vocabulary. Any argument starting with `-` that
+is not a known flag is rejected as a typo (exit 2, naming the argument) rather
+than read as a file name — `-dark` is not `--dark`. Without that guard a mistyped
+flag becomes a bogus file path, or, when a real file is named alongside it, is
+silently dropped and you get the wrong output with no diagnostic. A value flag
+will not swallow one either: `--out -dark` is a flag left without a value, not a
+directory named `-dark`. `--` ends the flags, which is how a path that really does
+start with a dash stays reachable.
+
+The two exit-code conventions differ deliberately. `check.js` reports the worst
+code across every file it was given, so "a file could not be read" (2) has to
+outrank "a file failed the rules" (1) — otherwise one unreadable file in a batch
+would hide behind another file's rule failure. The single-file CLIs have nothing
+to mask: an unreadable document is a refusal like any other (1), and 2 stays
+reserved for an invocation that never named a file to work on.
 
 `render.js` iteration knobs — invalid values are rejected with a `UsageError`:
 

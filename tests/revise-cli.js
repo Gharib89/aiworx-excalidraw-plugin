@@ -62,6 +62,49 @@ for (const c of INVALID) {
 // nothing was written next to the rejected inputs
 check("a rejected input gets no SVG", !existsSync(join(badDir, "foreign.svg")));
 
+// A single-dash argument is a typo, never a path. The parser admitted anything
+// that did not start with `--`, so `-no-svg` alone became a bogus file path and
+// came back as "cannot read", while `-no-svg` after a real file was collected as
+// a second positional and the error blamed the file count instead of the flag.
+// check.js closed this in #76; this CLI now shares its vocabulary.
+{
+  const copy = join(badDir, "copy.excalidraw");
+  copyFileSync(example, copy);
+  const DASH = [
+    { name: "single-dash flag after the file", args: [copy, "-no-svg"], arg: "-no-svg" },
+    { name: "single-dash flag before the file", args: ["-no-svg", copy], arg: "-no-svg" },
+    { name: "single-dash flag alone", args: ["-no-svg"], arg: "-no-svg" },
+    { name: "bare dash", args: ["-"], arg: "-" },
+  ];
+  for (const c of DASH) {
+    const r = revise(...c.args);
+    check(`${c.name}: exits 2`, r.status === 2, `got ${r.status}`);
+    check(`${c.name}: names the offending argument`,
+      r.stderr.includes(`UsageError: unknown flag ${c.arg}`), firstErrorLine(r));
+  }
+  // the guard fires during parsing, so the file is never touched
+  check("a rejected argument revises nothing", !existsSync(join(badDir, "copy.svg")));
+}
+
+// `--` is what makes the strict guard above tenable: a file whose name really
+// does begin with a dash is still reachable. The child runs from the directory so
+// the argument itself starts with a dash — an absolute path never would.
+{
+  const dir = mkdtempSync(join(tmpdir(), "revise-cli-literal-"));
+  const dashed = join(dir, "-dashed.excalidraw");
+  copyFileSync(example, dashed);
+  // mangled the way the happy path below mangles its copy, so a file the CLI
+  // never actually revised cannot pass the check by already being clean
+  const doc = JSON.parse(readFileSync(dashed, "utf8"));
+  doc.elements.find((e) => e.type === "text" && e.text === "two lanes").y += 700;
+  writeFileSync(dashed, JSON.stringify(doc, null, 2) + "\n");
+  check("the dash-named copy fails the gate first", gate(dashed).status === 1);
+  const r = spawnSync(process.execPath, [reviseJs, "--no-svg", "--", "-dashed.excalidraw"],
+    { encoding: "utf8", cwd: dir });
+  check("-- admits a dash-named input", r.status === 0, firstErrorLine(r));
+  check("-- revises the dash-named file", gate(dashed).status === 0);
+}
+
 // A failure raised beneath the authoring API — no browser, a stale bundle, a
 // missing runtime dependency — is a named error too, and the CLI owes it the
 // same treatment as its own: name and exit code, never a raw stack.

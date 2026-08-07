@@ -91,11 +91,59 @@ function separated(pts, other) {
   return false;
 }
 
-export const contains = (outer, inner, pad = 0.5) =>
-  inner.x1 >= outer.x1 - pad &&
-  inner.y1 >= outer.y1 - pad &&
-  inner.x2 <= outer.x2 + pad &&
-  inner.y2 <= outer.y2 + pad;
+/**
+ * Whether `inner` sits entirely inside `outer`, rotation honoured, with `pad` px
+ * of slack — no point of inner's ink pokes past any edge of outer's outline.
+ * Judging this on axis-aligned boxes reports a rotated ellipse or diamond as
+ * escaping while its ink still fits, because the corners of its rotated box are
+ * empty. So ink is what counts: ellipse and diamond are their inscribed ellipse
+ * (the same shape model as `shapeDepth` — a diamond's own corners sit just
+ * inside that ellipse, so containment errs towards reporting), everything else
+ * its outline, and linear elements their box, as `outlinesOverlap` does.
+ */
+export function outlineContains(outer, inner, pad = 0.5) {
+  const poly = convexOutline(outer);
+  const winding = shoelace(poly) >= 0 ? 1 : -1;
+  for (let i = 0; i < poly.length; i++) {
+    const [x1, y1] = poly[i];
+    const [x2, y2] = poly[(i + 1) % poly.length];
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (!len) continue;
+    // outward unit normal of this edge, and how far past it inner reaches
+    const n = [(winding * (y2 - y1)) / len, (winding * (x1 - x2)) / len];
+    if (support(inner, n) - (x1 * n[0] + y1 * n[1]) > pad) return false;
+  }
+  return true;
+}
+
+/** Twice the signed area of a polygon; its sign is the winding direction. */
+function shoelace(pts) {
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const [x1, y1] = pts[i];
+    const [x2, y2] = pts[(i + 1) % pts.length];
+    sum += x1 * y2 - x2 * y1;
+  }
+  return sum;
+}
+
+/** How far an element's ink reaches in direction `n` (a unit vector). */
+function support(e, [nx, ny]) {
+  if (e.type === "ellipse" || e.type === "diamond") {
+    const a = Math.abs(e.width ?? 0) / 2;
+    const b = Math.abs(e.height ?? 0) / 2;
+    const angle = e.angle ?? 0;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    // the ellipse's own axes in world space
+    const u = nx * cos + ny * sin;
+    const v = -nx * sin + ny * cos;
+    return (e.x + a) * nx + (e.y + b) * ny + Math.hypot(a * u, b * v);
+  }
+  let max = -Infinity;
+  for (const [px, py] of convexOutline(e)) max = Math.max(max, px * nx + py * ny);
+  return max;
+}
 
 /** Shortest distance between two boxes; 0 when they touch or overlap. */
 export function gap(a, b) {

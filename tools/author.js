@@ -24,7 +24,7 @@ import { join, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
-import { bounds, contains, outline } from "./geometry.js";
+import { bounds, outlineContains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
 import { stack, row, column, box, arrowBetween, flatten } from "./layout.js";
 import { NamedError, DocumentError } from "./errors.js";
@@ -325,8 +325,7 @@ function bindToFrames(elements) {
       if (host?.frameId) e.frameId = host.frameId;
       continue;
     }
-    const b = bounds(e);
-    const f = frames.find((fr) => contains(bounds(fr), b));
+    const f = frames.find((fr) => outlineContains(fr, e));
     if (f) e.frameId = f.id;
   }
   // second pass so bound text picks up a container bound in the first
@@ -627,7 +626,7 @@ export async function reviseDiagram({ file, svg = true }) {
     for (const e of elements) {
       if (!e.frameId || e.type === "frame") continue;
       const f = byId.get(e.frameId);
-      if (!f || f.type !== "frame" || !contains(bounds(f), bounds(e))) e.frameId = null;
+      if (!f || f.type !== "frame" || !outlineContains(f, e)) e.frameId = null;
     }
     bindToFrames(elements);
     // Deleting an image by hand leaves its bytes behind — the whole data URL,

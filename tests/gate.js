@@ -40,6 +40,11 @@ const CASES = [
   { name: "deleted-frame", exit: 1, expect: "references deleted frame tomb", code: "missing-frame" },
   { name: "escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
   { name: "rotated-escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
+  // containment is judged on ink, not on the box: the corners of a rotated
+  // ellipse's box poke past the frame while the ellipse itself fits — and the
+  // same ellipse pushed until its own ink pokes out is still reported
+  { name: "rotated-ellipse-in-frame", exit: 0, expect: "no mechanical defects" },
+  { name: "rotated-ellipse-escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
   { name: "unbound-over-frame", exit: 1, expect: "without being bound to it", code: "unbound-over-frame" },
   // overlap is judged on the rotated outline, not its axis-aligned box
   { name: "rotated-clear-of-frame", exit: 0, expect: "no mechanical defects" },

@@ -37,7 +37,10 @@ done
 
 api() { gh api "$@" || { sleep 2; gh api "$@"; }; }
 
-ISS=$(api "repos/{owner}/{repo}/issues/$N") || exit 1
+ISS=$(api "repos/{owner}/{repo}/issues/$N") || {
+  echo '{"released": false, "error": "issue fetch failed"}'
+  exit 1
+}
 
 ALREADY=true
 if jq -e '.labels[] | select(.name == "agent-working")' <<<"$ISS" >/dev/null; then

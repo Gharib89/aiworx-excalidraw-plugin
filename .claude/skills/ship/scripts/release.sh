@@ -16,10 +16,22 @@
 # that didn't happen would leave exactly the residue this script exists to stop.
 #
 #   scripts/release.sh <issue> [--handback]
+#
+# Prints JSON {released, already, handed_back}. Exit 0 = the claim is gone (and
+# the hand-back landed, if asked for); 1 = it isn't, so the caller must say so
+# rather than report a clean stop; 2 = bad arguments.
 set -uo pipefail
 N="${1:?usage: release.sh <issue> [--handback]}"
+shift
 HANDBACK=false
-[ "${2:-}" = "--handback" ] && HANDBACK=true
+while [ $# -gt 0 ]; do
+  case "$1" in
+    # A typo'd flag must not read as release-only: the caller would believe a
+    # hand-back landed that never ran.
+    --handback) HANDBACK=true; shift ;;
+    *) echo "unknown arg: $1" >&2; exit 2 ;;
+  esac
+done
 
 api() { gh api "$@" || { sleep 2; gh api "$@"; }; }
 

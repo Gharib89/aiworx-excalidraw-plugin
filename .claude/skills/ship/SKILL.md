@@ -69,11 +69,12 @@ stale-bundle refusal, CI) gets a bounded self-fix-and-retry (~2 attempts). Still
 red after that, or the failure means the approach is wrong → **stop and report**;
 never merge on red. Make the report a **fast yes**: attach the concrete evidence
 (failing output / render) and, if cheap, a **verified-working alternative** — a
-one-glance approve-or-redirect, not an open-ended "what now?". **Whenever you
-stop short of the merge having already claimed the issue** — here, or at either
-of the other rails — release the claim first
+one-glance approve-or-redirect, not an open-ended "what now?". **If you claimed
+the issue and are now ending the run short of the merge** — this red stop, or
+the mid-run ambiguity/scope stop in phase 2 — release the claim first
 (`scripts/release.sh <issue> --handback`), or it outlives the run and blocks
-every future one.
+every future one. Not at the phase-3 browser hand-off: that one waits and
+resumes, so the claim should hold. Phase 9 releases it on merge.
 
 ## Argument
 

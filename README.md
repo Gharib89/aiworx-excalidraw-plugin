@@ -134,7 +134,7 @@ tools/
   bundle.js         builds the committed dist/ bundle and its loader page, fonts inlined, stamped with a source fingerprint
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
   errors.js         the shared NamedError base every tool error derives from, plus UsageError and DocumentError
-tests/              layout units, gate fixtures, failure paths, render + revise CLI, author API suites
+tests/              geometry + verifyDocument units, layout units, gate fixtures, failure paths, render + revise CLI, author API suites
 dist/               committed browser bundle and the loader page Chrome navigates to
 brand/              AIWorx palette
 examples/           worked generator (gen-example.js) and its committed output

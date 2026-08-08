@@ -204,12 +204,16 @@ function requireBindable(node, side) {
  * Endpoints that already share their cross coordinate have no slope to remove and
  * need no waypoint — the two-point arrow is already orthogonal.
  *
- * The jog cannot touch either shape, and the reason is the coupling to
+ * The jog cannot enter either shape, and the reason is the coupling to
  * `horizontal`: that is the axis of the *wider* separation, which is the one
  * `arrowBetween`'s `usable` check vouched for. Along it both endpoints therefore
  * sit at or beyond their own shape's facing edge and the mid-line falls strictly
  * between them — so every segment stays outside both shapes' extents. Routing
  * along the *other* axis would have no such guarantee.
+ *
+ * Outside, not clear of: at `standoff: 0` an endpoint sits exactly *on* its
+ * shape's edge. That is depth zero, far under the gate's `arrow-buried` slack,
+ * and it is what the direct arrow has always done at that standoff.
  */
 function elbow([sx, sy], [ex, ey], horizontal) {
   if (horizontal) {

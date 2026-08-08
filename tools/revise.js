@@ -38,12 +38,12 @@ try {
     } else if (a === "--no-svg") {
       svg = false;
     } else {
-      throw new UsageError(`unknown flag ${a}\n${USAGE}`);
+      throw new UsageError("unknown flag", { where: a, next: USAGE });
     }
   }
-  if (positional.length === 0) throw new UsageError(USAGE);
+  if (positional.length === 0) throw new UsageError("no input file given", { where: "input", next: USAGE });
   if (positional.length > 1) {
-    throw new UsageError(`one file at a time, got ${positional.length}\n${USAGE}`);
+    throw new UsageError(`one file at a time, got ${positional.length}`, { where: "input", next: USAGE });
   }
 
   await reviseDiagram({ file: positional[0], svg });

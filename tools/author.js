@@ -46,8 +46,8 @@ export class SkeletonError extends NamedError {}
  * the joined human prose.
  */
 export class GateError extends NamedError {
-  constructor(message, problems = []) {
-    super(message);
+  constructor(what, { problems = [], ...locus } = {}) {
+    super(what, locus);
     this.problems = problems;
   }
 }
@@ -73,7 +73,9 @@ const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 export function makeWrap(measure) {
   return async function wrap(text, maxWidth, { fontSize = 18, fontFamily = PROSE } = {}) {
     if (!Number.isFinite(maxWidth) || maxWidth <= 0) {
-      throw new WrapError(`wrap needs a positive pixel width, got ${maxWidth}`);
+      throw new WrapError(`needs a positive pixel width, got ${maxWidth}`, {
+        where: "wrap", next: "Pass a positive number for maxWidth.",
+      });
     }
     const paragraphs = String(text).split("\n");
     const words = [...new Set(paragraphs.flatMap((p) => p.split(/\s+/)).filter(Boolean))];
@@ -121,7 +123,11 @@ export function makeWrap(measure) {
       paragraphs.length + 1,
     );
     for (let pass = 0; ; pass++) {
-      if (pass > maxPasses) throw new WrapError(`wrap did not converge for width ${maxWidth}px`);
+      if (pass > maxPasses) {
+        throw new WrapError(`did not converge for width ${maxWidth}px`, {
+          where: "wrap", next: "Use a measure function that returns consistent widths across calls.",
+        });
+      }
       const measured = await widthOf(lines);
       const i = measured.findIndex((w) => w > maxWidth);
       if (i === -1) break;
@@ -141,6 +147,7 @@ export function makeWrap(measure) {
       if (prefixWidths[0] > maxWidth) {
         throw new WrapError(
           `width ${maxWidth}px cannot fit even one character of "${word}" at ${fontSize}px`,
+          { where: "wrap", next: "Raise maxWidth or lower fontSize." },
         );
       }
       let cut = 1;
@@ -188,13 +195,15 @@ function makeImage(ex, files) {
     try {
       buf = readFileSync(path);
     } catch (err) {
-      throw new AssetError(`${path}: cannot read image — ${err.message}`);
+      throw new AssetError(`cannot read image — ${err.message}`, {
+        where: path, next: "Check that the file exists and this process can read it.",
+      });
     }
     const mimeType = IMAGE_MIME[extname(path).toLowerCase()];
     if (!mimeType) {
-      throw new AssetError(
-        `${path}: unsupported image format — known: ${Object.keys(IMAGE_MIME).join(", ")}`,
-      );
+      throw new AssetError("unsupported image format", {
+        where: path, next: `Convert it to one of: ${Object.keys(IMAGE_MIME).join(", ")}.`,
+      });
     }
     const fileId = createHash("sha1").update(buf).digest("hex");
     files[fileId] ??= {
@@ -211,12 +220,15 @@ function makeImage(ex, files) {
         } catch (err) {
           // the name carries the diagnosis (EncodingError, PageError); a bare
           // message can lose it, or be empty for a non-Error throw
-          throw new AssetError(`${path}: cannot decode image bytes — ${err.name}: ${err.message || err}`);
+          throw new AssetError(`cannot decode image bytes — ${err.name}: ${err.message || err}`, {
+            where: path, next: "Verify the file is valid image data, or pass width and height explicitly.",
+          });
         }
       }
       if (!intrinsic) {
         throw new AssetError(
-          `${path}: states no intrinsic size (an SVG needs width and height, or a viewBox) — give explicit width and height`,
+          "states no intrinsic size (an SVG needs width and height, or a viewBox)",
+          { where: path, next: "Give explicit width and height." },
         );
       }
       if (width !== undefined) height = (width * intrinsic.height) / intrinsic.width;
@@ -241,17 +253,24 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
   try {
     data = JSON.parse(readFileSync(path, "utf8"));
   } catch (err) {
-    throw new LibraryError(`${path}: cannot read library — ${err.message}`);
+    throw new LibraryError(`cannot read library — ${err.message}`, {
+      where: path, next: "Check that the file exists and this process can read it.",
+    });
   }
   const items = data?.libraryItems ?? data?.library?.map((elements) => ({ elements }));
   if (!Array.isArray(items) || items.length === 0) {
-    throw new LibraryError(`${path}: no library items found (type ${JSON.stringify(data?.type)})`);
+    throw new LibraryError("no library items found", {
+      where: path,
+      next: `Pass a v1 { library: [...] } or v2 { libraryItems: [...] } document, not type ${JSON.stringify(data?.type)}.`,
+    });
   }
   const picked =
     typeof item === "string" ? items.find((it) => it.name === item) : items[item];
   const noSuchItemError = () => {
     const names = items.map((it, i) => it.name ?? `#${i}`).join(", ");
-    return new LibraryError(`${path}: no item ${JSON.stringify(item)} — has ${items.length}: ${names}`);
+    return new LibraryError(`no item ${JSON.stringify(item)}`, {
+      where: path, next: `Pick one of its ${items.length}: ${names}.`,
+    });
   };
   if (!picked || !Array.isArray(picked.elements)) throw noSuchItemError();
 
@@ -341,30 +360,40 @@ function bindToFrames(elements) {
 /** Reject a skeleton the converter or the gate would choke on, before any browser work. */
 function validateSkeleton(built) {
   if (built == null) {
-    throw new SkeletonError("build returned nothing — refusing to write an empty diagram");
+    throw new SkeletonError("returned nothing — refusing to write an empty diagram", {
+      where: "build", next: "Return an array of elements.",
+    });
   }
   if (!Array.isArray(built)) {
-    throw new SkeletonError(`build must return an array of elements, got ${typeof built}`);
+    throw new SkeletonError(`must return an array of elements, got ${typeof built}`, {
+      where: "build", next: "Return an array of elements.",
+    });
   }
   const skeleton = flatten(built);
   if (skeleton.length === 0) {
-    throw new SkeletonError("build returned an empty skeleton — refusing to write an empty diagram");
+    throw new SkeletonError("returned an empty skeleton — refusing to write an empty diagram", {
+      where: "build", next: "Return at least one element.",
+    });
   }
   const ids = new Set();
   skeleton.forEach((el, i) => {
     if (!el || typeof el !== "object" || Array.isArray(el)) {
-      throw new SkeletonError(`skeleton[${i}] is not an element object (${JSON.stringify(el)})`);
+      throw new SkeletonError(`is not an element object (${JSON.stringify(el)})`, {
+        where: `skeleton[${i}]`, next: "Return a plain object with a type for every skeleton entry.",
+      });
     }
     if (!KNOWN.has(el.type)) {
-      throw new SkeletonError(
-        `skeleton[${i}] has unknown element type ${JSON.stringify(el.type)} — known: ${[...KNOWN].join(", ")}`,
-      );
+      throw new SkeletonError(`has unknown element type ${JSON.stringify(el.type)}`, {
+        where: `skeleton[${i}]`, next: `Use one of: ${[...KNOWN].join(", ")}.`,
+      });
     }
     // ids are preserved through the convert, where a collision makes the
     // converter silently drop the second element (console.error only)
     if (el.id != null) {
       if (ids.has(el.id)) {
-        throw new SkeletonError(`skeleton[${i}] (${el.type}) reuses id ${JSON.stringify(el.id)}`);
+        throw new SkeletonError(`(${el.type}) reuses id ${JSON.stringify(el.id)}`, {
+          where: `skeleton[${i}]`, next: "Give it a unique id.",
+        });
       }
       ids.add(el.id);
     }
@@ -414,18 +443,21 @@ function validateRegister(register) {
   if (register == null) return;
   if (typeof register !== "object" || Array.isArray(register)) {
     throw new SkeletonError(
-      `register must be an object of finish properties, got ${Array.isArray(register) ? "an array" : typeof register}`,
+      `must be an object of finish properties, got ${Array.isArray(register) ? "an array" : typeof register}`,
+      { where: "register", next: 'Pass an object like { roughness: 1, strokeStyle: "dashed" }.' },
     );
   }
   for (const [key, value] of Object.entries(register)) {
     const spec = REGISTER[key];
     if (!spec) {
-      throw new SkeletonError(
-        `register has unknown property ${JSON.stringify(key)} — known: ${Object.keys(REGISTER).join(", ")}`,
-      );
+      throw new SkeletonError(`has unknown property ${JSON.stringify(key)}`, {
+        where: "register", next: `Use one of: ${Object.keys(REGISTER).join(", ")}.`,
+      });
     }
     if (!spec.accepts(value)) {
-      throw new SkeletonError(`register.${key} is ${JSON.stringify(value)} — expected ${spec.expected}`);
+      throw new SkeletonError(`is ${JSON.stringify(value)}`, {
+        where: `register.${key}`, next: `Pass ${spec.expected}.`,
+      });
     }
   }
 }
@@ -476,10 +508,10 @@ function planBindingStitches(skeleton) {
     if (el.type !== "arrow") continue;
     for (const key of ["startBinding", "endBinding", "fixedPoint"]) {
       if (el[key] !== undefined) {
-        throw new SkeletonError(
-          `arrow ${el.id ?? "(no id)"} carries ${key}, which the converter silently drops — ` +
-            `bind with start: { id } / end: { id } instead`,
-        );
+        throw new SkeletonError(`carries ${key}, which the converter silently drops`, {
+          where: `arrow ${el.id ?? "(no id)"}`,
+          next: "Bind with start: { id } / end: { id } instead.",
+        });
       }
     }
     for (const end of ["start", "end"]) {
@@ -489,8 +521,11 @@ function planBindingStitches(skeleton) {
       if (targetType === undefined || CONVERTER_BINDABLE.has(targetType)) continue;
       if (ref.id == null) {
         throw new SkeletonError(
-          `arrow ${end}: { type: ${JSON.stringify(ref.type)} } has no id to stitch a binding to — ` +
-            `declare the ${ref.type} as its own element with an id and bind with ${end}: { id }`,
+          `{ type: ${JSON.stringify(ref.type)} } has no id to stitch a binding to`,
+          {
+            where: `arrow ${end}`,
+            next: `Declare the ${ref.type} as its own element with an id and bind with ${end}: { id }.`,
+          },
         );
       }
       if (el.id == null) {
@@ -522,10 +557,10 @@ function applyBindingStitches(elements, stitches) {
     const arrow = byId.get(arrowId);
     const target = byId.get(targetId);
     if (!arrow || !target) {
-      throw new SkeletonError(
-        `the convert lost ${!arrow ? `arrow ${arrowId}` : `element ${targetId}`} that a ` +
-          `${end} binding was planned for`,
-      );
+      throw new SkeletonError(`was lost by convert though a ${end} binding was planned for it`, {
+        where: !arrow ? `arrow ${arrowId}` : `element ${targetId}`,
+        next: "This is a converter bug — file an issue with the skeleton that triggered it.",
+      });
     }
     const pts = outline(arrow);
     const [px, py] = end === "start" ? pts[0] : pts[pts.length - 1];
@@ -578,8 +613,8 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
   const { problems } = verifyDocument(doc);
   if (problems.length) {
     throw new GateError(
-      `refusing to write ${out} — ${problems.length} defect(s):\n  ${problems.map((p) => p.message).join("\n  ")}`,
-      problems,
+      `refusing to write — ${problems.length} defect(s):\n  ${problems.map((p) => p.message).join("\n  ")}`,
+      { problems, where: out, next: "Fix the defects, then re-run." },
     );
   }
   const svgOut = svg ? out.replace(/\.excalidraw$/, "") + ".svg" : null;
@@ -687,16 +722,22 @@ export async function reviseDiagram({ file, svg = true }) {
   try {
     raw = readFileSync(file, "utf8");
   } catch (err) {
-    throw new DocumentError(`${file}: cannot read — ${err.message}`);
+    throw new DocumentError(`cannot read — ${err.message}`, {
+      where: file, next: "Check that the file exists and is readable.",
+    });
   }
   let data;
   try {
     data = JSON.parse(raw);
   } catch (err) {
-    throw new DocumentError(`${file}: not valid JSON — ${err.message}`);
+    throw new DocumentError(`not valid JSON — ${err.message}`, {
+      where: file, next: "Fix the JSON syntax error, or regenerate the file with authorDiagram.",
+    });
   }
   if (data?.type !== "excalidraw" || !Array.isArray(data.elements)) {
-    throw new DocumentError(`${file}: not an Excalidraw document (type ${JSON.stringify(data?.type)})`);
+    throw new DocumentError(`not an Excalidraw document (type ${JSON.stringify(data?.type)})`, {
+      where: file, next: 'Pass a file with type: "excalidraw" and an elements array.',
+    });
   }
   return withExcalidraw(async (ex) => {
     const restored = await ex.restore(data);

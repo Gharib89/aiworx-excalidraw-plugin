@@ -46,22 +46,24 @@ function parseArgs(argv) {
       literal = true;
       continue;
     }
-    if (!a.startsWith("--")) throw new UsageError(`unknown flag ${a}\n${USAGE}`);
+    if (!a.startsWith("--")) throw new UsageError("unknown flag", { where: a, next: USAGE });
     const name = a.slice(2);
     if (BOOL_FLAGS.has(name)) {
       opts[name] = true;
     } else if (VALUE_FLAGS.has(name)) {
       const v = argv[++i];
-      if (v === undefined) throw new UsageError(`--${name} needs a value\n${USAGE}`);
+      if (v === undefined) {
+        throw new UsageError("needs a value", { where: `--${name}`, next: USAGE });
+      }
       // A dash-prefixed token is a flag under the same rule, never this flag's
       // value: `--out -dark` must not create a directory named "-dark". Name the
       // token — a value *was* given, so a bare "needs a value" reads as a lie.
       if (v.startsWith("-")) {
-        throw new UsageError(`--${name} needs a value, got ${v}\n${USAGE}`);
+        throw new UsageError(`needs a value, got ${v}`, { where: `--${name}`, next: USAGE });
       }
       opts[name] = v;
     } else {
-      throw new UsageError(`unknown flag --${name}\n${USAGE}`);
+      throw new UsageError("unknown flag", { where: `--${name}`, next: USAGE });
     }
   }
   return opts;
@@ -72,7 +74,8 @@ const numeric = (name, raw, { min, integer = false } = {}) => {
   const n = Number(raw);
   if (!Number.isFinite(n) || (integer && !Number.isInteger(n)) || (min !== undefined && n < min)) {
     throw new UsageError(
-      `--${name} must be ${integer ? "an integer" : "a number"}${min !== undefined ? ` >= ${min}` : ""}, got "${raw}"`,
+      `must be ${integer ? "an integer" : "a number"}${min !== undefined ? ` >= ${min}` : ""}, got "${raw}"`,
+      { where: `--${name}`, next: "Pass a valid number." },
     );
   }
   return n;
@@ -104,7 +107,7 @@ function readingOrder(frames) {
 try {
   const opts = parseArgs(process.argv.slice(2));
   const input = opts._[0];
-  if (!input) throw new UsageError(USAGE);
+  if (!input) throw new UsageError("no input file given", { where: "input", next: USAGE });
 
   const outDir = opts.out ?? dirname(input);
   const scale = numeric("scale", opts.scale, { min: 0.1 }) ?? 2;
@@ -112,10 +115,14 @@ try {
   const frameNo = numeric("frame", opts.frame, { min: 1, integer: true });
   const doFrames = !opts["no-frames"];
   if (frameNo !== undefined && !doFrames) {
-    throw new UsageError("--frame and --no-frames contradict each other");
+    throw new UsageError("cannot be combined with --no-frames", {
+      where: "--frame", next: "Drop one of the two flags.",
+    });
   }
   if (opts.background !== undefined && !/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(opts.background)) {
-    throw new UsageError(`--background must be a hex colour or CSS colour name, got "${opts.background}"`);
+    throw new UsageError(`must be a hex colour or CSS colour name, got "${opts.background}"`, {
+      where: "--background", next: "Pass a hex colour like #121212 or a CSS colour name.",
+    });
   }
   const stem = basename(input, extname(input));
 
@@ -123,26 +130,36 @@ try {
   try {
     raw = readFileSync(input, "utf8");
   } catch (err) {
-    throw new DocumentError(`${input}: cannot read — ${err.message}`);
+    throw new DocumentError(`cannot read — ${err.message}`, {
+      where: input, next: "Check that the file exists and is readable.",
+    });
   }
   let data;
   try {
     data = JSON.parse(raw);
   } catch (err) {
-    throw new DocumentError(`${input}: not valid JSON — ${err.message}`);
+    throw new DocumentError(`not valid JSON — ${err.message}`, {
+      where: input, next: "Fix the JSON syntax error.",
+    });
   }
   if (!Array.isArray(data.elements) || data.elements.length === 0) {
-    throw new DocumentError(`${input}: has no elements`);
+    throw new DocumentError("has no elements", {
+      where: input, next: "Add elements to the document, or point at a different file.",
+    });
   }
   const frameCount = data.elements.filter((e) => e.type === "frame" && !e.isDeleted).length;
   if (frameNo !== undefined && frameNo > frameCount) {
-    throw new UsageError(`--frame ${frameNo} requested but ${input} has ${frameCount} frame(s)`);
+    throw new UsageError(`--frame ${frameNo} requested but has ${frameCount} frame(s)`, {
+      where: input, next: "Pass a frame number that exists in the file.",
+    });
   }
 
   try {
     mkdirSync(outDir, { recursive: true });
   } catch (err) {
-    throw new UsageError(`cannot create output directory ${outDir} — ${err.message}`);
+    throw new UsageError(`cannot create output directory — ${err.message}`, {
+      where: outDir, next: "Point --out at a path that is not an existing file.",
+    });
   }
 
   await withExcalidraw(async (ex) => {

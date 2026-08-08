@@ -107,7 +107,7 @@ for (const c of INVALID) {
     const r = render(...c.args);
     check(`${c.name}: exits 2`, r.status === 2, `got ${r.status}`);
     check(`${c.name}: names the offending argument`,
-      r.stderr.includes(`UsageError: unknown flag ${c.arg}`),
+      r.stderr.includes(`UsageError: ${c.arg}: unknown flag`),
       r.stderr.trim().split("\n")[0]);
   }
   // the guard fires during parsing, so no output directory is ever created
@@ -122,7 +122,7 @@ for (const c of INVALID) {
     { encoding: "utf8", cwd });
   check("a dash-prefixed value is refused: exits 2", swallowed.status === 2, `got ${swallowed.status}`);
   check("a dash-prefixed value is refused: names both the flag and the token",
-    /UsageError: --out needs a value, got -dark/.test(swallowed.stderr),
+    /UsageError: --out: needs a value, got -dark/.test(swallowed.stderr),
     swallowed.stderr.trim().split("\n")[0]);
   check("a dash-prefixed value creates no directory", !existsSync(join(cwd, "-dark")));
 }

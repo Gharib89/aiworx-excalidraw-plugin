@@ -2,11 +2,13 @@
 /**
  * Proves the claim `test:fast` is built on: it needs no Chrome.
  *
- * Every suite named by `test:fast` is re-run here with CHROME_PATH pointed at
- * a path that cannot exist. tools/browser.js looks nowhere else once
- * CHROME_PATH is set, so any suite that *depends on a working Chrome* fails —
- * which is the property the fast target's speed rests on. (A suite that merely
- * imports tools/browser.js still passes, correctly: an import costs nothing.)
+ * Every `node <file>` step of `test:fast` — the suites under tests/ and the
+ * checks that live elsewhere, such as tools/palette.js — is re-run here with
+ * CHROME_PATH pointed at a path that cannot exist. tools/browser.js looks
+ * nowhere else once CHROME_PATH is set, so any step that *depends on a working
+ * Chrome* fails, which is the property the fast target's speed rests on. (A
+ * step that merely imports tools/browser.js still passes, correctly: an import
+ * costs nothing.)
  *
  * It cannot be asserted statically: importing tools/browser.js is not the same
  * as launching Chrome (tests/error-classes.js imports it precisely to assert
@@ -16,7 +18,7 @@
  * would double the fast target's runtime, which is the whole point of the
  * split. tests/test-targets.js asserts it stays on the browser side.
  *
- * Exits non-zero if any fast suite needs a browser.
+ * Exits non-zero if any step of `test:fast` needs a browser.
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";

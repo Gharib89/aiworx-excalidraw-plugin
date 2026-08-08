@@ -43,15 +43,16 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
 
 // ---- 1. outline: corners for solids, translated points for linears ----
 {
+  const corners = outline({ type: "rectangle", x: 10, y: 20, width: 30, height: 40 });
   check(
     "rectangle outlines its four corners clockwise from top-left",
-    pointsNear(outline({ type: "rectangle", x: 10, y: 20, width: 30, height: 40 }), [
+    pointsNear(corners, [
       [10, 20],
       [40, 20],
       [40, 60],
       [10, 60],
     ]),
-    show(outline({ type: "rectangle", x: 10, y: 20, width: 30, height: 40 })),
+    show(corners),
   );
 
   // a drag up-and-left leaves negative extents behind; the outline is the same box
@@ -188,6 +189,18 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
   check("a diagonal gap is the hypotenuse", near(gap(box(0, 0, 10, 10), box(20, 20, 30, 30)), Math.hypot(10, 10)));
   check("overlapping boxes have no gap", gap(box(0, 0, 10, 10), box(5, 5, 30, 30)) === 0);
   check("touching boxes have no gap", gap(box(0, 0, 10, 10), box(10, 0, 30, 10)) === 0);
+
+  // the stray rule measures gaps between `bounds()` output, so rotation shrinks
+  // them: two 100px squares 120px apart close to 220 - 100*sqrt(2) = 78.579
+  // once both are turned 45° and their boxes swell to the diagonal
+  const a = { type: "rectangle", x: 0, y: 0, width: 100, height: 100 };
+  const b = { type: "rectangle", x: 220, y: 0, width: 100, height: 100 };
+  check("upright boxes are 120px apart", near(gap(bounds(a), bounds(b)), 120));
+  check(
+    "turning both 45 degrees closes the gap to their diagonals",
+    near(gap(bounds({ ...a, angle: DIAGONAL }), bounds({ ...b, angle: DIAGONAL })), 220 - 100 * Math.SQRT2, 1e-9),
+    String(gap(bounds({ ...a, angle: DIAGONAL }), bounds({ ...b, angle: DIAGONAL }))),
+  );
 }
 
 // ---- 6. shapeDepth: how deep a point sits in the ink ----
@@ -201,11 +214,12 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
   check("a point on the ellipse is exactly on the edge", near(shapeDepth(ellipse, [100, 20]), 0));
 
   // a diamond is modelled by the ellipse inscribed in its box — generous near
-  // the vertices, and the same model outlineContains uses
-  check(
-    "a diamond is scored as its inscribed ellipse",
-    near(shapeDepth({ ...ellipse, type: "diamond" }, [75, 25]), shapeDepth(ellipse, [75, 25])),
-  );
+  // the vertices, and the same model outlineContains uses. At (75,25) the
+  // normalised radius is hypot(25/50, 5/20) = 0.559017, so the depth is
+  // (1 - 0.559017) * 20 = 8.819660.
+  const inscribed = (1 - Math.hypot(0.5, 0.25)) * 20;
+  check("an off-centre ellipse point is its scaled radius deep", near(shapeDepth(ellipse, [75, 25]), inscribed, 1e-12), String(shapeDepth(ellipse, [75, 25])));
+  check("a diamond is scored as its inscribed ellipse", near(shapeDepth({ ...ellipse, type: "diamond" }, [75, 25]), inscribed, 1e-12));
 
   // the rotated case: (50,65) is 25px below an unrotated 100x40 rectangle, but
   // 5px inside the same rectangle turned a quarter turn about its centre (50,20)
@@ -217,31 +231,23 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
 // ---- 7. segmentLengthInsideShape: how much of a segment the ink swallows ----
 {
   const rect = { type: "rectangle", x: 0, y: 0, width: 100, height: 40 };
-  check(
-    "a segment crossing a rectangle counts its width less the inset",
-    near(segmentLengthInsideShape(rect, [-50, 20], [150, 20]), 98),
-    String(segmentLengthInsideShape(rect, [-50, 20], [150, 20])),
-  );
+  const across = segmentLengthInsideShape(rect, [-50, 20], [150, 20]);
+  check("a segment crossing a rectangle counts its width less the inset", near(across, 98), String(across));
   check("inset 0 counts the full width", near(segmentLengthInsideShape(rect, [-50, 20], [150, 20], 0), 100));
   check("a segment that misses the shape counts nothing", segmentLengthInsideShape(rect, [-50, 100], [150, 100]) === 0);
 
   const ellipse = { type: "ellipse", x: 0, y: 0, width: 100, height: 40 };
-  check(
-    "a segment through an ellipse's centre counts its inset major axis",
-    near(segmentLengthInsideShape(ellipse, [-50, 20], [150, 20]), 98, 1e-9),
-    String(segmentLengthInsideShape(ellipse, [-50, 20], [150, 20])),
-  );
+  const chord = segmentLengthInsideShape(ellipse, [-50, 20], [150, 20]);
+  check("a segment through an ellipse's centre counts its inset major axis", near(chord, 98, 1e-9), String(chord));
   // grazing the top of the ellipse is inside the box and outside the ink
   check("a segment grazing an ellipse's box corner counts nothing", segmentLengthInsideShape(ellipse, [0, 0], [10, 0]) === 0);
 
   // the rotated case: a vertical segment through the centre crosses 38px of the
   // unrotated 100x40 rectangle and 98px of the same rectangle turned upright
-  check("a vertical segment crosses the unrotated rectangle's height", near(segmentLengthInsideShape(rect, [50, -100], [50, 100]), 38));
-  check(
-    "the same segment crosses the rotated rectangle's length",
-    near(segmentLengthInsideShape({ ...rect, angle: QUARTER }, [50, -100], [50, 100]), 98, 1e-9),
-    String(segmentLengthInsideShape({ ...rect, angle: QUARTER }, [50, -100], [50, 100])),
-  );
+  const down = segmentLengthInsideShape(rect, [50, -100], [50, 100]);
+  const downTurned = segmentLengthInsideShape({ ...rect, angle: QUARTER }, [50, -100], [50, 100]);
+  check("a vertical segment crosses the unrotated rectangle's height", near(down, 38), String(down));
+  check("the same segment crosses the rotated rectangle's length", near(downTurned, 98, 1e-9), String(downTurned));
 
   // a shape thinner than twice the inset has no interior left to cross
   check("a shape thinner than the inset swallows nothing", segmentLengthInsideShape({ type: "rectangle", x: 0, y: 0, width: 2, height: 40 }, [-10, 20], [10, 20]) === 0);

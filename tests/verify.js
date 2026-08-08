@@ -6,12 +6,16 @@
  * the boundary tools/author.js actually calls: a parsed document in, and the
  * flat `{ code, message, elements, ...fields }` problems plus `stats` out.
  *
- * Each case asserts the *whole* code list its document yields, so a rule that
- * starts firing where it shouldn't fails here rather than passing unnoticed
- * alongside the defect it was meant to catch.
+ * Every rule the engine can fire is planted once, and each case asserts the
+ * *whole* code list its document yields — so a rule that starts firing where it
+ * shouldn't fails here rather than passing unnoticed alongside the defect it
+ * was meant to catch.
  *
  * Exits non-zero on any mismatch.
  */
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { verifyDocument } from "../tools/verify.js";
 
 const fail = [];
@@ -22,7 +26,11 @@ const check = (name, cond, detail) => {
 
 // A document the rules have no quarrel with, so anything a case adds is the
 // only thing under test: white canvas, house font, black ink on a white fill.
-const PROSE_FONT = 6;
+// The house pair is read the way the rule reads it, so a palette change moves
+// both together instead of turning every clean fixture here foreign-font.
+const { prose: PROSE_FONT } = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
+).fontFamily;
 const doc = (elements, extra = {}) => ({
   type: "excalidraw",
   elements,
@@ -185,19 +193,26 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
   const themes = r.problems.filter((p) => p.code === "low-contrast").map((p) => p.theme);
   check("a pair failing both themes yields one problem per theme", JSON.stringify([...themes].sort()) === '["dark","light"]', JSON.stringify(themes));
   check("nothing but contrast is flagged", only(r, "low-contrast", "low-contrast"), detail(r));
-  const p = find(r, "low-contrast");
+  const light = r.problems.find((p) => p.code === "low-contrast" && p.theme === "light");
+  const dark = r.problems.find((p) => p.code === "low-contrast" && p.theme === "dark");
   check(
-    "each contrast problem carries the ratio, the bar, and the pair it scored",
-    typeof p?.ratio === "number" && p.needs === 4.5 && /^#/.test(p.ink) && /^#/.test(p.bg) && JSON.stringify(p.elements) === '["t1"]',
-    JSON.stringify(p),
+    "the light problem carries the ratio it scored, the bar, and the pair",
+    light?.ratio === 2.85 && light.needs === 4.5 && light.ink === "#999999" && light.bg === "#FFFFFF" && JSON.stringify(light.elements) === '["t1"]',
+    JSON.stringify(light),
   );
+  check("the dark problem scores the same pair after the filter", dark?.ratio === 3.46 && dark.ink !== light?.ink, JSON.stringify(dark));
 
   // the bar moves with the size: #909090 on white is 3.19:1 light and 3.84:1
   // dark — under 4.5 for body text, over 3 for large text
   const pair = { containerId: "c1", strokeColor: "#909090" };
   const body = verifyDocument(doc([shape("c1", 0, 0, 200, 100), text("t1", 10, 10, 60, 25, pair)]));
   const large = verifyDocument(doc([shape("c1", 0, 0, 200, 100), text("t1", 10, 10, 60, 25, { ...pair, fontSize: 24 })]));
-  check("body text at that pair fails both themes", body.problems.length === 2 && body.problems.every((p) => p.needs === 4.5), detail(body));
+  check(
+    "body text at that pair fails both themes, 3.19 light and 3.84 dark",
+    body.problems.length === 2 && body.problems.every((p) => p.needs === 4.5) &&
+      JSON.stringify(body.problems.map((p) => p.ratio)) === "[3.19,3.84]",
+    detail(body),
+  );
   check("the same pair at 24px is scored against 3:1 and clears", large.problems.length === 0, detail(large));
 }
 
@@ -217,6 +232,78 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
 {
   const r = verifyDocument(doc([text("t1", 0, 0, 60, 25, { fontFamily: 1 })]));
   check("a foreign font is one problem naming the text", only(r, "foreign-font") && JSON.stringify(find(r, "foreign-font").elements) === '["t1"]', detail(r));
+}
+
+// ---- 12. an element the toolchain cannot render: unknown type, or no size ----
+{
+  const unknown = verifyDocument(doc([{ ...shape("s1", 0, 0, 50, 50), type: "sticky" }]));
+  check("an unknown type is one problem naming the element", only(unknown, "unknown-type") && JSON.stringify(find(unknown, "unknown-type").elements) === '["s1"]', detail(unknown));
+
+  const flat = verifyDocument(doc([shape("r1", 0, 0, 0, 100)]));
+  check("a zero-width shape is degenerate", only(flat, "degenerate"), detail(flat));
+
+  const stub = verifyDocument(doc([{ ...shape("a1", 0, 0, 0, 0), type: "arrow", points: [[0, 0], [0, 0]] }]));
+  check("a zero-length arrow is degenerate", only(stub, "degenerate"), detail(stub));
+}
+
+// ---- 13. a duplicate id silently drops an element on import ----
+{
+  const r = verifyDocument(doc([shape("dup", 0, 0, 50, 50), shape("dup", 60, 0, 50, 50)]));
+  check("a repeated id is one problem naming it", only(r, "duplicate-id") && JSON.stringify(find(r, "duplicate-id").elements) === '["dup"]', detail(r));
+}
+
+// ---- 14. a frame binding that resolves to nothing ----
+{
+  const r = verifyDocument(doc([shape("r1", 0, 0, 50, 50, { frameId: "ghost" })]));
+  check("an element bound to no frame is missing-frame", only(r, "missing-frame"), detail(r));
+  check("it names the element then the frame it wanted", JSON.stringify(find(r, "missing-frame").elements) === '["r1","ghost"]');
+}
+
+// ---- 15. an arrow bound to nothing ----
+{
+  const r = verifyDocument(doc([{ ...shape("a1", 0, 0, 100, 0), type: "arrow", points: [[0, 0], [100, 0]], endBinding: { elementId: "ghost" } }]));
+  check("an arrow pointing at no element is a dangling binding", only(r, "dangling-binding"), detail(r));
+  check("it names the arrow then the element it wanted", JSON.stringify(find(r, "dangling-binding").elements) === '["a1","ghost"]');
+}
+
+// ---- 16. free texts on top of each other render as one smear ----
+{
+  const r = verifyDocument(doc([text("t1", 0, 0, 100, 25), text("t2", 50, 0, 100, 25, { text: "Other" })]));
+  check("overlapping free texts are one problem naming both", only(r, "free-text-overlap") && JSON.stringify(find(r, "free-text-overlap").elements) === '["t1","t2"]', detail(r));
+}
+
+// ---- 17. an arrow straight through a shape it isn't bound to ----
+{
+  const s = shape("s1", 100, 0, 100, 100);
+  const through = verifyDocument(doc([s, { ...shape("a1", 0, 50, 300, 0), type: "arrow", points: [[0, 0], [300, 0]] }]));
+  check("an arrow crossing an unbound shape is a problem naming both", only(through, "arrow-crossing") && JSON.stringify(find(through, "arrow-crossing").elements) === '["a1","s1"]', detail(through));
+
+  // bound to the shape it stops in, the same approach is binding hygiene
+  const bound = verifyDocument(
+    doc([s, { ...shape("a1", 0, 50, 105, 0), type: "arrow", points: [[0, 0], [105, 0]], endBinding: { elementId: "s1" } }]),
+  );
+  check("an arrow bound to the shape it enters does not cross it", bound.problems.length === 0, detail(bound));
+}
+
+// ---- 18. an element parked far from everything else is a coordinate typo ----
+{
+  const r = verifyDocument(doc([shape("r1", 0, 0, 50, 50), shape("r2", 2000, 0, 50, 50)]));
+  check("a distant element is one stray, named once", only(r, "stray") && JSON.stringify(find(r, "stray").elements) === '["r1"]', detail(r));
+}
+
+// ---- 19. text over an image: a ground whose pixels no ratio can measure ----
+{
+  const files = { img1: { dataURL: "data:image/png;base64,iVBORw0KGgo=" } };
+  const r = verifyDocument(
+    doc([{ ...shape("i1", 0, 0, 200, 100), type: "image", fileId: "img1" }, text("t1", 50, 40, 60, 25)], { files }),
+  );
+  check("text over an image is flagged, not scored", only(r, "text-over-image") && JSON.stringify(find(r, "text-over-image").elements) === '["t1","i1"]', detail(r));
+}
+
+// ---- 20. an image whose bytes never made it into the file ----
+{
+  const r = verifyDocument(doc([{ ...shape("i1", 0, 0, 200, 100), type: "image" }]));
+  check("an image with no bytes is one problem naming it", only(r, "missing-image-bytes") && JSON.stringify(find(r, "missing-image-bytes").elements) === '["i1"]', detail(r));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nverifyDocument holds at its export");

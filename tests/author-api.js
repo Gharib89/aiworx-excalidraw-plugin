@@ -478,5 +478,97 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   check("the single-shot API still launches per call", launchCount() === 5, `${launchCount()} launches`);
 }
 
+// ---- 11. the finish register: one setting, applied to every element it governs ----
+{
+  const out = join(outDir, "register.excalidraw");
+  const result = await authorDiagram({
+    out,
+    svg: false,
+    register: {
+      roughness: 0,
+      strokeStyle: "dashed",
+      strokeWidth: 4,
+      fillStyle: "hachure",
+      endArrowhead: "triangle",
+      startArrowhead: "bar",
+    },
+    build: async ({ row, box, arrowBetween, palette: p, PROSE }) => {
+      const card = (id, role) =>
+        box({ type: "rectangle", x: 0, y: 0, width: 120, height: 60 },
+          { padding: 16, id, strokeColor: p.roles[role].stroke, backgroundColor: p.roles[role].fill });
+      const a = card("src", "local");
+      const b = card("dst", "artifact");
+      row([a, b], { gap: 120 });
+      return [a, b, arrowBetween(a, b, { standoff: 10, strokeColor: p.grey.stroke }),
+        { type: "text", x: 0, y: 200, text: "caption", fontSize: 18, fontFamily: PROSE }];
+    },
+  });
+  const shapes = result.elements.filter((e) => e.type === "rectangle");
+  const arrow = result.elements.find((e) => e.type === "arrow");
+  check("the register reaches every shape it governs",
+    shapes.length === 4 && shapes.every((e) =>
+      e.roughness === 0 && e.strokeStyle === "dashed" && e.strokeWidth === 4 && e.fillStyle === "hachure"),
+    JSON.stringify(shapes.map((e) => [e.roughness, e.strokeStyle, e.strokeWidth, e.fillStyle])));
+  check("the register reaches the arrow, arrowheads included",
+    arrow?.roughness === 0 && arrow.strokeStyle === "dashed" && arrow.strokeWidth === 4 &&
+      arrow.startArrowhead === "bar" && arrow.endArrowhead === "triangle",
+    `${arrow?.roughness}/${arrow?.strokeStyle}/${arrow?.strokeWidth}/${arrow?.startArrowhead}/${arrow?.endArrowhead}`);
+  const caption = result.elements.find((e) => e.type === "text");
+  check("the register leaves text alone", caption?.roughness !== 0 && caption?.strokeWidth !== 4,
+    `roughness ${caption?.roughness}, strokeWidth ${caption?.strokeWidth}`);
+}
+
+// a register is a default, not a law: the deliberate break still wins
+{
+  const out = join(outDir, "register-override.excalidraw");
+  const result = await authorDiagram({
+    out,
+    svg: false,
+    register: { roughness: 1, strokeWidth: 2, endArrowhead: "triangle" },
+    build: async ({ row, box, arrowBetween, palette: p }) => {
+      const card = (id, role, props = {}) =>
+        box({ type: "rectangle", x: 0, y: 0, width: 120, height: 60 },
+          { padding: 16, id, strokeColor: p.roles[role].stroke,
+            backgroundColor: p.roles[role].fill, ...props });
+      const a = card("src", "local", { roughness: 0 });
+      const b = card("dst", "artifact");
+      row([a, b], { gap: 120 });
+      return [a, b, arrowBetween(a, b,
+        { standoff: 10, strokeColor: p.grey.stroke, endArrowhead: null })];
+    },
+  });
+  const precise = result.elements.find((e) => e.id === "src");
+  const housed = result.elements.find((e) => e.id === "dst");
+  const arrow = result.elements.find((e) => e.type === "arrow");
+  check("a per-element value wins over the register",
+    precise?.roughness === 0 && housed?.roughness === 1,
+    `src ${precise?.roughness}, dst ${housed?.roughness}`);
+  check("an explicit null wins over the register too", arrow?.endArrowhead === null,
+    `endArrowhead ${JSON.stringify(arrow?.endArrowhead)}`);
+  check("the register still fills what the element left unset", precise?.strokeWidth === 2,
+    `strokeWidth ${precise?.strokeWidth}`);
+}
+
+// a typo in the register is a SkeletonError, not a silently ignored setting
+{
+  const out = join(outDir, "register-typo.excalidraw");
+  const r = await rejectsWith("SkeletonError", authorDiagram({
+    out,
+    build: async () => [{ type: "rectangle", x: 0, y: 0, width: 10, height: 10 }],
+    register: { stroke_width: 2 },
+  }));
+  check("an unknown register property is a SkeletonError",
+    r.ok && /stroke_width/.test(r.message) && /strokeWidth/.test(r.message), r.detail);
+  check("an unknown register property writes nothing", !existsSync(out));
+
+  const bad = await rejectsWith("SkeletonError", authorDiagram({
+    out,
+    build: async () => [{ type: "rectangle", x: 0, y: 0, width: 10, height: 10 }],
+    register: { fillStyle: "hatched" },
+  }));
+  check("an out-of-vocabulary register value is a SkeletonError",
+    bad.ok && /hatched/.test(bad.message) && /hachure/.test(bad.message), bad.detail);
+}
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");
 process.exit(fail.length ? 1 : 0);

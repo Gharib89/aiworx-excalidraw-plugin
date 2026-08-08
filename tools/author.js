@@ -372,6 +372,66 @@ function validateSkeleton(built) {
   return skeleton;
 }
 
+/** Everything the converter draws with a stroke — what a finish register governs. */
+const STROKED = new Set(["rectangle", "ellipse", "diamond", "arrow", "line", "freedraw"]);
+/** Shapes with an interior the register's fill governs. */
+const FILLED = new Set(["rectangle", "ellipse", "diamond"]);
+
+const ARROWHEADS = new Set([null, "arrow", "triangle", "diamond", "circle", "bar"]);
+
+/**
+ * The finish register: the properties a diagram sets once and holds across the
+ * whole picture, keyed to the elements each one governs. The vocabulary is the
+ * skill's — reference/patterns.md "Finish" and the arrowhead table — and the two
+ * must not drift.
+ */
+const REGISTER = {
+  roughness: { governs: STROKED, accepts: new Set([0, 1, 2]) },
+  strokeStyle: { governs: STROKED, accepts: new Set(["solid", "dashed", "dotted"]) },
+  strokeWidth: { governs: STROKED, accepts: (v) => Number.isFinite(v) && v > 0, expected: "a positive number" },
+  fillStyle: { governs: FILLED, accepts: new Set(["solid", "hachure", "cross-hatch"]) },
+  startArrowhead: { governs: new Set(["arrow"]), accepts: ARROWHEADS },
+  endArrowhead: { governs: new Set(["arrow"]), accepts: ARROWHEADS },
+};
+
+/**
+ * Fill the register's values into every skeleton element it governs, leaving
+ * whatever the element set for itself alone.
+ *
+ * The register is the diagram's finish held in one place; the per-element value
+ * still wins, which is how a deliberate break — roughness 0 on the one panel
+ * carrying real numbers, a headless connector in a flow of arrows — stays
+ * expressible. "Set for itself" is ownership, not truthiness: an explicit
+ * `startArrowhead: null` or `roughness: 0` is a choice, not an absence.
+ */
+function applyRegister(skeleton, register) {
+  if (register == null) return skeleton;
+  if (typeof register !== "object" || Array.isArray(register)) {
+    throw new SkeletonError(`register must be an object of finish properties, got ${typeof register}`);
+  }
+  for (const [key, value] of Object.entries(register)) {
+    const spec = REGISTER[key];
+    if (!spec) {
+      throw new SkeletonError(
+        `register has unknown property ${JSON.stringify(key)} — known: ${Object.keys(REGISTER).join(", ")}`,
+      );
+    }
+    const ok = typeof spec.accepts === "function" ? spec.accepts(value) : spec.accepts.has(value);
+    if (!ok) {
+      const expected = spec.expected ?? [...spec.accepts].map((v) => JSON.stringify(v)).join(", ");
+      throw new SkeletonError(
+        `register.${key} is ${JSON.stringify(value)} — expected ${expected}`,
+      );
+    }
+  }
+  return skeleton.map((el) => {
+    const fill = Object.entries(register).filter(
+      ([key, _]) => REGISTER[key].governs.has(el.type) && !Object.hasOwn(el, key),
+    );
+    return fill.length ? { ...el, ...Object.fromEntries(fill) } : el;
+  });
+}
+
 /** What the skeleton converter can bind an arrow to (transform.ts, 0.18.1). */
 const CONVERTER_BINDABLE = new Set(["rectangle", "ellipse", "diamond"]);
 
@@ -529,9 +589,9 @@ const buildContext = (ex, files) => ({
 });
 
 /** One diagram, built and written inside an already-open browser session. */
-async function authorInto(ex, { out, build, svg = true, background }) {
+async function authorInto(ex, { out, build, svg = true, background, register }) {
   const files = {};
-  const skeleton = validateSkeleton(await build(buildContext(ex, files)));
+  const skeleton = applyRegister(validateSkeleton(await build(buildContext(ex, files))), register);
   const stitches = planBindingStitches(skeleton);
   // regenerateIds: false — gate errors then name the author's own ids, and the
   // stitches can find their arrows again; validateSkeleton enforced uniqueness

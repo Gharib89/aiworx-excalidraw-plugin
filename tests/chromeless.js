@@ -50,8 +50,11 @@ check(
   fastSteps.filter((s) => !/^node\s+\S+$/.test(s)).join(", "),
 );
 
-// A path no filesystem hands back an executable for, on any of the three OSes.
-const NO_CHROME = join(root, "tools", "no-such-chrome-executable");
+// A path that cannot resolve to an executable on any of the three OSes: it
+// descends *through* package.json, which this suite just read as a file. No
+// filesystem lets a file be a directory, so nobody can create this by accident
+// and quietly turn the proof below into a no-op.
+const NO_CHROME = join(root, "package.json", "no-such-chrome-executable");
 
 for (const target of fastTargets) {
   const r = spawnSync(process.execPath, [join(root, target)], {

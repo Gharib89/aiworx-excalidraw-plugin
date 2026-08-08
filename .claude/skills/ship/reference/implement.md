@@ -20,8 +20,10 @@ refer back to this class by name.
   approval** (you're intentionally overriding tdd's plan-approval checkpoint;
   the merge gate is the review point). This repo's suites are plain Node scripts
   under `tests/` — a new case goes into the existing `tests/<area>.js` for the
-  area, wired into `npm test` via `package.json` only if it's a genuinely new
-  file.
+  area. A genuinely new file must be wired into **`test:fast` or
+  `test:browser`** in `package.json` — `tests/test-targets.js` fails on one
+  wired into neither or both, and a suite that needs Chrome belongs in
+  `test:browser`.
 - **`infra`** (tooling / refactor where a strict red→green is awkward — the
   change *is* the bundler, CI, a fixture, or `smoke.js` itself): don't force a
   contrived red. Extract the logic into a testable seam and unit-test its

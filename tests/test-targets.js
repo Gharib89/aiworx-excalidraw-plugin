@@ -5,10 +5,13 @@
  * The split adds a fast path; it must never narrow the CI gate. Three static
  * invariants keep that true:
  *
- *   1. `test` is exactly `test:fast` then `test:browser`, so no suite can be
- *      dropped from the gate by editing one target alone.
- *   2. Every suite file in tests/ runs in exactly one target — a new suite that
- *      is never wired in fails here instead of silently never running.
+ *   1. `test` is exactly `test:fast` then `test:browser`, so the chain cannot
+ *      grow a third target that CI never learns about.
+ *   2. The two targets together run *exactly* the gate's steps — every suite
+ *      file in tests/ plus the handful that live elsewhere, each exactly once.
+ *      A suite that is never wired in, wired into both, misspelled, or quietly
+ *      deleted from one target all fail here, which is the only thing standing
+ *      between the split and a narrower gate.
  *   3. `test:browser` still runs tests/chromeless.js, the empirical proof that
  *      `test:fast` needs no Chrome. That proof cannot live in `test:fast`
  *      itself (it re-runs the whole target, which would double its runtime),
@@ -16,7 +19,7 @@
  *
  * Exits non-zero on any mismatch.
  */
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,16 +34,19 @@ const check = (name, cond, detail) => {
 
 const scripts = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts;
 
-/** The `node <file>` targets a script chain runs, in order. */
-const nodeTargets = (script) =>
+/** Every `&&`-separated command a script chain runs, in order. */
+const steps = (script) =>
   (script ?? "")
     .split("&&")
-    .map((step) => step.trim().match(/^node\s+(\S+)$/))
-    .filter(Boolean)
-    .map((m) => m[1]);
+    .map((step) => step.trim())
+    .filter(Boolean);
 
-const fastTargets = nodeTargets(scripts["test:fast"]);
-const browserTargets = nodeTargets(scripts["test:browser"]);
+const fastSteps = steps(scripts["test:fast"]);
+const browserSteps = steps(scripts["test:browser"]);
+
+// Gate steps that are not suite files under tests/. Kept explicit so dropping
+// one — the hole a tests/-only scan would never see — fails here.
+const NON_SUITE_STEPS = ["node tools/palette.js", "npm run smoke"];
 
 // ---- 1. `test` composes the two targets, in order, and adds nothing ----
 {
@@ -49,39 +55,38 @@ const browserTargets = nodeTargets(scripts["test:browser"]);
     scripts.test === "npm run test:fast && npm run test:browser",
     scripts.test,
   );
-  check("test:fast runs suites", fastTargets.length > 0);
-  check("test:browser runs suites", browserTargets.length > 0);
+  check("test:fast runs steps", fastSteps.length > 0);
+  check("test:browser runs steps", browserSteps.length > 0);
 }
 
-// ---- 2. every suite in tests/ runs in exactly one target ----
+// ---- 2. the two targets run exactly the gate's steps, each exactly once ----
 {
-  const suites = readdirSync(join(root, "tests"))
+  const expected = readdirSync(join(root, "tests"))
     .filter((f) => f.endsWith(".js"))
-    .map((f) => `tests/${f}`)
+    .map((f) => `node tests/${f}`)
+    .concat(NON_SUITE_STEPS)
     .sort();
+  const actual = [...fastSteps, ...browserSteps].sort();
 
-  const missing = suites.filter(
-    (s) => !fastTargets.includes(s) && !browserTargets.includes(s),
-  );
-  check("every tests/*.js suite is wired into a target", missing.length === 0, missing.join(", "));
+  const missing = expected.filter((s) => !actual.includes(s));
+  const extra = actual.filter((s) => !expected.includes(s));
+  const duplicated = actual.filter((s, i) => actual.indexOf(s) !== i);
 
-  const both = suites.filter((s) => fastTargets.includes(s) && browserTargets.includes(s));
-  check("no suite runs in both targets", both.length === 0, both.join(", "));
-
-  const ghosts = [...fastTargets, ...browserTargets].filter((t) => !existsSync(join(root, t)));
-  check("every target names a file that exists", ghosts.length === 0, ghosts.join(", "));
+  check("no gate step is missing from the targets", missing.length === 0, missing.join(", "));
+  check("no target runs a step the gate does not have", extra.length === 0, extra.join(", "));
+  check("no step runs twice", duplicated.length === 0, duplicated.join(", "));
 }
 
 // ---- 3. the chromeless proof still runs, and runs on the browser side ----
 {
   check(
     "test:browser proves test:fast needs no Chrome",
-    browserTargets.includes("tests/chromeless.js"),
-    browserTargets.join(" "),
+    browserSteps.includes("node tests/chromeless.js"),
+    browserSteps.join(" && "),
   );
   check(
     "the chromeless proof stays out of test:fast",
-    !fastTargets.includes("tests/chromeless.js"),
+    !fastSteps.includes("node tests/chromeless.js"),
   );
 }
 

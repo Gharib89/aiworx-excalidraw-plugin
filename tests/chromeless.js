@@ -4,8 +4,9 @@
  *
  * Every suite named by `test:fast` is re-run here with CHROME_PATH pointed at
  * a path that cannot exist. tools/browser.js looks nowhere else once
- * CHROME_PATH is set, so a suite that depends on a real browser fails, and the
- * fast target stops being fast the moment one creeps in.
+ * CHROME_PATH is set, so any suite that *depends on a working Chrome* fails —
+ * which is the property the fast target's speed rests on. (A suite that merely
+ * imports tools/browser.js still passes, correctly: an import costs nothing.)
  *
  * It cannot be asserted statically: importing tools/browser.js is not the same
  * as launching Chrome (tests/error-classes.js imports it precisely to assert
@@ -31,13 +32,23 @@ const check = (name, cond, detail) => {
 };
 
 const scripts = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts;
-const fastTargets = (scripts["test:fast"] ?? "")
+const fastSteps = (scripts["test:fast"] ?? "")
   .split("&&")
-  .map((step) => step.trim().match(/^node\s+(\S+)$/))
+  .map((step) => step.trim())
+  .filter(Boolean);
+const fastTargets = fastSteps
+  .map((step) => step.match(/^node\s+(\S+)$/))
   .filter(Boolean)
   .map((m) => m[1]);
 
 check("test:fast names suites to prove", fastTargets.length > 0);
+// Fail closed: a step this suite cannot re-run (an env prefix, a flag, an
+// `npm run`) would otherwise be skipped in silence and still report green.
+check(
+  "every test:fast step is a plain `node <file>` this proof can re-run",
+  fastTargets.length === fastSteps.length,
+  fastSteps.filter((s) => !/^node\s+\S+$/.test(s)).join(", "),
+);
 
 // A path no filesystem hands back an executable for, on any of the three OSes.
 const NO_CHROME = join(root, "tools", "no-such-chrome-executable");

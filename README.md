@@ -64,7 +64,10 @@ worst one seen — 2 if an input could not be read at all, 1 if any file failed 
 rules, 0 if every file is clean. `--json` replaces the human output with one
 document (`{ ok, files: [{ file, ok, error?, problems, stats }] }`) covering
 every file, for pre-commit hooks and CI aggregation; the exit codes are the same
-either way.
+either way. Every problem code, with its `elements` order and per-code fields, is
+listed in `skills/excalidraw-diagram/reference/problem-codes.md` — the vocabulary
+is append-only and `tests/problem-codes.js` fails when a rule lands without
+publishing its code.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,

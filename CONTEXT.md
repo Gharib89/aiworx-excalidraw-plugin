@@ -32,7 +32,10 @@ The stable kebab-case identifier the gate attaches to one kind of defect (e.g. `
 _Avoid_: error code, rule id
 
 **Stray**:
-An element that sits outside every frame in a framed diagram. Strays fail the gate.
+An element sitting off-canvas — far enough from every other element that it reads as
+left behind rather than placed. Strays fail the gate. Merely sitting outside every
+frame is not a stray: titles, legends and captions legitimately do, and the gate
+counts them (`stats.outsideAll`) instead of refusing them.
 _Avoid_: orphan
 
 **Isomorphism test**:

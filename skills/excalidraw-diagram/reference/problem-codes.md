@@ -1,0 +1,93 @@
+# Problem codes
+
+The gate's complete vocabulary. Machine handling keys on `code` — the `message`
+prose carries no contract and may be reworded at any time.
+
+The set is **append-only**: a code is added, never renamed or repurposed. A code
+that has to change ships as a new code alongside the old one. The old code is
+marked `deprecated` here and keeps being emitted while consumers migrate; it stops
+being emitted later, and its row stays in this table for good so the name is never
+reused. So `live` means "emitted, rely on it", `deprecated` means "listed, may or
+may not still be emitted — migrate off it".
+
+## Report shape
+
+`check.js --json` prints one document per invocation:
+
+```jsonc
+{
+  "ok": false,                    // every file passed
+  "files": [{
+    "file": "diagram.excalidraw",
+    "ok": false,
+    "problems": [ /* problem objects, below */ ],
+    "stats": { "elements": 42, "frames": 3, "texts": 12, "outsideAll": 1 },
+    "error": { "code": "invalid-json", "message": "…" }  // instead of problems
+  }]
+}
+```
+
+- `problems` — one object per defect. Empty when the file passed.
+- `stats` — counts for the file, or `null` when it never reached the rules.
+  `outsideAll` counts elements that belong to no frame **and** touch no frame.
+  That is legal (titles, legends and captions sit outside the band); the count is
+  reported so an author can notice an element they meant to bind.
+- `error` — present **instead of** a problem list when the file could not be
+  checked at all. `stats` is `null` and `problems` is empty.
+
+Every problem object carries three fields, plus the per-code fields in the table:
+
+| field | type | meaning |
+|---|---|---|
+| `code` | string | the stable kebab-case identifier below |
+| `message` | string | human prose — no contract, do not parse |
+| `elements` | string[] | the element ids involved, in the order the table names |
+
+## Element-level codes
+
+Emitted by the rules in `verify.js`. Any of them fails the file — the gate has no
+warning level.
+
+| code | status | `elements` | extra fields | fails when |
+|---|---|---|---|---|
+| `malformed-element` | live | (empty) | `index` | the entry at that array index is not an element object |
+| `unknown-type` | live | [element] | — | the element's `type` is not one the gate knows |
+| `non-finite-geometry` | live | [element] | — | a coordinate or size is `NaN` or `Infinity` |
+| `degenerate` | live | [element] | — | a line or arrow has zero length, or a shape zero/negative size |
+| `duplicate-id` | live | [element] | — | two elements share one id |
+| `frame-overlap` | live | [frame, frame] | — | two frames' outlines overlap |
+| `missing-container` | live | [text, container] | — | bound text names a container that is deleted or absent |
+| `text-overflow` | live | [text, container] | — | bound text exceeds the container's usable interior |
+| `missing-frame` | live | [element, frame] | — | an element names a frame that is deleted or absent |
+| `frame-escape` | live | [element, frame] | `element`, `frame` (boxes) | an element's outline leaves the frame it belongs to |
+| `unbound-over-frame` | live | [element, frame] | — | an element sits over a frame without belonging to it, so per-frame export puts it in the wrong panel |
+| `dangling-binding` | live | [arrow, target] | — | an arrow's `startBinding`/`endBinding` points at a deleted or absent element |
+| `free-text-overlap` | live | [text, text] | — | two unbound texts' outlines overlap |
+| `arrow-crossing` | live | [arrow, shape] | — | an arrow's polyline passes through a solid shape it is not bound to |
+| `arrow-buried` | live | [arrow, target] | `depth` | an arrowhead or tail lands too far inside its target to read |
+| `stray` | live | [element] | — | an element sits more than 1000px from anything else — off-canvas, not merely outside a frame |
+| `unparseable-color` | live | [element] or (empty) | `field`, `value` | a colour field is neither a hex value, `transparent`, nor empty |
+| `text-over-image` | live | [text, image] | — | text sits over an image, whose pixels are a ground no contrast ratio can measure |
+| `low-contrast` | live | [text] | `ratio`, `needs`, `ink`, `bg`, `theme` | text misses 4.5:1 (3:1 for large text) against its ground, under the named theme |
+| `foreign-font` | live | [text] | — | the text's `fontFamily` is outside the house pair |
+| `missing-image-bytes` | live | [image] | — | the image's `fileId` has no bytes in the files dictionary |
+
+Both themes are scored on every run: the dark export is a CSS filter over the
+same colours and does not preserve contrast ratios, so `low-contrast` names the
+`theme` it failed under.
+
+## File-level codes
+
+Emitted by `check.js` for a file that never reached the rules. They appear under
+`error`, never in `problems`.
+
+| code | status | exit | fails when |
+|---|---|---|---|
+| `unreadable` | live | 2 | the file cannot be read at all — this outranks a rule failure, so a typo'd path is never mistaken for a bad diagram |
+| `empty-file` | live | 1 | the file is empty |
+| `invalid-json` | live | 1 | the file is not valid JSON |
+| `not-excalidraw` | live | 1 | the JSON is not an Excalidraw document |
+| `check-crashed` | live | 1 | the gate itself threw while checking the file |
+
+A batch reports the worst exit code across its files, so an unreadable input (2)
+outranks a file that failed the rules (1) instead of hiding behind it.

@@ -30,7 +30,7 @@ function extent(node) {
     throw new LayoutError(
       `needs finite width and height (got ${w}x${h})`,
       {
-        where: node?.id ?? `layout item ${JSON.stringify(node?.type ?? node?.kind)}`,
+        where: node?.id || `layout item ${JSON.stringify(node?.type ?? node?.kind)}`,
         next: "Measure text first, size shapes explicitly.",
       },
     );

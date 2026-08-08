@@ -105,6 +105,48 @@ the same rules as `check.js` **in-process, before the file is written**: a
 defective build throws a `GateError` listing every defect and writes nothing.
 The output directory is created for you.
 
+## The finish register
+
+Finish is chosen once per diagram, not per element. `register:` sets it once and
+it reaches every element it governs:
+
+```js
+await authorDiagram({
+  out: "docs/diagrams/thing.excalidraw",
+  register: { roughness: 1, fillStyle: "solid", strokeWidth: 2 },
+  build: async (ctx) => [ /* … */ ],
+});
+```
+
+| property | governs | accepts |
+|---|---|---|
+| `roughness` | rectangle, ellipse, diamond, arrow, line, freedraw | `0`, `1`, `2` |
+| `strokeStyle` | the same | `"solid"`, `"dashed"`, `"dotted"` |
+| `strokeWidth` | the same | any positive number |
+| `fillStyle` | rectangle, ellipse, diamond | `"solid"`, `"hachure"`, `"cross-hatch"` |
+| `startArrowhead` | arrow | `null`, `"arrow"`, `"triangle"`, `"diamond"`, `"circle"`, `"bar"` |
+| `endArrowhead` | arrow | the same |
+
+See [patterns.md](patterns.md) for what each value *means* — the register is the
+mechanism, that file is the vocabulary.
+
+Three things to know:
+
+- **The register is a default, not a law.** An element that sets the property
+  itself keeps its own value, which is how a deliberate break stays sayable —
+  `roughness: 0` on the one panel carrying real numbers, `endArrowhead: null` on
+  a plain connector in a flow of arrows. Setting it to `null` or `0` counts as
+  setting it; only an absent property is filled.
+- **It governs only what it lists.** Text, frames and images are untouched by
+  the stroke properties, and arrowheads only ever reach arrows.
+- **A typo is an error, not a no-op.** An unknown property or an
+  out-of-vocabulary value throws a `SkeletonError` naming the property, the
+  value and the accepted set, before any browser work — `register: { stroke_width: 2 }`
+  fails loudly rather than silently changing nothing.
+
+Omit `register` and every element keeps whatever it set for itself, exactly as
+before.
+
 ## Many diagrams in one run
 
 Each `authorDiagram` call launches and closes its own headless browser (~1–2 s).

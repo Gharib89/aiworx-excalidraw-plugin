@@ -55,7 +55,7 @@ _Avoid_: import, paste
 ### Style
 
 **Register**:
-The per-diagram set of finish choices — roughness, stroke style, stroke width, arrowheads — held consistent across the whole picture.
+The per-diagram set of finish choices — roughness, stroke style, stroke width, fill style, arrowheads — held consistent across the whole picture. Set once via `register:` on the authoring call; a per-element value overrides it where the register must be broken deliberately.
 _Avoid_: theme, style preset
 
 **House pair**:

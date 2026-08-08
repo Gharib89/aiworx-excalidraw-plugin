@@ -178,8 +178,12 @@ Prose and labels use `fontFamily: 6` (Nunito); code, JSON and file paths use
 diagram renders identically for anyone. A family naming a system font — Helvetica
 among them — substitutes per machine and reflows the layout.
 
-Finish — roughness, fill style, arrowheads, opacity as depth — is a register
-chosen once per diagram; see [reference/patterns.md](reference/patterns.md).
+Finish — roughness, stroke style, stroke width, fill style, arrowheads — is a
+register chosen once per diagram and set once, with `register:` on the
+`authorDiagram` call; opacity stays per element, because depth is the one cue
+that has to vary. See [reference/patterns.md](reference/patterns.md) for what
+each value means and [reference/authoring.md](reference/authoring.md) for the
+option.
 
 See [reference/palette.md](reference/palette.md) for the exact values and how the
 palette is verified.

@@ -4,8 +4,11 @@ The gate's complete vocabulary. Machine handling keys on `code` — the `message
 prose carries no contract and may be reworded at any time.
 
 The set is **append-only**: a code is added, never renamed or repurposed. A code
-that has to change ships as a new code alongside the old one, and the old one is
-marked `deprecated` here before it stops being emitted.
+that has to change ships as a new code alongside the old one. The old code is
+marked `deprecated` here and keeps being emitted while consumers migrate; it stops
+being emitted later, and its row stays in this table for good so the name is never
+reused. So `live` means "emitted, rely on it", `deprecated` means "listed, may or
+may not still be emitted — migrate off it".
 
 ## Report shape
 

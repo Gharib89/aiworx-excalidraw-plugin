@@ -8,18 +8,19 @@
  * skills/excalidraw-diagram/reference/problem-codes.md — and a hand-written
  * registry rots the first time a rule lands without it. The invariants:
  *
- *   1. every code tools/verify.js emits is listed `live` in the element-level
- *      section, and every code tools/check.js emits is listed `live` in the
- *      file-level one — a new rule that skips the registry fails here, which is
- *      the only thing standing between "public contract" and "read the source";
+ *   1. every code tools/verify.js emits appears in the element-level section, and
+ *      every code tools/check.js emits appears in the file-level one — a new rule
+ *      that skips the registry fails here, which is the only thing standing
+ *      between "public contract" and "read the source". `deprecated` counts as
+ *      listed: under add-new-plus-deprecate the old code keeps coming out beside
+ *      its replacement while consumers migrate, so forbidding that overlap would
+ *      forbid the only migration path the append-only rule allows;
  *   2. no `live` row names a code nothing emits, so the registry cannot promise
- *      a code that was quietly dropped;
- *   3. no `deprecated` row is still emitted — deprecation is how a rename ships
- *      under the append-only rule, and it only means anything once the old code
- *      has actually stopped coming out;
- *   4. every emission site yields a literal code. Rules 1-3 read the sources
- *      with a regex, and a computed code (`note(code, …)`) would be invisible to
- *      it *and* absent from the registry — a silent pass in both directions.
+ *      a code that was quietly dropped. A code that has finished retiring moves
+ *      to `deprecated` and stays listed for good — the name is never reused;
+ *   3. every emission site yields a literal code. Rules 1-2 read the sources with
+ *      a regex, and a computed code (`note(code, …)`) would be invisible to it
+ *      *and* absent from the registry — a silent pass in both directions.
  *      Counting call sites against literal matches is what closes that hole.
  *
  * Exits non-zero on any mismatch, naming the codes on each side.
@@ -55,7 +56,7 @@ const emitted = {
   file: new Set(literal(checkCli, ERROR_CODE)),
 };
 
-// Invariant 4 — every site the regexes below scan must carry a literal code.
+// Invariant 3 — every site the regexes below scan must carry a literal code.
 // A site the regex cannot read is a code the registry can silently omit.
 check(
   "every verify.js note() names a literal code",
@@ -92,17 +93,14 @@ for (const [level, heading] of Object.entries(SECTIONS)) {
     continue;
   }
   const live = new Set(listed.filter((r) => r.status === "live").map((r) => r.code));
-  const deprecated = new Set(listed.filter((r) => r.status === "deprecated").map((r) => r.code));
+  const known = new Set(listed.map((r) => r.code));
   const list = (codes) => codes.sort().join(", ");
 
-  const unlisted = [...emitted[level]].filter((c) => !live.has(c));
-  check(`every ${level}-level code emitted is listed live`, unlisted.length === 0, list(unlisted));
+  const unlisted = [...emitted[level]].filter((c) => !known.has(c));
+  check(`every ${level}-level code emitted is in the registry`, unlisted.length === 0, list(unlisted));
 
   const phantom = [...live].filter((c) => !emitted[level].has(c));
   check(`no ${level}-level code is listed live but never emitted`, phantom.length === 0, list(phantom));
-
-  const undead = [...deprecated].filter((c) => emitted[level].has(c));
-  check(`no ${level}-level code is deprecated but still emitted`, undead.length === 0, list(undead));
 }
 
 console.log(

@@ -374,10 +374,12 @@ function validateSkeleton(built) {
 
 /** Everything the converter draws with a stroke — what a finish register governs. */
 const STROKED = new Set(["rectangle", "ellipse", "diamond", "arrow", "line", "freedraw"]);
-// A closed `line` fills from backgroundColor and honours fillStyle exactly as the
-// area shapes do, so it belongs here. `freedraw` does not: this toolchain has no
-// freedraw helper and a hand-written one does not render from a plain point list.
-/** Shapes with an interior the register's fill governs. */
+/**
+ * Shapes with an interior the register's fill governs. A closed `line` fills
+ * from backgroundColor and honours fillStyle exactly as the area shapes do, so
+ * it belongs here; `freedraw` does not — this toolchain ships no freedraw helper
+ * and a hand-written one does not render from a plain point list.
+ */
 const FILLED = new Set(["rectangle", "ellipse", "diamond", "line"]);
 
 /** One register property: which elements it reaches, and what it accepts. */
@@ -411,7 +413,9 @@ const REGISTER = {
 function validateRegister(register) {
   if (register == null) return;
   if (typeof register !== "object" || Array.isArray(register)) {
-    throw new SkeletonError(`register must be an object of finish properties, got ${typeof register}`);
+    throw new SkeletonError(
+      `register must be an object of finish properties, got ${Array.isArray(register) ? "an array" : typeof register}`,
+    );
   }
   for (const [key, value] of Object.entries(register)) {
     const spec = REGISTER[key];
@@ -443,10 +447,9 @@ function validateRegister(register) {
  */
 function applyRegister(skeleton, register) {
   if (register == null) return skeleton;
+  const set = Object.entries(register);
   return skeleton.map((el) => {
-    const fill = Object.entries(register).filter(
-      ([key]) => REGISTER[key].governs.has(el.type) && !Object.hasOwn(el, key),
-    );
+    const fill = set.filter(([key]) => REGISTER[key].governs.has(el.type) && !Object.hasOwn(el, key));
     return fill.length ? { ...el, ...Object.fromEntries(fill) } : el;
   });
 }

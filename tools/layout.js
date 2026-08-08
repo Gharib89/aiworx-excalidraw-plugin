@@ -241,10 +241,12 @@ function labelSpec(label) {
 
 /**
  * An arrow that owns the gap between two placed shapes (or boxes): it leaves the
- * source edge `standoff` px out, enters the target edge `standoff` px short, and
- * writes explicit points — the converter does not run the app's elbow router, so
- * a routed path goes in as `via` waypoints (absolute coordinates) and keeps its
- * corners with roundness off.
+ * source edge `standoff` px out and enters the target edge `standoff` px short.
+ *
+ * The converter does not run the app's elbow router, so a path with corners goes
+ * in as explicit points with roundness off. `route: "orthogonal"` computes those
+ * points — see `elbow` — and `via` takes them by hand as absolute coordinates;
+ * asking for both is a `LayoutError`.
  *
  * `label` annotates the edge: `{ label: "writes" }` binds measured text to the
  * arrow, centred on the path. It is drawn over whatever lies behind it, so a

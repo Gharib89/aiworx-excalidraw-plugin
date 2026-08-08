@@ -267,9 +267,9 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   }
   if (route !== undefined && via.length) {
     throw new LayoutError(
-      `arrowBetween between ${edge()} takes route: ${JSON.stringify(route)} or ${via.length} ` +
-        "via waypoints, not both — drop via to have the route computed, or drop route to keep " +
-        "your own path",
+      `arrowBetween takes route: ${JSON.stringify(route)} or ${via.length} via waypoints, ` +
+        `not both (arrow between ${edge()}) — drop via to have the route computed, or drop ` +
+        "route to keep your own path",
     );
   }
   requireBindable(a, "source");

@@ -163,6 +163,51 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
     (gate.stdout + gate.stderr).trim().split("\n").pop());
 }
 
+// a computed orthogonal route survives the real converter and the real gate:
+// axis-aligned all the way, still bound at both ends, crossing neither shape.
+// Fixed rectangle sizes keep the expected path independent of text measurement,
+// so this asserts the same geometry on every OS in the matrix.
+{
+  const out = join(outDir, "elbow.excalidraw");
+  const result = await authorDiagram({
+    out,
+    build: ({ arrowBetween, palette: p, PROSE }) => {
+      const stage = (id, x, y, text) => ({
+        type: "rectangle", id, x, y, width: 200, height: 80,
+        label: { text, fontSize: 16, fontFamily: PROSE, strokeColor: p.grey.ink },
+        strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill,
+        roundness: { type: 3 },
+      });
+      const a = stage("src", 0, 0, "source");
+      const b = stage("dst", 320, 220, "target");
+      return [a, b, arrowBetween(a, b, { standoff: 10, route: "orthogonal",
+        strokeColor: p.grey.stroke, strokeWidth: 2 })];
+    },
+  });
+  const arrow = result.elements.find((el) => el.type === "arrow");
+  const abs = arrow.points.map(([px, py]) => [arrow.x + px, arrow.y + py]);
+  const axisAligned = abs.every(([px, py], i) =>
+    i === 0 || px === abs[i - 1][0] || py === abs[i - 1][1]);
+  // the converter nudges a bound endpoint a half pixel *along* its own run, so
+  // pin the elbow's shape — the two vertical runs and the mid-line jog between
+  // them — rather than the endpoint coordinates it is free to adjust
+  check("the routed arrow reaches the converter as an elbow",
+    abs.length === 4 && abs[0][0] === 100 && abs[3][0] === 420 &&
+      abs[1][1] === 150 && abs[2][1] === 150, JSON.stringify(abs));
+  check("every routed segment is axis-aligned", axisAligned, JSON.stringify(abs));
+  // acceptance criterion, measured on real output: the route owns the gap, so
+  // every vertex sits between the source's bottom edge and the target's top
+  check("the routed arrow clears both shapes it connects",
+    abs.every(([, py]) => py > 80 && py < 220), JSON.stringify(abs));
+  check("the routed arrow keeps its corners through the converter", arrow.roundness === null);
+  check("the routed arrow stays bound at both ends",
+    arrow.startBinding?.elementId === "src" && arrow.endBinding?.elementId === "dst",
+    `${arrow.startBinding?.elementId} -> ${arrow.endBinding?.elementId}`);
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("the routed diagram passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
 // hand-edit: shorten the title but keep its stale (too-wide) metrics, and point
 // an arrow binding at an element that does not exist
 {

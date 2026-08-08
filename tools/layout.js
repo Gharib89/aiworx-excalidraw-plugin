@@ -197,6 +197,28 @@ function requireBindable(node, side) {
   }
 }
 
+/**
+ * Waypoints turning a straight run between two standoff endpoints into an
+ * orthogonal one: leave level, jog once across the gap's mid-line, arrive level.
+ *
+ * Endpoints already level (the shapes' cross ranges overlap, so the run has no
+ * slope to remove) need no waypoint — the two-point arrow is already orthogonal.
+ *
+ * The jog cannot touch either shape: `arrowBetween` has already refused a
+ * separation of `2 * standoff` or less, so both endpoints clear their own edge
+ * and the mid-line sits strictly inside the gap.
+ */
+function elbow([sx, sy], [ex, ey], horizontal) {
+  if (horizontal) {
+    if (sy === ey) return [];
+    const mx = (sx + ex) / 2;
+    return [[mx, sy], [mx, ey]];
+  }
+  if (sx === ex) return [];
+  const my = (sy + ey) / 2;
+  return [[sx, my], [ex, my]];
+}
+
 /** One step below body prose: an edge annotation, not a heading. */
 const LABEL_FONT_SIZE = 16;
 
@@ -229,7 +251,19 @@ function labelSpec(label) {
  * label wider than a short arrow is normal — but check the render when the arrow
  * runs close to a neighbour.
  */
-export function arrowBetween(a, b, { standoff = 10, via = [], label, ...style } = {}) {
+export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...style } = {}) {
+  if (route !== undefined && route !== "orthogonal") {
+    throw new LayoutError(
+      `arrowBetween route must be "orthogonal", got ${JSON.stringify(route)} — ` +
+        "that is the only computed route; for any other path pass the waypoints yourself as via",
+    );
+  }
+  if (route !== undefined && via.length) {
+    throw new LayoutError(
+      `arrowBetween cannot take both route: ${JSON.stringify(route)} and ${via.length} via ` +
+        "waypoint(s) — drop via to have the route computed, or drop route to keep your own path",
+    );
+  }
   requireBindable(a, "source");
   requireBindable(b, "target");
   const A = boundsOf(a);
@@ -266,7 +300,9 @@ export function arrowBetween(a, b, { standoff = 10, via = [], label, ...style } 
     end = [ex, topToBottom ? B.y1 - standoff : B.y2 + standoff];
   }
 
-  const points = [start, ...via, end].map(([px, py]) => [px - start[0], py - start[1]]);
+  const waypoints = route === "orthogonal" ? elbow(start, end, dxGap >= dyGap) : via;
+
+  const points = [start, ...waypoints, end].map(([px, py]) => [px - start[0], py - start[1]]);
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
   const arrow = {
@@ -276,7 +312,7 @@ export function arrowBetween(a, b, { standoff = 10, via = [], label, ...style } 
     width: Math.max(...xs) - Math.min(...xs),
     height: Math.max(...ys) - Math.min(...ys),
     points,
-    ...(via.length ? { roundness: null } : {}),
+    ...(waypoints.length ? { roundness: null } : {}),
     ...(label !== undefined ? { label: labelSpec(label) } : {}),
     ...style,
   };

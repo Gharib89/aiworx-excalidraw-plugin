@@ -193,6 +193,53 @@ const throwsLayoutError = (fn) => {
   check("routed arrow keeps its corners", arrow.roundness === null);
 }
 {
+  // a requested orthogonal route jogs at the gap's mid-line instead of running
+  // diagonally: out level from the source, across, then level into the target
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 300, y: 120, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10, route: "orthogonal" });
+  check("an orthogonal route elbows through the gap",
+    arrow.x === 110 && arrow.y === 25 &&
+      JSON.stringify(arrow.points) === "[[0,0],[90,0],[90,120],[180,120]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+  check("an orthogonal route sizes itself over its waypoints",
+    arrow.width === 180 && arrow.height === 120, `${arrow.width}x${arrow.height}`);
+  check("an orthogonal route keeps its corners", arrow.roundness === null);
+  check("an orthogonal route still binds both ends",
+    arrow.start.id === "a" && arrow.end.id === "b");
+  check("route is not passed through to the element", !("route" in arrow));
+}
+{
+  // the dominant separation picks the axis: a mostly-vertical pair leaves and
+  // arrives vertically, and jogs sideways at the gap's mid-line
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 120, y: 300, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10, route: "orthogonal" });
+  check("a vertical-dominant orthogonal route jogs sideways",
+    arrow.x === 50 && arrow.y === 60 &&
+      JSON.stringify(arrow.points) === "[[0,0],[0,115],[120,115],[120,230]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // already level: an orthogonal route has no slope to remove, so it adds no
+  // waypoint and leaves roundness alone — the same arrow the direct route draws
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10, route: "orthogonal" });
+  check("a level run needs no elbow",
+    JSON.stringify(arrow.points) === "[[0,0],[40,0]]", JSON.stringify(arrow.points));
+  check("a level orthogonal route leaves roundness alone", !("roundness" in arrow));
+}
+{
+  // a computed route and hand-written waypoints are two answers to one question
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 50, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 200, y: 200, width: 50, height: 50 };
+  check("route together with via is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, b, { route: "orthogonal", via: [[125, 25]] })));
+  check("an unknown route is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, b, { route: "elbowed" })));
+}
+{
   const a = { type: "rectangle", x: 0, y: 0, width: 100, height: 100 };
   const b = { type: "rectangle", x: 50, y: 50, width: 100, height: 100 };
   check("overlapping shapes leave no gap to own",

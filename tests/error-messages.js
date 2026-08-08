@@ -8,11 +8,9 @@
  * never links, which rot faster than messages do.
  *
  * Three halves, because the bar needs both universality and truth:
- *   1. every throw site in tools/ passes `where` and `next` — a static walk of
- *      the sources, so a new throw that skips the bar fails here rather than
- *      reaching a user (page.js is exempt: it is minified into the page bundle
- *      and its FontIntegrityError reaches the user wrapped in a PageError, which
- *      carries the bar itself)
+ *   1. every error tools/ constructs passes `where` and `next` — a static walk
+ *      of the sources, so a new one that skips the bar fails here rather than
+ *      reaching a user
  *   2. the composed message really carries all three, for every error class
  *   3. real thrown errors — the ones reachable without a browser — carry them
  *      too, so the static walk is checking a field that has teeth
@@ -82,9 +80,12 @@ function closingParen(text, from) {
   return -1;
 }
 
+// Every construction, not only `throw new` — an error handed to a reject
+// callback or returned from a helper reaches the user just the same, and a walk
+// that only saw `throw` would exempt it.
 const throwSites = (text, file) => {
   const sites = [];
-  const re = /throw new ([A-Za-z]\w*Error)\(/g;
+  const re = /new ([A-Za-z]\w*Error)\(/g;
   for (let m; (m = re.exec(text));) {
     const end = closingParen(text, re.lastIndex);
     sites.push({
@@ -97,8 +98,12 @@ const throwSites = (text, file) => {
   return sites;
 };
 
+// errors.js only declares the classes — the one construction in it is the doc
+// comment's example. page.js is minified into the page bundle and its
+// FontIntegrityError reaches the user wrapped in a PageError, which carries the
+// bar itself.
 const sites = readdirSync(toolsDir)
-  .filter((f) => f.endsWith(".js") && f !== "page.js")
+  .filter((f) => f.endsWith(".js") && f !== "page.js" && f !== "errors.js")
   .flatMap((f) => throwSites(readFileSync(join(toolsDir, f), "utf8"), f));
 
 check("the sources yield throw sites to audit", sites.length > 0, `${sites.length} sites`);

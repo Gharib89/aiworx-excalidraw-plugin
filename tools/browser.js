@@ -192,7 +192,9 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
     const loadFailed = new Promise((_, rej) => (rejectLoad = rej));
     loadFailed.catch(() => {});
     const onLoadError = (e) =>
-      rejectLoad(new BundleLoadError(withIssues(`the bundle threw while loading: ${e.message}`)));
+      rejectLoad(new BundleLoadError(withIssues(`the bundle threw while loading: ${e.message}`), {
+        where: BUNDLE, next: "Run: npm run bundle",
+      }));
     page.on("pageerror", onLoadError);
     try {
       // Chrome reads the bundle off disk through the loader's relative script

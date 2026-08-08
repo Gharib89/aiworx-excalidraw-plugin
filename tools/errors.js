@@ -27,7 +27,11 @@
  */
 export class NamedError extends Error {
   constructor(what, { where = "", next = "" } = {}) {
-    super([where && `${where}:`, what, next && `— ${next}`].filter(Boolean).join(" "));
+    // A `what` that lists things (paths tried, defects found) ends on a list
+    // line; joining the remedy onto it with an em dash would read as one more
+    // list entry, so it goes on its own line instead.
+    const joined = [where && `${where}:`, what].filter(Boolean).join(" ");
+    super(next ? joined + (what.includes("\n") ? `\n${next}` : ` — ${next}`) : joined);
     this.name = new.target.name;
     this.what = what;
     this.where = where;

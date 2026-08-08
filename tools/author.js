@@ -559,7 +559,7 @@ function applyBindingStitches(elements, stitches) {
     if (!arrow || !target) {
       throw new SkeletonError(`was lost by convert though a ${end} binding was planned for it`, {
         where: !arrow ? `arrow ${arrowId}` : `element ${targetId}`,
-        next: "This is a converter bug — file an issue with the skeleton that triggered it.",
+        next: "Report this as a converter bug, with the skeleton that triggered it.",
       });
     }
     const pts = outline(arrow);

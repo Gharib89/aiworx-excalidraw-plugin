@@ -48,7 +48,9 @@ Two traps it handles, both verified in `tools/smoke.js`:
 ## Commands
 
 ```bash
-npm test                          # layout + gate fixtures + dark theme + failure paths + render/revise CLIs + palette + author API + assets + browser smoke
+npm test                          # everything: npm run test:fast, then npm run test:browser
+npm run test:fast                 # ~12s, no Chrome: layout + wrap + gate fixtures + dark theme + palette
+npm run test:browser              # the rest: failure paths, render/revise CLIs, author API, assets, browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/ (bundle + loader page) from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect

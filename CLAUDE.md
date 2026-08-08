@@ -9,13 +9,17 @@ Plain Node ≥18 ESM, no build step for consumers: the browser bundle (`dist/exc
 ```bash
 npm ci --omit=dev                 # runtime deps (playwright-core) — all a checkout needs to run the tests
 npm ci                            # + dev deps (esbuild, @excalidraw/excalidraw, react) — needed only to rebundle
-npm test                          # full suite: layout, wrap, gate, dark, failure paths, CLIs, palette, author API, browser smoke
+npm test                          # full suite — test:fast then test:browser; this is what CI runs
+npm run test:fast                 # ~12s, launches no Chrome: layout, wrap, gate, dark, palette — the iteration loop
+npm run test:browser              # the Chrome-dependent rest: failure paths, CLIs, author API, assets, smoke
 node tests/<area>.js              # one suite file directly (e.g. tests/gate.js) — they're plain Node scripts
 npm run bundle                    # rebuild dist/ from tools/page.js
 node tools/check.js d.excalidraw  # mechanical gate on a diagram; --json for machines
 ```
 
 CI (`.github/workflows/ci.yml`): `npm test` on a **3-OS matrix** (ubuntu / macos / windows — browser discovery and path handling are per-OS claims) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, smoke it, gate the clean fixture). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
+
+A **new suite must be wired into `test:fast` or `test:browser`** — `tests/test-targets.js` fails on one that is in neither, in both, or missing from disk, and it pins `test` to exactly `test:fast && test:browser` so the split can never narrow the gate. `test:fast` stays Chrome-free: `tests/chromeless.js` (in `test:browser`) re-runs every fast suite with `CHROME_PATH` pointed at nothing. Importing `tools/browser.js` is fine — only a *successful launch* breaks the fast target.
 
 ## Bundle discipline
 

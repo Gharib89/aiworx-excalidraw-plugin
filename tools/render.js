@@ -158,7 +158,7 @@ try {
     mkdirSync(outDir, { recursive: true });
   } catch (err) {
     throw new UsageError(`cannot create output directory — ${err.message}`, {
-      where: outDir, next: "Point --out at a path that is not an existing file.",
+      where: outDir, next: "Point --out at a writable directory path.",
     });
   }
 

@@ -39,7 +39,8 @@ a `line` or multi-point `arrow` that must stay angular needs `roundness: null`.
 The app's elbow router does not run in the converter: an arrow given
 `elbowed: true` keeps the flag but stays a straight two-point line. An
 orthogonal route is therefore written out as explicit `points`, with
-`roundness: null` to keep its corners.
+`roundness: null` to keep its corners — which is what
+`arrowBetween(a, b, { route: "orthogonal" })` computes for you.
 
 Authored ids survive to the written file — the converter runs with
 `regenerateIds: false` — so a gate error names the generator's own ids and
@@ -196,8 +197,8 @@ const card = box(                       // rectangle padded around content
 );
 const band = column([titleEl, row([cardA, cardB], { gap: 60 })], { gap: 28 });
 
-// the arrow owns the gap: it leaves cardA 10px out, stops 10px short of cardB,
-// with explicit points — the converter does not run the app's elbow router
+// the arrow owns the gap: it leaves cardA 10px out, stops 10px short of cardB.
+// add route: "orthogonal" for an elbow instead of a diagonal.
 const link = arrowBetween(cardA, cardB, { standoff: 10, strokeColor: p.grey.stroke });
 
 return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }];
@@ -216,8 +217,30 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   element cannot be claimed.
 - `arrowBetween` needs *placed* shapes — call it after the stacks that move
   them. Where the two shapes' cross ranges overlap the arrow runs level through
-  the overlap's centre. A routed path goes in as `via: [[x, y], …]` waypoints
-  (absolute) and keeps its corners with `roundness: null` set for you.
+  the overlap's centre. A hand-written path goes in as `via: [[x, y], …]`
+  waypoints (absolute) and keeps its corners with `roundness: null` set for you.
+- `route: "orthogonal"` computes that path instead of asking you to write it:
+  the arrow leaves the source level, jogs once across the middle of the gap, and
+  arrives level at the target — axis-aligned throughout, corners kept. Where the
+  run is already level there is no slope to remove, so the route adds no
+  waypoint and the arrow stays the straight two-point line it already was.
+
+  The **wider** of the two separations picks the axis, the same rule the direct
+  arrow already follows: shapes further apart horizontally than vertically leave
+  and arrive sideways and jog vertically at the mid-line; the taller-apart pair
+  does the opposite. So the way to control an elbow's shape is the placement, not
+  a flag.
+
+  ```js
+  arrowBetween(cardA, cardB, { standoff: 10, route: "orthogonal" });
+  ```
+
+  The elbow always turns inside the gap, so it cannot cross either shape it
+  connects. It does **not** avoid anything *else*: a third shape parked in that
+  gap is still crossed, exactly as a direct arrow would cross it, and the gate's
+  `arrow-crossing` still refuses it — move the shape or write the path with
+  `via`. `route` and `via` together are a `LayoutError`, and `"orthogonal"` is
+  the only route there is.
 - `arrowBetween` anchors on the same rotation-aware bounds the gate uses, so an
   arrow to a shape carrying an `angle` reaches its *turned* extent rather than
   the upright box it was authored in. Those bounds are the rotated *bounding

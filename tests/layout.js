@@ -3,12 +3,15 @@
  * Unit suite for the layout helpers (tools/layout.js). Pure geometry — no
  * browser. Pins the placement arithmetic a generator would otherwise hand-roll:
  * stacking with explicit gaps, cross-axis alignment, nesting, padded boxes, and
- * arrows that own the gap between two shapes — labelled or not.
+ * arrows that own the gap between two shapes — labelled, routed, or not.
  */
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { column, row, stack, box, arrowBetween, flatten, LayoutError } from "../tools/layout.js";
+// the gate's own scoring, so the routing claim is checked against the rule that
+// would refuse it rather than against a second opinion written here
+import { shapeDepth, segmentLengthInsideShape } from "../tools/geometry.js";
 
 // the house pair, read the way the helpers read it — importing author.js here
 // would pull the browser driver into a suite that runs without one
@@ -191,6 +194,95 @@ const throwsLayoutError = (fn) => {
     arrow.points.length === 4 && JSON.stringify(arrow.points[1]) === JSON.stringify([75, 0]),
     JSON.stringify(arrow.points));
   check("routed arrow keeps its corners", arrow.roundness === null);
+}
+{
+  // a requested orthogonal route jogs at the gap's mid-line instead of running
+  // diagonally: out level from the source, across, then level into the target
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 300, y: 120, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10, route: "orthogonal" });
+  check("an orthogonal route elbows through the gap",
+    arrow.x === 110 && arrow.y === 25 &&
+      JSON.stringify(arrow.points) === "[[0,0],[90,0],[90,120],[180,120]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+  check("an orthogonal route sizes itself over its waypoints",
+    arrow.width === 180 && arrow.height === 120, `${arrow.width}x${arrow.height}`);
+  check("an orthogonal route keeps its corners", arrow.roundness === null);
+  check("an orthogonal route still binds both ends",
+    arrow.start.id === "a" && arrow.end.id === "b");
+  check("route is not passed through to the element", !("route" in arrow));
+}
+{
+  // the dominant separation picks the axis: a mostly-vertical pair leaves and
+  // arrives vertically, and jogs sideways at the gap's mid-line
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 120, y: 300, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10, route: "orthogonal" });
+  check("a vertical-dominant orthogonal route jogs sideways",
+    arrow.x === 50 && arrow.y === 60 &&
+      JSON.stringify(arrow.points) === "[[0,0],[0,115],[120,115],[120,230]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // already level: an orthogonal route has no slope to remove, so it adds no
+  // waypoint and leaves roundness alone — the same arrow the direct route draws
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 50 };
+  const arrow = arrowBetween(a, b, { standoff: 10, route: "orthogonal" });
+  check("a level run needs no elbow",
+    JSON.stringify(arrow.points) === "[[0,0],[40,0]]", JSON.stringify(arrow.points));
+  check("a level orthogonal route leaves roundness alone", !("roundness" in arrow));
+}
+{
+  // a computed route and hand-written waypoints are two answers to one question
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 50, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 200, y: 200, width: 50, height: 50 };
+  check("route together with via is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, b, { route: "orthogonal", via: [[125, 25]] })));
+  check("an unknown route is a LayoutError",
+    throwsLayoutError(() => arrowBetween(a, b, { route: "elbowed" })));
+}
+{
+  // the route's promise is geometric, so check it the way the gate would rather
+  // than trusting the argument: sweep relative placements, sizes, standoffs and
+  // source rotations, and score every routed arrow with the gate's own helpers.
+  // A vertex exactly on an edge (standoff 0) reads as depth 0 through the float,
+  // hence the half-pixel tolerance — the gate's own slack is 8px.
+  let routed = 0;
+  const offences = [];
+  for (const bx of [-300, -160, 0, 160, 300])
+    for (const by of [-300, -160, 0, 160, 300])
+      for (const bw of [40, 200])
+        for (const bh of [40, 200])
+          for (const standoff of [0, 10, 40])
+            for (const angle of [0, Math.PI / 4, 1.1]) {
+              const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 200, height: 100, angle };
+              const b = { type: "rectangle", id: "b", x: bx, y: by, width: bw, height: bh };
+              let arrow;
+              try {
+                arrow = arrowBetween(a, b, { standoff, route: "orthogonal" });
+              } catch {
+                continue; // refused for want of a gap to own — not this claim
+              }
+              routed++;
+              const where = `b@${bx},${by} ${bw}x${bh} standoff ${standoff} angle ${angle.toFixed(2)}`;
+              const pts = arrow.points.map(([px, py]) => [arrow.x + px, arrow.y + py]);
+              for (let i = 0; i + 1 < pts.length; i++) {
+                const [p, q] = [pts[i], pts[i + 1]];
+                if (p[0] !== q[0] && p[1] !== q[1]) offences.push(`${where}: seg${i} slopes`);
+                for (const s of [a, b]) {
+                  if (shapeDepth(s, p) > 0.5 || shapeDepth(s, q) > 0.5) {
+                    offences.push(`${where}: seg${i} has a vertex inside ${s.id ?? "b"}`);
+                  }
+                  // 2px is the gate's own arrow-crossing threshold
+                  if (segmentLengthInsideShape(s, p, q) > 2) {
+                    offences.push(`${where}: seg${i} crosses ${s.id ?? "b"}`);
+                  }
+                }
+              }
+            }
+  check("every computed route is axis-aligned and clears both its shapes",
+    routed > 500 && offences.length === 0, `${routed} routes, ${offences[0] ?? "no offences"}`);
 }
 {
   const a = { type: "rectangle", x: 0, y: 0, width: 100, height: 100 };

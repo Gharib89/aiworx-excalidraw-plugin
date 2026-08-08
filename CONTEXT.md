@@ -55,6 +55,14 @@ _Avoid_: group (unqualified)
 Inserting a library item into a diagram with freshly regenerated ids so repeated insertions never collide.
 _Avoid_: import, paste
 
+**Orthogonal route**:
+An arrow path made only of axis-aligned segments, computed by the authoring call
+(`route: "orthogonal"`) rather than hand-written as waypoints. It owns the gap
+between the two shapes it connects and turns inside it, so it crosses neither —
+but it avoids nothing else. Upstream's `elbowed` element flag is a different
+thing and stays inert.
+_Avoid_: elbow arrow, right-angle connector
+
 ### Style
 
 **Register**:

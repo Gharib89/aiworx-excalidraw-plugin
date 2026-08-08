@@ -123,7 +123,7 @@ await authorDiagram({
 | `roughness` | rectangle, ellipse, diamond, arrow, line, freedraw | `0`, `1`, `2` |
 | `strokeStyle` | the same | `"solid"`, `"dashed"`, `"dotted"` |
 | `strokeWidth` | the same | any positive number |
-| `fillStyle` | rectangle, ellipse, diamond | `"solid"`, `"hachure"`, `"cross-hatch"` |
+| `fillStyle` | rectangle, ellipse, diamond, line | `"solid"`, `"hachure"`, `"cross-hatch"` |
 | `startArrowhead` | arrow | `null`, `"arrow"`, `"triangle"`, `"diamond"`, `"circle"`, `"bar"` |
 | `endArrowhead` | arrow | the same |
 
@@ -136,7 +136,10 @@ Three things to know:
   itself keeps its own value, which is how a deliberate break stays sayable —
   `roughness: 0` on the one panel carrying real numbers, `endArrowhead: null` on
   a plain connector in a flow of arrows. Setting it to `null` or `0` counts as
-  setting it; only an absent property is filled.
+  setting it; only an absent property is filled. Elements from
+  `spliceLibraryItem` carry their author's finish as their own properties, so a
+  spliced item keeps the look it was drawn with — strip the property to hand it
+  to the register.
 - **It governs only what it lists.** Text, frames and images are untouched by
   the stroke properties, and arrowheads only ever reach arrows.
 - **A typo is an error, not a no-op.** An unknown property or an
@@ -145,7 +148,8 @@ Three things to know:
   fails loudly rather than silently changing nothing.
 
 Omit `register` and every element keeps whatever it set for itself, exactly as
-before.
+before. `withAuthoring`'s `author()` takes it too, per diagram — a band whose
+panels share one finish passes the same register to each.
 
 ## Many diagrams in one run
 

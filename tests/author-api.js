@@ -568,6 +568,34 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   }));
   check("an out-of-vocabulary register value is a SkeletonError",
     bad.ok && /hatched/.test(bad.message) && /hachure/.test(bad.message), bad.detail);
+
+  // the typo is caught before the build spends a browser on measuring
+  let built = false;
+  await rejectsWith("SkeletonError", authorDiagram({
+    out,
+    build: async () => { built = true; return [{ type: "rectangle", x: 0, y: 0, width: 10, height: 10 }]; },
+    register: { roughness: 3 },
+  }));
+  check("a bad register is rejected before the build runs", !built);
+}
+
+// a closed line fills like an area shape, so the register's fill has to reach it
+{
+  const out = join(outDir, "register-line.excalidraw");
+  const result = await authorDiagram({
+    out,
+    svg: false,
+    register: { fillStyle: "cross-hatch", strokeWidth: 3 },
+    build: async ({ palette: p }) => [{
+      type: "line", x: 0, y: 0, width: 120, height: 100,
+      points: [[0, 0], [120, 0], [60, 100], [0, 0]],
+      strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill,
+    }],
+  });
+  const line = result.elements.find((e) => e.type === "line");
+  check("the register's fill reaches a closed line",
+    line?.fillStyle === "cross-hatch" && line.strokeWidth === 3,
+    `${line?.fillStyle} / ${line?.strokeWidth}`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

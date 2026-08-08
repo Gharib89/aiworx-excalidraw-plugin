@@ -81,11 +81,14 @@ element ids involved, and per-code fields (a contrast failure names its
 `theme`). Codes are append-only, so machine handling keys on `code` — the
 `message` prose carries no contract. A file that cannot be checked at all
 carries `error: { code, message }` instead of a problem list.
+[reference/problem-codes.md](reference/problem-codes.md) is the full registry:
+every code, its `elements` order and its extra fields.
 
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
 refuse to write a failing file, so a generator's output arrives pre-gated; the
 CLI is for files that got here another way, and as the proof after hand edits.
-Structure: a file
+
+What the rules cover. Structure: a file
 that isn't an Excalidraw document, unknown or degenerate elements, duplicate
 ids, bindings pointing at deleted elements, images whose bytes are missing.
 Geometry (rotation included): overlapping frames, bound text larger than its
@@ -153,6 +156,9 @@ image bytes no element references any more, so deleting an image by hand shrinks
 the file instead of carrying its data URL forever. From inside a
 generator, call `reviseDiagram` directly (see
 [reference/authoring.md](reference/authoring.md)).
+
+Done when the files the kind calls for are committed, no frame PNG is among them,
+and any hand-edited file has been back through `revise.js`.
 
 ## House style
 

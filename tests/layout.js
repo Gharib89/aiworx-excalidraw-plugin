@@ -3,12 +3,15 @@
  * Unit suite for the layout helpers (tools/layout.js). Pure geometry — no
  * browser. Pins the placement arithmetic a generator would otherwise hand-roll:
  * stacking with explicit gaps, cross-axis alignment, nesting, padded boxes, and
- * arrows that own the gap between two shapes — labelled or not.
+ * arrows that own the gap between two shapes — labelled, routed, or not.
  */
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { column, row, stack, box, arrowBetween, flatten, LayoutError } from "../tools/layout.js";
+// the gate's own scoring, so the routing claim is checked against the rule that
+// would refuse it rather than against a second opinion written here
+import { shapeDepth, segmentLengthInsideShape } from "../tools/geometry.js";
 
 // the house pair, read the way the helpers read it — importing author.js here
 // would pull the browser driver into a suite that runs without one
@@ -238,6 +241,48 @@ const throwsLayoutError = (fn) => {
     throwsLayoutError(() => arrowBetween(a, b, { route: "orthogonal", via: [[125, 25]] })));
   check("an unknown route is a LayoutError",
     throwsLayoutError(() => arrowBetween(a, b, { route: "elbowed" })));
+}
+{
+  // the route's promise is geometric, so check it the way the gate would rather
+  // than trusting the argument: sweep relative placements, sizes, standoffs and
+  // source rotations, and score every routed arrow with the gate's own helpers.
+  // A vertex exactly on an edge (standoff 0) reads as depth 0 through the float,
+  // hence the half-pixel tolerance — the gate's own slack is 8px.
+  let routed = 0;
+  const offences = [];
+  for (const bx of [-300, -160, 0, 160, 300])
+    for (const by of [-300, -160, 0, 160, 300])
+      for (const bw of [40, 200])
+        for (const bh of [40, 200])
+          for (const standoff of [0, 10, 40])
+            for (const angle of [0, Math.PI / 4, 1.1]) {
+              const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 200, height: 100, angle };
+              const b = { type: "rectangle", id: "b", x: bx, y: by, width: bw, height: bh };
+              let arrow;
+              try {
+                arrow = arrowBetween(a, b, { standoff, route: "orthogonal" });
+              } catch {
+                continue; // refused for want of a gap to own — not this claim
+              }
+              routed++;
+              const where = `b@${bx},${by} ${bw}x${bh} standoff ${standoff} angle ${angle.toFixed(2)}`;
+              const pts = arrow.points.map(([px, py]) => [arrow.x + px, arrow.y + py]);
+              for (let i = 0; i + 1 < pts.length; i++) {
+                const [p, q] = [pts[i], pts[i + 1]];
+                if (p[0] !== q[0] && p[1] !== q[1]) offences.push(`${where}: seg${i} slopes`);
+                for (const s of [a, b]) {
+                  if (shapeDepth(s, p) > 0.5 || shapeDepth(s, q) > 0.5) {
+                    offences.push(`${where}: seg${i} has a vertex inside ${s.id ?? "b"}`);
+                  }
+                  // 2px is the gate's own arrow-crossing threshold
+                  if (segmentLengthInsideShape(s, p, q) > 2) {
+                    offences.push(`${where}: seg${i} crosses ${s.id ?? "b"}`);
+                  }
+                }
+              }
+            }
+  check("every computed route is axis-aligned and clears both its shapes",
+    routed > 500 && offences.length === 0, `${routed} routes, ${offences[0] ?? "no offences"}`);
 }
 {
   const a = { type: "rectangle", x: 0, y: 0, width: 100, height: 100 };

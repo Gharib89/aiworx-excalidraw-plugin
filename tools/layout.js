@@ -201,12 +201,15 @@ function requireBindable(node, side) {
  * Waypoints turning a straight run between two standoff endpoints into an
  * orthogonal one: leave level, jog once across the gap's mid-line, arrive level.
  *
- * Endpoints already level (the shapes' cross ranges overlap, so the run has no
- * slope to remove) need no waypoint — the two-point arrow is already orthogonal.
+ * Endpoints that already share their cross coordinate have no slope to remove and
+ * need no waypoint — the two-point arrow is already orthogonal.
  *
- * The jog cannot touch either shape: `arrowBetween` has already refused a
- * separation of `2 * standoff` or less, so both endpoints clear their own edge
- * and the mid-line sits strictly inside the gap.
+ * The jog cannot touch either shape, and the reason is the coupling to
+ * `horizontal`: that is the axis of the *wider* separation, which is the one
+ * `arrowBetween`'s `usable` check vouched for. Along it both endpoints therefore
+ * sit at or beyond their own shape's facing edge and the mid-line falls strictly
+ * between them — so every segment stays outside both shapes' extents. Routing
+ * along the *other* axis would have no such guarantee.
  */
 function elbow([sx, sy], [ex, ey], horizontal) {
   if (horizontal) {
@@ -254,16 +257,19 @@ function labelSpec(label) {
  * runs close to a neighbour.
  */
 export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...style } = {}) {
+  const edge = () => `${bindId(a) ?? a?.type} and ${bindId(b) ?? b?.type}`;
   if (route !== undefined && route !== "orthogonal") {
     throw new LayoutError(
-      `arrowBetween route must be "orthogonal", got ${JSON.stringify(route)} — ` +
-        "that is the only computed route; for any other path pass the waypoints yourself as via",
+      `arrowBetween route must be "orthogonal", got ${JSON.stringify(route)} ` +
+        `(arrow between ${edge()}) — that is the only computed route; for any other path ` +
+        "pass the waypoints yourself as via",
     );
   }
   if (route !== undefined && via.length) {
     throw new LayoutError(
-      `arrowBetween cannot take both route: ${JSON.stringify(route)} and ${via.length} via ` +
-        "waypoint(s) — drop via to have the route computed, or drop route to keep your own path",
+      `arrowBetween between ${edge()} takes route: ${JSON.stringify(route)} or ${via.length} ` +
+        "via waypoints, not both — drop via to have the route computed, or drop route to keep " +
+        "your own path",
     );
   }
   requireBindable(a, "source");
@@ -284,7 +290,9 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   // overlap's centre; otherwise it leaves and enters each shape at its own centre
   let start;
   let end;
-  if (dxGap >= dyGap) {
+  // the wider separation picks the axis, and it is the one `usable` vouched for
+  const horizontal = dxGap >= dyGap;
+  if (horizontal) {
     const o1 = Math.max(A.y1, B.y1);
     const o2 = Math.min(A.y2, B.y2);
     const sy = o1 < o2 ? (o1 + o2) / 2 : A.cy;
@@ -302,7 +310,7 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
     end = [ex, topToBottom ? B.y1 - standoff : B.y2 + standoff];
   }
 
-  const waypoints = route === "orthogonal" ? elbow(start, end, dxGap >= dyGap) : via;
+  const waypoints = route === "orthogonal" ? elbow(start, end, horizontal) : via;
 
   const points = [start, ...waypoints, end].map(([px, py]) => [px - start[0], py - start[1]]);
   const xs = points.map((p) => p[0]);

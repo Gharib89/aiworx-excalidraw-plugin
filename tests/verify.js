@@ -17,6 +17,9 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyDocument } from "../tools/verify.js";
+// the router under test, so the gate scores the path the authoring API really
+// emits instead of one transcribed into this file by hand
+import { arrowBetween } from "../tools/layout.js";
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -304,6 +307,33 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
 {
   const r = verifyDocument(doc([{ ...shape("i1", 0, 0, 200, 100), type: "image" }]));
   check("an image with no bytes is one problem naming it", only(r, "missing-image-bytes") && JSON.stringify(find(r, "missing-image-bytes").elements) === '["i1"]', detail(r));
+}
+
+// ---- 21. a computed orthogonal route is not a defect ----
+// arrow-crossing and arrow-buried are the two rules a multi-point routed path
+// could trip, so score a real `route: "orthogonal"` arrow at the rule itself
+// rather than trusting the router's own geometric argument. Both axes: the
+// elbow's orientation follows the wider separation, so each is its own path.
+{
+  const routed = (src, dst) => {
+    const a = arrowBetween(src, dst, { standoff: 10, route: "orthogonal" });
+    return {
+      ...shape("a1", a.x, a.y, a.width, a.height),
+      type: "arrow",
+      points: a.points,
+      startBinding: { elementId: src.id, focus: 0, gap: 10 },
+      endBinding: { elementId: dst.id, focus: 0, gap: 10 },
+    };
+  };
+  const wide = shape("src", 0, 0, 200, 100);
+  const wideDst = shape("dst", 520, 220, 200, 100);
+  const h = verifyDocument(doc([wide, wideDst, routed(wide, wideDst)]));
+  check("a horizontal-dominant route draws no problem", h.problems.length === 0, detail(h));
+
+  const tall = shape("src", 0, 0, 200, 100);
+  const tallDst = shape("dst", 320, 460, 200, 100);
+  const v = verifyDocument(doc([tall, tallDst, routed(tall, tallDst)]));
+  check("a vertical-dominant route draws no problem", v.problems.length === 0, detail(v));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nverifyDocument holds at its export");

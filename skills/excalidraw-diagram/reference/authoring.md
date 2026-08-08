@@ -225,6 +225,12 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   run is already level there is no slope to remove, so the route adds no
   waypoint and the arrow stays the straight two-point line it already was.
 
+  The **wider** of the two separations picks the axis, the same rule the direct
+  arrow already follows: shapes further apart horizontally than vertically leave
+  and arrive sideways and jog vertically at the mid-line; the taller-apart pair
+  does the opposite. So the way to control an elbow's shape is the placement, not
+  a flag.
+
   ```js
   arrowBetween(cardA, cardB, { standoff: 10, route: "orthogonal" });
   ```

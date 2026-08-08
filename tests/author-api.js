@@ -16,6 +16,8 @@
  *   8. a failing write leaves the previous pair as it was
  *   9. a labelled arrow keeps its bound text through the gate and a revise
  *  10. a session authors N diagrams over one browser launch, without drift
+ *  11. a computed orthogonal route reaches the converter as an elbow, stays
+ *      bound at both ends, and passes the gate
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,

@@ -59,6 +59,15 @@ _Avoid_: template, draft element
 A `column`/`row` positioning construct. It places children but is not an Excalidraw group and cannot be an arrow target.
 _Avoid_: group (unqualified)
 
+**Last mover**:
+The outermost layout call that still shifts a given shape — in a band, the
+band-level `row` that spreads the panels, not the panel's own stacks. Layout
+groups place by mutating their children, and `arrowBetween` bakes both endpoints
+from where the shapes stand when it is called, so an arrow belongs after its
+shapes' last mover. A frame listing `children` fits at conversion instead, so its
+creation order is free.
+_Avoid_: final placement, outer row
+
 **Splice**:
 Inserting a library item into a diagram with freshly regenerated ids so repeated insertions never collide.
 _Avoid_: import, paste

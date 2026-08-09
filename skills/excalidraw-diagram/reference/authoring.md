@@ -217,8 +217,9 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   element cannot be claimed.
 - `arrowBetween` reads both shapes' coordinates once, at the moment you call it,
   so call it after the **last mover** — the outermost stack that still shifts
-  them. In a band the last mover is the band-level `row`, not the panel's own
-  stacks: see [Generator shape for a band](#generator-shape-for-a-band). Where
+  them. A mover that runs later leaves the arrow on stale coordinates; in a band
+  the last mover is the band-level `row`, not the panel's own stacks: see
+  [Generator shape for a band](#generator-shape-for-a-band). Where
   the two shapes' cross ranges overlap the arrow runs level through
   the overlap's centre. A hand-written path goes in as `via: [[x, y], …]`
   waypoints (absolute) and keeps its corners with `roundness: null` set for you.
@@ -368,8 +369,9 @@ glyphs — arrows, check marks, box drawing — are therefore safe to use.
 
 ## Generator shape for a band
 
-A band's panels have content-driven widths and heights, so no panel is where it
-belongs until the whole band is placed. Build in three passes, in this order:
+A band's panels have content-driven widths and heights, so every panel reaches
+its final coordinates only once the whole band is placed. Build in three passes,
+in this order:
 
 1. **Compose** each panel's body with the layout helpers — measured text into
    `column`/`box` cards, cards into a `row` — so its size follows its content.
@@ -424,20 +426,25 @@ const frames = panels.map((pl, i) => {
 });
 
 // a panel-to-panel connector stays unbound and hand-placed in the gap the row left
-const [a, b] = panels.map((pl) => pl.body);
-const gapL = a.x + a.width;
-const span = b.x - gapL - 120;                          // 60px clear of each frame
-extras.push({ type: "arrow", id: "cross", roundness: null,
-  x: gapL + 60, y: a.y + a.height / 2, width: span, height: 0,
-  points: [[0, 0], [span, 0]], strokeColor: p.grey.stroke, endArrowhead: "triangle" });
+panels.slice(1).forEach(({ body: right }, i) => {
+  const left = panels[i].body;
+  const x = left.x + left.width + 60;                   // 60px clear of each body
+  const span = right.x - 60 - x;                        // so keep the band gap above 120
+  // panels are top-aligned, so run the connector through the centre they share
+  const y = (Math.max(left.y, right.y) + Math.min(left.y + left.height, right.y + right.height)) / 2;
+  extras.push({ type: "arrow", id: `cross-${i}`, roundness: null,
+    x, y, width: span, height: 0, points: [[0, 0], [span, 0]],
+    strokeColor: p.grey.stroke, endArrowhead: "triangle" });
+});
 
 return [...panels.map((pl) => pl.body), ...extras, ...frames];
 ```
 
 Give each frame a `name` that states the claim it lands — the name shows in the
 app's frame list and in per-frame renders. Inset the cross-panel connector far
-enough to clear both frames' fitted extents; a connector that reaches into one
-of them is `frame-squat`.
+enough to clear both frames' fitted extents — a frame fits about 10px outside
+its children, so clear the bodies by more than that. A connector reaching into a
+frame it does not belong to is `unbound-over-frame`.
 
 An arrow that crosses from one panel to the next stays **unbound**. A frame's
 auto-fit counts anything bound to one of its children as its own, so binding

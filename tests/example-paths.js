@@ -75,16 +75,19 @@ const check = (name, cond, detail) => {
 
   // The documented precedence, pinned: the variable is read first and the argument
   // only when it is unset, so a stale variable beats a good argument — and the
-  // failure names the path it tried. No browser reached: the import fails first.
+  // failure names the root it tried. No browser reached: the import fails first.
+  // The assertion matches the one path segment only the variable can contribute,
+  // not the whole absolute path: how a failed import renders the path it tried —
+  // raw, or a file URL with `%20` for the space — is Node's business, not ours.
   {
-    const stale = join(checkout, "no-such-root");
+    const marker = "no-such-root";
     const clash = spawnSync(process.execPath, ["examples/gen-example.js", checkout], {
       cwd: checkout,
-      env: { ...envWithoutRoot, CLAUDE_PLUGIN_ROOT: stale },
+      env: { ...envWithoutRoot, CLAUDE_PLUGIN_ROOT: join(checkout, marker) },
       encoding: "utf8",
     });
     check("the environment is read before the argument",
-      clash.status !== 0 && String(clash.stderr ?? "").includes(stale),
+      clash.status !== 0 && String(clash.stderr ?? "").includes(marker),
       `exit ${clash.status}`);
   }
   if (existsSync(out)) {

@@ -31,6 +31,11 @@ const ITEMS = [
   { text: "integrity probe", fontSize: 20, fontFamily: 5 },
   { text: "integrity probe", fontSize: 20, fontFamily: 8 },
 ];
+/** The house pair — prose and code — the families a shipped diagram actually uses. */
+const HOUSE = [
+  { text: "offline probe", fontSize: 20, fontFamily: 6 },
+  { text: "offline probe", fontSize: 20, fontFamily: 3 },
+];
 /** Outside printable ASCII, so measuring it forces a re-warm on a warm page. */
 const ACCENTED = [
   { text: "résumé naïve façade", fontSize: 20, fontFamily: 5 },
@@ -144,6 +149,34 @@ await withExcalidraw(async (ex) => {
     m.every((x, i) => Math.abs(x.width - r.settled[i].width) < 0.01);
   check("concurrent re-warm: both agree with the settled page", agrees(r.a) && agrees(r.b),
     JSON.stringify({ a: r.a, b: r.b, settled: r.settled }));
+});
+
+// ---- 5. offline: the warm reads vendored bytes, never the network ----
+// Excalidraw fetches each family's woff2 before it can inline the base64
+// @font-face rules the warm reads, so an unconfigured asset base put esm.sh on
+// the hot path of every browser test (issue #116). The page is loaded before
+// the context goes offline — only the warm's own fetches are under test.
+await withExcalidraw(async (ex) => {
+  const remote = [];
+  ex.page.on("request", (r) => {
+    if (/^https?:/i.test(r.url())) remote.push(r.url());
+  });
+  await ex.page.context().setOffline(true);
+
+  let caught = null;
+  let widths = null;
+  try {
+    widths = await ex.measureText(HOUSE);
+  } catch (e) {
+    caught = `${e.name}: ${e.message}`;
+  }
+
+  check("offline: the warm completes", caught === null, caught ?? "");
+  check("offline: families measure as themselves, not the fallback",
+    widths !== null && Math.abs(widths[0].width - widths[1].width) > 0.5,
+    widths ? `prose=${widths[0].width} code=${widths[1].width}` : "no widths");
+  check("offline: nothing was fetched over the network", remote.length === 0,
+    remote.slice(0, 3).join(", "));
 });
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nfont warm is honest");

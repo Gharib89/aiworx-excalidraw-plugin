@@ -9,4 +9,5 @@ node_modules/
 !dist/
 !dist/excalidraw-page.js
 !dist/index.html
+!dist/fonts/**
 .DS_Store

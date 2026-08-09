@@ -187,7 +187,23 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
   const point = (x, y) => ({ type: "text", x, y, width: 0, height: 0 });
   check("a point-sized outline inside a rectangle overlaps it", outlinesOverlap(a, point(50, 50)) === true);
   check("a point-sized outline outside a rectangle does not overlap it", outlinesOverlap(a, point(500, 500)) === false);
-  check("two point-sized outlines do not overlap", outlinesOverlap(point(10, 10), point(90, 90)) === false);
+  // coincident, not far apart: two separated points answer `false` from the axis
+  // test alone, so only the coincident pair puts the no-axis case to the question
+  check("two coincident point-sized outlines do not overlap", outlinesOverlap(point(10, 10), point(10, 10)) === false);
+
+  // A rotated degenerate outline is where the fix bites hardest: a linear
+  // element's box stops being degenerate the moment it turns, but a zero-width
+  // *text* stays a segment through the rotation, and it swings its own ink over
+  // the frame. 200px tall at x=420, it clears the 400px-wide frame standing up;
+  // turned a quarter turn about its centre (420,200) its ends go to (520,200)
+  // and (320,200), reaching 80px inside. The axis-aligned answer is the one it
+  // must not give.
+  const standing = { type: "text", x: 420, y: 100, width: 0, height: 200 };
+  check("a zero-width text beside a frame does not overlap it", outlinesOverlap(flatFrame, standing) === false);
+  check(
+    "the same text turned across the frame overlaps it",
+    outlinesOverlap(flatFrame, { ...standing, angle: QUARTER }) === true,
+  );
 }
 
 // ---- 4. outlineContains: ink inside ink, with slack ----

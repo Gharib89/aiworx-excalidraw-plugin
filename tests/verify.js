@@ -214,8 +214,9 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
     points: [[0, 0], [width, height]],
   });
   const band = verifyDocument(doc([frame("f1", 0, 0, 200, 200), frame("f2", 260, 0, 200, 200), connector("a1", 183, 100, 94, 0)]));
+  const bandProblem = find(band, "unbound-over-frame");
   check("a flat connector reaching into the panels it joins is refused", only(band, "unbound-over-frame"), detail(band));
-  check("it names the connector and the frame it reaches into", JSON.stringify(find(band, "unbound-over-frame")?.elements) === '["a1","f1"]', JSON.stringify(find(band, "unbound-over-frame")?.elements));
+  check("it names the connector and the frame it reaches into", JSON.stringify(bandProblem?.elements) === '["a1","f1"]', JSON.stringify(bandProblem?.elements));
 
   // the same defect in a stacked band, where the connector is vertical
   const stacked = verifyDocument(doc([frame("f1", 0, 0, 200, 200), frame("f2", 0, 260, 200, 200), connector("a1", 100, 183, 0, 94)]));

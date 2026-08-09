@@ -47,6 +47,13 @@ export function bounds(e) {
  * Whether two elements' outlines intersect, rotation honoured (separating-axis
  * test on the outline quads). Linear elements fall back to their bounding box —
  * their point list is not a convex polygon. Touching edges do not overlap.
+ *
+ * An outline with no area still has extent: a flat arrow or a zero-width text
+ * collapses to a segment, and one reaching into another outline overlaps it.
+ * Two such outlines are the exception — where a degenerate pair's only axis is
+ * the one they share, the equal projections read as touching, so collinear
+ * segments covering the same ink report no overlap. Both are then degenerate
+ * enough that rule 1 of the gate reports them on their own.
  */
 export function outlinesOverlap(a, b) {
   const pa = convexOutline(a);

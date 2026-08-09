@@ -44,12 +44,13 @@ Text width comes from the library, never from a character-count estimate: a
 guess produces layouts that overflow only once the real font renders. Card and
 frame sizes derive from those measurements.
 
-See [reference/authoring.md](reference/authoring.md) for the skeleton format, the
-measurement API, the layout helpers (`column`/`row`/`box`/`arrowBetween` — no
-hand-accumulated pixel offsets), real assets (`image` embeds bytes in the files
-dictionary; `spliceLibraryItem` inserts a community `.excalidrawlib` item with
-fresh ids), and the generator shape for a band — compose, place, then bind, in
-that order.
+See [reference/authoring.md](reference/authoring.md) — it opens with the build
+context inventory, one row per member `build` receives, and goes on to the
+skeleton format, the measurement API, the layout helpers
+(`stack`/`column`/`row`/`box`/`arrowBetween` — no hand-accumulated pixel
+offsets), real assets (`image` embeds bytes in the files dictionary;
+`spliceLibraryItem` inserts a community `.excalidrawlib` item with fresh ids),
+and the generator shape for a band — compose, place, then bind, in that order.
 
 Done when the `.excalidraw` file exists and every card, column and frame size
 traces to a measurement or an explicit constant — with no character-width factors.

@@ -1,5 +1,27 @@
 # Authoring
 
+## The build context
+
+`build` receives one object holding everything a generator needs — measurement,
+the palette, the layout helpers, the asset helpers. Destructure the members you
+use. This table is the whole surface; the sections below detail each one.
+
+| member | call | gives back | detail |
+|---|---|---|---|
+| `measure` | `await measure([{ text, fontSize, fontFamily }, …])` | one `{ width, height }` per item, at the real rendered size | [Measuring](#measuring) |
+| `wrap` | `await wrap(text, maxWidth, { fontSize, fontFamily })` | `{ text, width, height, lines }`, never wider than `maxWidth` | [Measuring](#measuring) |
+| `palette` | constant | the brand palette: `roles`, `grey`, `ink`, `canvas`, `fontFamily` | [palette.md](palette.md) |
+| `PROSE` | constant | the `fontFamily` of the house prose face | [palette.md](palette.md) |
+| `CODE` | constant | the `fontFamily` of the house code face | [palette.md](palette.md) |
+| `stack` | `stack(items, { direction, gap, align, x, y })` | a group placing its items along one axis | [Composing layout](#composing-layout) |
+| `column` | `column(items, opts)` | `stack` fixed to `direction: "column"` | [Composing layout](#composing-layout) |
+| `row` | `row(items, opts)` | `stack` fixed to `direction: "row"` | [Composing layout](#composing-layout) |
+| `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
+| `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, ...style })` | one arrow bound to both shapes, read at call time | [Composing layout](#composing-layout) |
+| `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
+| `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
+| `spliceLibraryItem` | `spliceLibraryItem(path, { item, at })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |
+
 ## The skeleton format
 
 Describe elements loosely and let `convertToExcalidrawElements` fill the rest —

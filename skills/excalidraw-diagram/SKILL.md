@@ -1,6 +1,6 @@
 ---
 name: excalidraw-diagram
-description: Author and revise .excalidraw diagrams that argue visually, with measured text and per-frame visual verification. Use whenever the user wants something drawn or visualized — a diagram, architecture picture, flow, whiteboard sketch, or visual explainer — even if they never say "Excalidraw"; when they ask to change, restyle or extend an existing .excalidraw file; or when they want one rendered to SVG or PNG.
+description: Author, revise and render .excalidraw diagrams with measured text and per-frame visual verification. Use whenever the user wants something drawn or visualized — a diagram, architecture picture, flow, or whiteboard sketch — even if they never say "Excalidraw"; when they ask to change, restyle or extend an existing .excalidraw file; or when they want one rendered to SVG or PNG.
 ---
 
 # Excalidraw diagrams
@@ -35,7 +35,8 @@ meanings, and how much text belongs in a container.
 Apply the **isomorphism test**: strip every label, and the remaining structure
 still carries the argument. When a panel fails it, choose a different pattern.
 
-Done when each panel names a distinct pattern and passes the isomorphism test.
+Done when each panel names a pattern distinct from its neighbours' and passes the
+isomorphism test.
 
 ## Step 3 — build it from measured text
 
@@ -60,46 +61,18 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw b.excalidraw   # batch:
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --json         # one machine-readable report
 ```
 
-A mistyped flag is refused rather than read as a file name: any unknown
-`-`-prefixed argument exits 2, naming the argument. A path that genuinely starts
-with a dash goes after `--`, which ends the flags. `check.js`, `render.js` and
-`revise.js` all parse arguments this way, so `-dark` is an error rather than a
-silently dropped `--dark`.
-
-A batch reports the worst exit code across its files, so an unreadable input (2)
-outranks a file that failed the rules (1) instead of hiding behind it.
-`render.js` and `revise.js` have nothing to aggregate: they exit 1 for a document
-they refuse and keep 2 for an invocation that never named a file.
-
-Contrast is scored against both themes on every run: the dark theme is a CSS
-filter over the same colours and it does not preserve contrast ratios, so a
-pair can clear 4.5:1 light and fail it dark — each failure names the theme it
-failed under.
-
-`--json` reports each defect as an object with a stable kebab-case `code`, the
-element ids involved, and per-code fields (a contrast failure names its
-`theme`). Codes are append-only, so machine handling keys on `code` — the
-`message` prose carries no contract. A file that cannot be checked at all
-carries `error: { code, message }` instead of a problem list.
-[reference/problem-codes.md](reference/problem-codes.md) is the full registry:
-every code, its `elements` order and its extra fields.
+The gate refuses per problem, never per taste. Its rules cover file integrity,
+geometry including rotation, arrow bindings and crossings, text contrast in both
+themes, and the house font pair.
+[reference/problem-codes.md](reference/problem-codes.md) is the whole vocabulary:
+every code with its `elements` order and extra fields, the `--json` report shape,
+and the argument and exit-code conventions all three CLIs share. Codes are
+append-only, so machine handling keys on `code` and the `message` prose carries
+no contract.
 
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
 refuse to write a failing file, so a generator's output arrives pre-gated; the
 CLI is for files that got here another way, and as the proof after hand edits.
-
-What the rules cover. Structure: a file
-that isn't an Excalidraw document, unknown or degenerate elements, duplicate
-ids, bindings pointing at deleted elements, images whose bytes are missing.
-Geometry (rotation included): overlapping frames, bound text larger than its
-container, elements escaping their frame, sitting flush against its border
-(a frame export crops there, so it renders clipped — 4px minimum inset), or
-sitting over a frame without belonging to it, free texts on top of each other,
-arrows crossing shapes they aren't bound to, arrowheads buried inside their
-target, off-canvas strays. Style:
-text failing 4.5:1 contrast against the fill it sits on, text sitting over an
-image (whose pixels are a ground no ratio can measure), fonts outside the house
-pair.
 
 Done when it exits 0.
 
@@ -118,9 +91,10 @@ When iterating on one frame, re-render just it instead of the whole band:
 `--background COLOR`. Invalid values fail loudly with a `UsageError`.
 
 `--padding` pads the whole-picture SVG only: Excalidraw zeroes padding when
-exporting a frame, so every frame PNG crops exactly at the frame border, and
-content flush with the frame edge reads as clipped in its PNG. That is the
-export, not a layout defect — the fix is room inside the frame, not a flag.
+exporting a frame, so every frame PNG crops exactly at the frame border. Content
+flush with that border renders clipped — which step 4 already refuses as
+`frame-edge-crowding`, so the fix is clearance inside the frame rather than a
+flag here.
 
 For each frame, check the composition against the claim from step 1, then hunt
 the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — the
@@ -131,7 +105,8 @@ what renders. For a band beyond a few frames, hand the PNGs and the step 1
 panel list to a fresh subagent: *"For each frame, name the claim you read from
 the picture alone, then list mechanical defects — overlap, clipping, crowding,
 arrows missing their target."* A frame whose read-back claim differs from the
-panel list fails step 2, not step 5.
+panel list has failed the isomorphism test — send it back to step 2, where the
+pattern is chosen, rather than nudging its geometry here.
 
 Done when every frame has been viewed, each defect found is either fixed or
 named as a deliberate choice, and any fix has re-passed the step 4 gate.
@@ -176,25 +151,19 @@ Colour encodes one meaning each, from `brand/palette.json`:
 | `fail` | what goes wrong |
 | `grey` | scaffolding, structure, labels |
 
-The dark export applies `invert(93%) hue-rotate(180deg)` to the whole picture, so
-the palette holds there too — every check in `palette.js` runs against both themes.
-Off-palette colours have no such guarantee; the gate scores every run
-against both themes, so a dark-only failure surfaces without any flag.
-
 Prose and labels use `fontFamily: 6` (Nunito); code, JSON and file paths use
 `fontFamily: 3` (Cascadia). Both ship with Excalidraw and embed on export, so the
 diagram renders identically for anyone. A family naming a system font — Helvetica
 among them — substitutes per machine and reflows the layout.
 
 Finish — roughness, stroke style, stroke width, fill style, arrowheads — is a
-register chosen once per diagram and set once, with `register:` on the
+**register** chosen once per diagram and set once, with `register:` on the
 `authorDiagram` call; opacity stays per element, because depth is the one cue
-that has to vary. See [reference/patterns.md](reference/patterns.md) for what
-each value means and [reference/authoring.md](reference/authoring.md) for the
-option.
+that has to vary. [reference/patterns.md](reference/patterns.md) is what each
+value means, [reference/authoring.md](reference/authoring.md) the option itself.
 
-See [reference/palette.md](reference/palette.md) for the exact values and how the
-palette is verified.
+[reference/palette.md](reference/palette.md) carries the exact values, how the
+palette is verified, and why it survives the dark export unchanged.
 
 ## When the skill misbehaves
 

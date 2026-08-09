@@ -85,9 +85,9 @@ snug, not a defect. An element that leaves the frame is reported once, as
 `frame-escape`; containment tolerates a sub-pixel graze, and an element in that
 band is out, so it is not reported as crowding either.
 
-Both themes are scored on every run: the dark export is a CSS filter over the
-same colours and does not preserve contrast ratios, so `low-contrast` names the
-`theme` it failed under.
+Both themes are scored on every run, which is why `low-contrast` names the
+`theme` it failed under — [palette.md](palette.md) has the filter that makes a
+dark-only failure possible.
 
 ## File-level codes
 
@@ -102,5 +102,24 @@ Emitted by `check.js` for a file that never reached the rules. They appear under
 | `not-excalidraw` | live | 1 | the JSON is not an Excalidraw document |
 | `check-crashed` | live | 1 | the gate itself threw while checking the file |
 
-A batch reports the worst exit code across its files, so an unreadable input (2)
-outranks a file that failed the rules (1) instead of hiding behind it.
+## Invocation
+
+`check.js`, `render.js` and `revise.js` share one argument vocabulary. Any
+argument starting with `-` that is not a known flag is refused as a typo —
+exit 2, naming the argument — rather than read as a file name, so `-dark` is an
+error instead of a silently dropped `--dark`. A value flag will not swallow one
+either: `--out -dark` is a flag left without a value. `--` ends the flags, which
+is how a path that really does start with a dash stays reachable.
+
+The two exit-code conventions differ deliberately:
+
+| tool | 0 | 1 | 2 |
+|---|---|---|---|
+| `check.js` | every file passed | any file failed the rules | any file was unreadable, or the invocation was bad |
+| `render.js`, `revise.js` | the file was written | the document was refused — unparseable, foreign, or failing the gate | the invocation was bad: an unknown flag, a missing or invalid flag value, no input file, or more files than the tool takes |
+
+A batch reports the **worst** code across its files, so an unreadable input (2)
+outranks a file that failed the rules (1) instead of hiding behind it. The
+single-file tools have nothing to mask: an unreadable document is a refusal like
+any other (1), and 2 stays reserved for an invocation the tool could not act on
+at all — every such refusal is a `UsageError` carrying the usage line.

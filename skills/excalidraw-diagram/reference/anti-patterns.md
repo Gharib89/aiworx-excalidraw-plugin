@@ -10,8 +10,8 @@ exists. Each entry: the symptom as it appears in the PNG, then the fix.
 **A label on top of the drawing it names.** Text over a shape is often exactly
 right, so no rule can forbid it — but stacked regions, table cells and bars
 leave no room above themselves, and a label placed there lands on its
-neighbour. Labels go in a column beside the drawing with dashed leaders — and
-a leader routes around a sibling, not through it.
+neighbour. Move the labels into a column beside the drawing
+([authoring.md](authoring.md), Composing layout).
 
 **A cramped panel beside an empty one.** Both pass every check; together they
 read as an accident. Rebalance the content, or split the dense panel in two.
@@ -37,6 +37,6 @@ reshape ([palette.md](palette.md)).
 ## Symptom of a broken toolchain, not a broken diagram
 
 **Every family renders identical, vaguely serif text.** The font warm-up
-failed and every measurement in the file is wrong. Do not nudge the layout —
-re-run the generator and check `fontStatus()`; a layout fixed against fallback
-metrics breaks again when the real fonts load.
+failed, so every measurement in the file is wrong. Re-run the generator and
+check `fontStatus()` — a layout nudged against fallback metrics breaks again
+the moment the real fonts load.

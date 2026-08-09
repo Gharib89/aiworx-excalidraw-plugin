@@ -1,6 +1,6 @@
 # Excalidraw Authoring
 
-Authoring `.excalidraw` diagrams that argue visually, with measured text and mechanical verification. One context: the vocabulary below is used by the skill, the tools, the gate, and the docs.
+Authoring `.excalidraw` diagrams that argue visually, with measured text and mechanical verification. One context, four consumers: the skill, the tools, the gate, and the docs. A term is settled here and spelled out by each consumer where its own readers need it — the shipped skill in particular, which travels without this repo and so carries its own definitions. So renaming a term here updates all four in the same change.
 
 ## Language
 
@@ -30,6 +30,10 @@ _Avoid_: linter, validator
 **Problem code**:
 The stable kebab-case identifier the gate attaches to one kind of defect (e.g. `frame-escape`). The set is append-only; codes are a public contract.
 _Avoid_: error code, rule id
+
+**Clearance**:
+How far an element's ink stops short of the nearest edge of the frame containing it — negative when the ink pokes out. `clearance(outer, inner)` in `tools/geometry.js` is the one measurement; containment and the frame-edge inset both read it, so escaping a frame and crowding its border are one number judged at two thresholds.
+_Avoid_: margin, padding (that is the render flag), gap (that is the arrow standoff)
 
 **Stray**:
 An element sitting off-canvas — far enough from every other element that it reads as

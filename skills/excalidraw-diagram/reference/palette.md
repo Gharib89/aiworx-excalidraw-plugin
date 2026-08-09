@@ -34,9 +34,9 @@ One colour, one meaning, across every diagram: a reader who learns that purple
 means "this leaves the machine" in one diagram keeps that knowledge in the next.
 
 A role used to colour *text* — a `WHY ·` aside in `decision` gold, a `GOTCHA ·`
-in `fail` red — is not also used to fill a card. Gold prose on a gold card is
-the same colour twice for two different jobs, and the marker stops reading as a
-marker.
+in `fail` red — stays off the cards, so the marker keeps its own colour. Gold
+prose on a gold card is one colour doing two jobs, and the marker stops reading
+as a marker.
 
 A mark that means "picked by this thing" — a ring around a retrieved point, a
 highlight over a page region — takes the *picker's* colour, not the marked
@@ -82,8 +82,8 @@ pairs toward each other. Dark green `#145A32` on pale salmon `#F5B7B1` clears
 4.84:1 light and only 4.20:1 dark. The gate therefore scores the contrast rule
 against both themes on every run — each `low-contrast` problem names the theme
 it failed under, so an off-palette pair that only breaks dark still fails the
-gate. `render.js --dark` remains: that selects the exported output, it is not
-verification.
+gate. `render.js --dark` sits beside that as output selection: it picks which
+theme you look at, while verification always scores both.
 
 ## Fonts
 

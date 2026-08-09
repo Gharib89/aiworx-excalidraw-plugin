@@ -58,26 +58,19 @@ the same thing sets them once instead of per arrow.
 
 ## Finish
 
-Finish is a register, chosen once per diagram and **set once** — pass it as
-`register:` on the `authorDiagram` call and it reaches every element it governs
-(see [authoring.md](authoring.md)):
+Finish is a **register**, chosen once per diagram and set once. This file is the
+vocabulary — what each value means; [authoring.md](authoring.md) is the
+mechanism — the `register:` option, the properties it governs, and how a
+per-element value breaks it deliberately.
 
-```js
-register: { roughness: 1, fillStyle: "solid", strokeWidth: 2 },
-```
-
-That is the house voice — hand-drawn line, confident fill. Drop to
-`roughness: 0` where precision *is* the content: chart axes, a mocked page,
-anything carrying real numbers. `hachure` means explicitly unfinished — a
-placeholder, a not-yet — so a hachure card in a finished diagram reads as an
-accident. Roughness 2 stays unused: past 1 the shake reads as noise, not charm.
-`strokeStyle` joins the register at `"solid"`; `"dashed"` and `"dotted"` mean
-provisional or inferred, so they are a per-element break, not a whole-diagram
-voice.
-
-A per-element value always wins over the register, which is how a deliberate
-break stays sayable: `roughness: 0` on the one panel carrying numbers, a
-headless connector in a flow of arrows.
+`roughness: 1`, `fillStyle: "solid"`, `strokeWidth: 2` is the house voice —
+hand-drawn line, confident fill. Drop to `roughness: 0` where precision *is* the
+content: chart axes, a mocked page, anything carrying real numbers. `hachure`
+means explicitly unfinished — a placeholder, a not-yet — so a hachure card in a
+finished diagram reads as an accident. Roughness 2 stays unused: past 1 the
+shake reads as noise, not charm. `strokeStyle` joins the register at `"solid"`;
+`"dashed"` and `"dotted"` mean provisional or inferred, so they are a
+per-element break rather than a whole-diagram voice.
 
 ## Depth
 

@@ -106,14 +106,14 @@ You have been staring at the coordinates, so you will see what you meant, not
 what renders. **Four or more frames: dispatch a fresh subagent for the
 read-back** — hand it the PNGs and the step 1 panel list: *"For each frame, name
 the claim you read from the picture alone, then list mechanical defects —
-overlap, clipping, crowding, arrows missing their target."* Three or fewer, your
-own pass above is the read-back. A frame whose read-back claim differs from the
+overlap, clipping, crowding, arrows missing their target."* Three frames or
+fewer, your own pass above is the read-back. A frame whose read-back claim differs from the
 panel list has failed the isomorphism test — send it back to step 2, where the
 pattern is chosen, rather than nudging its geometry here.
 
-Done when every frame has been viewed — and read back by a fresh subagent for
-four or more frames — each defect found is either fixed or named as a deliberate
-choice, and any fix has re-passed the step 4 gate.
+Done when every frame has been viewed, a diagram of four or more frames has also
+been read back by a fresh subagent, each defect found is either fixed or named
+as a deliberate choice, and any fix has re-passed the step 4 gate.
 
 ## Step 6 — ship the right files
 

@@ -61,7 +61,7 @@ for (const Cls of DERIVED) {
 // GateError carries the gate's structured problems alongside the joined prose
 {
   const problems = [{ code: "OUT_OF_FRAME", message: "text outside its frame" }];
-  const err = new GateError("text outside its frame", problems);
+  const err = new GateError("text outside its frame", { problems });
   check("GateError carries .problems", err.problems === problems);
   check("GateError defaults .problems to empty", new GateError("x").problems.length === 0);
 }

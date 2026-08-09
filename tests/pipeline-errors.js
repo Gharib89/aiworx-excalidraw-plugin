@@ -201,7 +201,7 @@ const probe = (dir, env) =>
   check("bad page call: exits non-zero", r.status !== 0, `exit ${r.status}`);
   check("bad page call: names PageError", /PageError/.test(r.stderr),
     r.stderr.trim().split("\n").find((l) => l.includes("Error")) ?? r.stderr.trim().slice(0, 120));
-  check("bad page call: names the failing operation", /measureText failed in the page/.test(r.stderr));
+  check("bad page call: names the failing operation", /measureText: failed in the page/.test(r.stderr));
 }
 
 // ---- 4. discovery order, and the error when the whole order comes up empty ----

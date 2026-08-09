@@ -28,8 +28,11 @@ function extent(node) {
   const h = node?.height;
   if (!Number.isFinite(w) || !Number.isFinite(h)) {
     throw new LayoutError(
-      `layout item ${JSON.stringify(node?.type ?? node?.kind)} needs finite width and height ` +
-        `(got ${w}x${h}) — measure text first, size shapes explicitly`,
+      `needs finite width and height (got ${w}x${h})`,
+      {
+        where: node?.id || `layout item ${JSON.stringify(node?.type ?? node?.kind)}`,
+        next: "Measure text first, size shapes explicitly.",
+      },
     );
   }
   return { width: w, height: h };
@@ -65,17 +68,25 @@ export function flatten(nodes) {
  */
 export function stack(items, { direction = "column", x = 0, y = 0, gap = 0, align = "start" } = {}) {
   if (!Array.isArray(items) || items.length === 0) {
-    throw new LayoutError("stack needs a non-empty array of items");
+    throw new LayoutError("needs a non-empty array of items", {
+      where: "stack", next: "Pass at least one item to stack().",
+    });
   }
   if (direction !== "column" && direction !== "row") {
-    throw new LayoutError(`direction must be "column" or "row", got ${JSON.stringify(direction)}`);
+    throw new LayoutError(`direction must be "column" or "row", got ${JSON.stringify(direction)}`, {
+      where: "stack", next: 'Pass "column" or "row" for direction.',
+    });
   }
   if (!["start", "center", "end"].includes(align)) {
-    throw new LayoutError(`align must be start, center or end, got ${JSON.stringify(align)}`);
+    throw new LayoutError(`align must be start, center or end, got ${JSON.stringify(align)}`, {
+      where: "stack", next: 'Pass "start", "center" or "end" for align.',
+    });
   }
   const gaps = Array.isArray(gap) ? gap : Array(Math.max(0, items.length - 1)).fill(gap);
   if (gaps.length !== items.length - 1) {
-    throw new LayoutError(`gap array has ${gaps.length} entries for ${items.length} items (needs ${items.length - 1})`);
+    throw new LayoutError(`gap array has ${gaps.length} entries for ${items.length} items`, {
+      where: "stack", next: `Pass ${items.length - 1} entries.`,
+    });
   }
 
   const sizes = items.map(extent);
@@ -122,13 +133,19 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
       // NaN and Infinity stringify to null as JSON, and a bigint throws — show
       // the value the way its own type reads instead
       const got = typeof angle === "string" ? JSON.stringify(angle) : String(angle);
-      throw new LayoutError(`box angle must be a finite number, got ${got}`);
+      throw new LayoutError(`angle must be a finite number, got ${got}`, {
+        where: "box", next: "Pass a finite number, or omit angle.",
+      });
     }
     if (angle !== 0) {
       throw new LayoutError(
-        `box does not rotate its content, so angle ${angle} would turn the rectangle and leave ` +
-          "the content upright beside it — put the text on the shape as a label instead " +
-          "(a rectangle carrying both angle and label: { text }), which rotates with its container",
+        `does not rotate its content, so angle ${angle} would turn the rectangle and leave ` +
+          "the content upright beside it",
+        {
+          where: "box",
+          next: "Put the text on the shape as a label instead (a rectangle carrying both angle " +
+            "and label: { text }), which rotates with its container.",
+        },
       );
     }
     delete shapeProps.angle;
@@ -190,10 +207,10 @@ const bindId = (node) => (isGroup(node) ? node.shape?.id : node?.id);
  */
 function requireBindable(node, side) {
   if (isGroup(node) && !bindId(node)) {
-    throw new LayoutError(
-      `arrowBetween ${side} is a layout group with no element to bind — give its box an id ` +
-        `(box(child, { id: "…" })), or wrap a plain column/row in one`,
-    );
+    throw new LayoutError(`${side} is a layout group with no element to bind`, {
+      where: "arrowBetween",
+      next: 'Give its box an id (box(child, { id: "…" })), or wrap a plain column/row in one.',
+    });
   }
 }
 
@@ -239,9 +256,9 @@ const LABEL_FONT_SIZE = 16;
 function labelSpec(label) {
   const spec = typeof label === "string" ? { text: label } : label;
   if (!spec || typeof spec.text !== "string" || spec.text === "") {
-    throw new LayoutError(
-      `arrow label needs text: pass a string or { text: "…" }, got ${JSON.stringify(label)}`,
-    );
+    throw new LayoutError(`label needs text, got ${JSON.stringify(label)}`, {
+      where: "arrowBetween", next: 'Pass a string or { text: "…" } for label.',
+    });
   }
   return { fontSize: LABEL_FONT_SIZE, fontFamily: palette.fontFamily.prose, ...spec };
 }
@@ -285,8 +302,9 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   const usable = Math.max(dxGap, dyGap) - 2 * standoff;
   if (usable <= 0) {
     throw new LayoutError(
-      `no gap for an arrow to own between ${bindId(a) ?? a.type} and ${bindId(b) ?? b.type} ` +
+      `no gap between ${bindId(a) ?? a.type} and ${bindId(b) ?? b.type} ` +
         `(separation ${Math.round(Math.max(dxGap, dyGap))}px, standoff ${standoff}px each side)`,
+      { where: "arrowBetween", next: "Move the shapes further apart, or lower standoff." },
     );
   }
 

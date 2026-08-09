@@ -38,6 +38,10 @@ frame is not a stray: titles, legends and captions legitimately do, and the gate
 counts them (`stats.outsideAll`) instead of refusing them.
 _Avoid_: orphan
 
+**What/where/next**:
+The bar every thrown error meets: what failed, where (the file, element id, or call at fault), and the one next action — a command or an instruction, never a link. The three are fields on `NamedError` and compose the message as `where: what — next`; `tests/error-messages.js` enforces them.
+_Avoid_: error format, message template
+
 **Isomorphism test**:
 The authoring judgment that the picture's structure mirrors the idea's structure — if the visual shape does not match the argument, restructure the diagram, not the styling.
 

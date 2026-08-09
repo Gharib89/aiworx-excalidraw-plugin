@@ -101,12 +101,12 @@ const library = (name, doc) => {
   // the message is the whole diagnosis: a generator that named the item wrong
   // needs to see what the library actually holds, not just that it missed
   check("the miss lists what the library holds",
-    noName.message?.includes('no item "no such item"') && noName.message.includes("has 1: stick figure"),
+    noName.message?.includes('no item "no such item"') && noName.message.includes("Pick one of its 1: stick figure"),
     noName.message);
   const noIndex = throwsWith("LibraryError", () => spliceLibraryItem(LIB, { item: 3 }));
   check("an out-of-range index is a LibraryError", noIndex.ok, noIndex.detail);
   check("the out-of-range miss also lists the items",
-    noIndex.message?.includes("no item 3") && noIndex.message.includes("has 1: stick figure"),
+    noIndex.message?.includes("no item 3") && noIndex.message.includes("Pick one of its 1: stick figure"),
     noIndex.message);
 
   const missing = throwsWith("LibraryError", () => spliceLibraryItem(join(outDir, "nope.excalidrawlib")));
@@ -227,7 +227,7 @@ const library = (name, doc) => {
   check("an all-deleted item is a LibraryError, not an empty group",
     allDeleted.ok, allDeleted.detail);
   check("the refusal names the item it could not use",
-    allDeleted.message?.includes("no item 0 — has 1: gone"), allDeleted.message);
+    allDeleted.message?.includes("no item 0 — Pick one of its 1: gone"), allDeleted.message);
   // the deleted elements are dropped, not spliced as tombstones
   const live = spliceLibraryItem(library("mixed", {
     type: "excalidrawlib", version: 2,

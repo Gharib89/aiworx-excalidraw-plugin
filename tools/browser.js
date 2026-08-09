@@ -43,10 +43,9 @@ async function loadChromium() {
     // The package itself, not something missing inside it: a broken install is a
     // different fault and `npm install --omit=dev` is not its remedy.
     if (err?.code === "ERR_MODULE_NOT_FOUND" && err.message.includes("Cannot find package 'playwright-core'")) {
-      throw new MissingDependencyError(
-        "playwright-core is not installed — this checkout has no runtime dependencies yet. " +
-          "Run: npm install --omit=dev",
-      );
+      throw new MissingDependencyError("is not installed — this checkout has no runtime dependencies yet", {
+        where: "playwright-core", next: "Run: npm install --omit=dev",
+      });
     }
     throw err;
   }
@@ -92,29 +91,29 @@ async function launchChrome(options) {
   }
   const absent = override ? [] : CHROME_CANDIDATES.filter((p) => !present.includes(p));
   throw new ChromeLaunchError(
-    `No Chrome/Chromium could be launched. Tried:\n${failures.join("\n")}\n` +
-      (absent.length ? `Nothing installed at: ${absent.join(", ")}.\n` : "") +
-      `Set CHROME_PATH to a Chrome or Chromium executable.`,
+    `could not be launched. Tried:\n${failures.join("\n")}` +
+      (absent.length ? `\nNothing installed at: ${absent.join(", ")}.` : ""),
+    { where: "Chrome/Chromium", next: "Set CHROME_PATH to a Chrome or Chromium executable." },
   );
 }
 
 function assertFreshBundle() {
   if (!existsSync(BUNDLE)) {
-    throw new StaleBundleError(`Bundle missing at ${BUNDLE}. Run: npm run bundle`);
+    throw new StaleBundleError("is missing", { where: BUNDLE, next: "Run: npm run bundle" });
   }
   // A dist/ built before the loader existed would otherwise reach the browser
   // and come back as Chrome's own error page or a blank-page timeout — neither
   // names the remedy. The fingerprint covers the bundle's inputs, not the
   // loader, so its presence is checked here instead.
   if (!existsSync(LOADER)) {
-    throw new StaleBundleError(`Loader page missing at ${LOADER}. Run: npm run bundle`);
+    throw new StaleBundleError("is missing", { where: LOADER, next: "Run: npm run bundle" });
   }
   const expected = expectedFingerprint();
   const stamped = stampedFingerprint(BUNDLE);
   if (stamped !== expected) {
     throw new StaleBundleError(
-      `dist/excalidraw-page.js is stale: it was built from different sources ` +
-        `(stamped ${stamped ?? "no fingerprint"}, current sources ${expected}). Run: npm run bundle`,
+      `is stale: it was built from different sources (stamped ${stamped ?? "no fingerprint"}, current sources ${expected})`,
+      { where: BUNDLE, next: "Run: npm run bundle" },
     );
   }
 }
@@ -179,7 +178,9 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
       try {
         return await thunk();
       } catch (err) {
-        throw new PageError(withIssues(`${label} failed in the page: ${err.message}`));
+        throw new PageError(withIssues(`failed in the page: ${err.message}`), {
+          where: label, next: "Check the page output above for the root cause.",
+        });
       }
     };
 
@@ -191,7 +192,9 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
     const loadFailed = new Promise((_, rej) => (rejectLoad = rej));
     loadFailed.catch(() => {});
     const onLoadError = (e) =>
-      rejectLoad(new BundleLoadError(withIssues(`the bundle threw while loading: ${e.message}`)));
+      rejectLoad(new BundleLoadError(withIssues(`the bundle threw while loading: ${e.message}`), {
+        where: BUNDLE, next: "Run: npm run bundle",
+      }));
     page.on("pageerror", onLoadError);
     try {
       // Chrome reads the bundle off disk through the loader's relative script
@@ -203,7 +206,9 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
       // where a browser-side failure lands — hence the named error, not a raw
       // Playwright message about a closed target.
       await page.goto(pathToFileURL(LOADER).href).catch((err) => {
-        throw new BundleLoadError(withIssues(`the loader page failed to open: ${err.message}`));
+        throw new BundleLoadError(withIssues(`the loader page failed to open: ${err.message}`), {
+          where: LOADER, next: "Run: npm run bundle",
+        });
       });
       await Promise.race([
         page.waitForFunction("window.__exReady === true", { timeout: 30_000 }),
@@ -211,9 +216,9 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
       ]);
     } catch (err) {
       if (err instanceof BundleLoadError) throw err;
-      throw new BundleLoadError(
-        withIssues(`bundle loaded but never signalled ready: ${err.message}`),
-      );
+      throw new BundleLoadError(withIssues(`loaded but never signalled ready: ${err.message}`), {
+        where: BUNDLE, next: "Run: npm run bundle",
+      });
     } finally {
       page.off("pageerror", onLoadError);
     }

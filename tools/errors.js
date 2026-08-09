@@ -9,11 +9,33 @@
  * this base.
  */
 
-/** Base for every named error: the subclass's own name, no per-class boilerplate. */
+/**
+ * Base for every named error: the subclass's own name, no per-class boilerplate.
+ *
+ * An error states three things — **what** failed, **where** (the file, element id
+ * or API call it failed on), and the one **next** action that fixes it. The three
+ * are separate fields so the quality bar is machine-checkable
+ * (`tests/error-messages.js`), and the message is composed from them so a caller
+ * that only prints `err.message` still reads all three:
+ *
+ *     `${where}: ${what} — ${next}`
+ *
+ * `where` and `next` are optional only so a bare `new SomeError("boom")` stays
+ * legal for tests and re-wraps; every throw site in tools/ passes both.
+ * Next actions are commands or instructions, never links — messages rot slower
+ * than URLs do.
+ */
 export class NamedError extends Error {
-  constructor(message) {
-    super(message);
+  constructor(what, { where = "", next = "" } = {}) {
+    // A `what` that lists things (paths tried, defects found) ends on a list
+    // line; joining the remedy onto it with an em dash would read as one more
+    // list entry, so it goes on its own line instead.
+    const joined = [where && `${where}:`, what].filter(Boolean).join(" ");
+    super(next ? joined + (what.includes("\n") ? `\n${next}` : ` — ${next}`) : joined);
     this.name = new.target.name;
+    this.what = what;
+    this.where = where;
+    this.next = next;
   }
 }
 

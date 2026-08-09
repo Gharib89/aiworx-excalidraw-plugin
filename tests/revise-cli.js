@@ -80,7 +80,7 @@ check("a rejected input gets no SVG", !existsSync(join(badDir, "foreign.svg")));
     const r = revise(...c.args);
     check(`${c.name}: exits 2`, r.status === 2, `got ${r.status}`);
     check(`${c.name}: names the offending argument`,
-      r.stderr.includes(`UsageError: unknown flag ${c.arg}`), firstErrorLine(r));
+      r.stderr.includes(`UsageError: ${c.arg}: unknown flag`), firstErrorLine(r));
   }
   // the guard fires during parsing, so the file is never touched
   check("a rejected argument revises nothing", !existsSync(join(badDir, "copy.svg")));

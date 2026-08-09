@@ -175,6 +175,13 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
   const escaped = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", -20, 20, 100, 60, { frameId: "f1" })]));
   check("an escaping element is not also reported as crowding", only(escaped, "frame-escape"), detail(escaped));
 
+  // a fractional clearance must never round up to the inset it failed: a
+  // consumer comparing clearance against needs would read 4 of 4 as passing
+  const fractional = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", 3.6, 20, 100, 60, { frameId: "f1" })]));
+  check("a fractional clearance keeps its decimal instead of rounding to needs",
+    find(fractional, "frame-edge-crowding")?.clearance === 3.6,
+    JSON.stringify(find(fractional, "frame-edge-crowding")));
+
   // containment tolerates a 0.3px graze, so that element is not an escape — and
   // it is not crowding either: a fraction of a pixel *out* is neither "inside
   // the inset" nor a negative clearance to report

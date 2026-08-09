@@ -161,11 +161,14 @@ export function verifyDocument(data) {
     //     reports what is genuinely inside, never a fraction of a pixel out.
     const inset = clearance(f, e);
     if (inset >= 0 && inset < FRAME_EDGE_INSET) {
+      // one decimal, not whole px: rounding 3.6 to 4 would report a clearance
+      // equal to the inset it just failed, which reads as passing
+      const px = Math.round(inset * 10) / 10;
       note(
         "frame-edge-crowding",
-        `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits ${round(inset)}px from the border of frame "${f.name ?? f.id}", inside the ${FRAME_EDGE_INSET}px minimum inset: a frame export crops at the border, so it renders clipped`,
+        `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits ${px}px from the border of frame "${f.name ?? f.id}", inside the ${FRAME_EDGE_INSET}px minimum inset: a frame export crops at the border, so it renders clipped`,
         [e.id, f.id],
-        { clearance: round(inset), needs: FRAME_EDGE_INSET },
+        { clearance: px, needs: FRAME_EDGE_INSET },
       );
     }
   }

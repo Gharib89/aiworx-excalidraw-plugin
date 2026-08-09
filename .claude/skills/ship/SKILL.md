@@ -2,8 +2,9 @@
 name: ship
 description: >-
   Take a tracker issue to a merge-ready PR in one unattended run, stopping only
-  at a human merge gate. Composes the `tdd` and `code-review` skills. Use when the
-  user wants to ship an issue or take an issue through to a PR.
+  at a human merge gate. Composes the `tdd`, `writing-for-agents` and
+  `code-review` skills. Use when the user wants to ship an issue or take an issue
+  through to a PR.
 argument-hint: "[issue-number]"
 ---
 
@@ -101,7 +102,7 @@ subagent and the poll loop with a model explicitly — never default-inherit.
 | Investigation / mapping | haiku |
 | Phase-2 **execution** from a settled plan (split in [reference/implement.md](reference/implement.md)) | sonnet |
 | Mechanical edits & fixes, docs-sync helper, `code-review` skill's **Spec** axis | sonnet |
-| Triage judgment (phase 4), phase-2 **judgment** (classification, plan, design), `code-review` skill's **Standards / code** axis | opus |
+| Triage judgment (phase 4), phase-2 **judgment** (classification, plan, design), the `writing-for-agents` pass on agent-facing docs, `code-review` skill's **Standards / code** axis | opus |
 
 Triage and code review are judgment — running them on the cheap tier under-reads
 diffs. Poll loops and gate runs are **scripts** (see *Scripts*) — no model at
@@ -143,11 +144,13 @@ this long run from bloating the window, **and names your required first action:
 creating the run's ten-item task list** (one per phase below). Don't start phase 0
 until that list exists.
 
-**Compose, don't reinline.** Load the `tdd` skill (phase 2) and the `code-review` skill
-(phase 4) through the Skill tool when their phase begins — never hand-roll
-their logic. Set the `code-review` skill's per-axis tiers yourself when you invoke it
-(opus code / sonnet spec, table above); run finding-**triage** at the judgment tier,
-mechanical helpers at the cheap tier (table above).
+**Compose, don't reinline.** Load the `tdd` skill (phase 2), the
+`writing-for-agents` skill (phase 4, agent-facing docs only) and the
+`code-review` skill (phase 4) through the Skill tool when their phase begins —
+never hand-roll their logic. Set the `code-review` skill's per-axis tiers
+yourself when you invoke it (opus code / sonnet spec, table above); run
+finding-**triage** at the judgment tier, mechanical helpers at the cheap tier
+(table above).
 
 **0 · Isolate.** **Pre-flight:** run `scripts/preflight.sh <issue>` — if it
 reports not actionable (closed, an existing open/merged PR that claims to
@@ -220,10 +223,19 @@ the public surface** (*The lanes*, key 1) **or observable behavior**. Then bring
 the project's documented artifacts (README, the shipped skill
 `skills/excalidraw-diagram/`, tests) back in line **per the project's docs-sync
 rules in `CLAUDE.md`** — at the mechanical tier — and fold the edits into this
-change. **Skip** when nothing user-visible changed — an internal refactor
-(`infra`), a bugfix that restores already-documented behavior, test-only /
-build / tooling changes, or pure comments; when you skip, say so in one line at
-the merge gate.
+change.
+
+Any artifact **written for an agent** — a skill, `AGENTS.md` / `CLAUDE.md`, a
+domain glossary, a doc reached by a pointer — goes through the
+`writing-for-agents` skill instead (Skill tool, judgment tier), so the edit
+lands on the levers that keep such a document predictable: pointer wording, the
+information hierarchy, leading words, positive phrasing, one home per meaning.
+Prose aimed at humans — README, code comments — takes the mechanical pass above.
+
+**Skip** the whole docs-sync step when nothing user-visible changed — an
+internal refactor (`infra`), a bugfix that restores already-documented behavior,
+test-only / build / tooling changes, or pure comments; when you skip, say so in
+one line at the merge gate.
 
 **Self-review.** Invoke the `code-review` skill against the diff — now including the
 docs-sync edits — (it runs its two axes on their own tiers — opus for code, sonnet

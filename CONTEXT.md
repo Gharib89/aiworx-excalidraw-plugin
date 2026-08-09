@@ -2,6 +2,8 @@
 
 Authoring `.excalidraw` diagrams that argue visually, with measured text and mechanical verification. One context: the vocabulary below is used by the skill, the tools, the gate, and the docs.
 
+This file is where a term is settled; the consumers spell it out where their own readers need it — the shipped skill in particular, which travels without this repo and so carries its own definitions. Renaming a term here therefore updates every consumer in the same change.
+
 ## Language
 
 ### Diagram kinds

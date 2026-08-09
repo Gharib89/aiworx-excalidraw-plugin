@@ -103,4 +103,7 @@ Emitted by `check.js` for a file that never reached the rules. They appear under
 | `check-crashed` | live | 1 | the gate itself threw while checking the file |
 
 A batch reports the worst exit code across its files, so an unreadable input (2)
-outranks a file that failed the rules (1) instead of hiding behind it.
+outranks a file that failed the rules (1) instead of hiding behind it; a batch
+whose every file is clean exits 0. `render.js` and `revise.js` have nothing to
+aggregate: they exit 1 for a document they refuse, and keep 2 for an invocation
+that never named a file.

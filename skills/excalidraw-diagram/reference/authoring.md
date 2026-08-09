@@ -396,10 +396,10 @@ place. A file that isn't a parseable Excalidraw document is rejected with a
 `DocumentError`; a revision that would fail the gate throws a `GateError`. Both
 exit 1 and write nothing; a bad invocation exits 2 with a `UsageError`.
 
-Every error these tools throw reads the same way — `where: what failed — the one
-next action`, where *where* is the file, the element id, or the call at fault.
-The next action is always a command or an instruction, never a link, so the
-message alone is enough to retry: read the trailing clause and do exactly that.
+Every error these tools throw reads **what / where / next** — composed as
+`where: what — next`, with *where* the file, the element id, or the call at
+fault, and *next* a single command or instruction. So the message alone is
+enough to retry: read its trailing clause and do exactly that.
 
 From inside a generator, the same round-trip is one call:
 

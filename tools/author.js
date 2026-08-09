@@ -26,7 +26,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
-import { stack, row, column, box, arrowBetween, flatten } from "./layout.js";
+import { stack, row, column, box, arrowBetween, flatten, resolveArrows } from "./layout.js";
 import { NamedError, DocumentError } from "./errors.js";
 
 /** The input file is not a parseable Excalidraw document. Defined in errors.js. */
@@ -649,7 +649,10 @@ const buildContext = (ex, files) => ({
 async function authorInto(ex, { out, build, svg = true, background, register }) {
   validateRegister(register);
   const files = {};
-  const skeleton = applyRegister(validateSkeleton(await build(buildContext(ex, files))), register);
+  // resolveArrows before the register: every arrow the register governs has to be
+  // a placed one by then, and the build is the last thing that can move a shape
+  const built = resolveArrows(validateSkeleton(await build(buildContext(ex, files))));
+  const skeleton = applyRegister(built, register);
   const stitches = planBindingStitches(skeleton);
   // regenerateIds: false — gate errors then name the author's own ids, and the
   // stitches can find their arrows again; validateSkeleton enforced uniqueness

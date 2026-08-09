@@ -157,13 +157,13 @@ export function verifyDocument(data) {
     //     as an escape. Measured on ink, like containment, so a rotated shape is
     //     judged by what renders. NaN clearance fails the comparison and is left
     //     to the non-finite rule.
-    const c = clearance(f, e);
-    if (c < FRAME_EDGE_INSET) {
+    const inset = clearance(f, e);
+    if (inset < FRAME_EDGE_INSET) {
       note(
         "frame-edge-crowding",
-        `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits ${round(c)}px from the border of frame "${f.name ?? f.id}", inside the ${FRAME_EDGE_INSET}px minimum inset: a frame export crops at the border, so it renders clipped`,
+        `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits ${round(inset)}px from the border of frame "${f.name ?? f.id}", inside the ${FRAME_EDGE_INSET}px minimum inset: a frame export crops at the border, so it renders clipped`,
         [e.id, f.id],
-        { clearance: round(c), needs: FRAME_EDGE_INSET },
+        { clearance: round(inset), needs: FRAME_EDGE_INSET },
       );
     }
   }

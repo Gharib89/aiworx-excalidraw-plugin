@@ -478,15 +478,20 @@ const throwsLayoutError = (fn) => {
     throwsLayoutError(() => deferArrow(a, b, { label: "" })));
   check("an unbindable group still throws at call time",
     throwsLayoutError(() => deferArrow(a, column([{ type: "rectangle", width: 1, height: 1 }]))));
+  // a bigint is neither finite nor stringifiable as JSON — the refusal must still
+  // be a LayoutError, not a TypeError from rendering the message
   check("a non-finite standoff throws at call time",
     throwsLayoutError(() => deferArrow(a, b, { standoff: "10" })) &&
-      throwsLayoutError(() => deferArrow(a, b, { standoff: NaN })));
+      throwsLayoutError(() => deferArrow(a, b, { standoff: NaN })) &&
+      throwsLayoutError(() => deferArrow(a, b, { standoff: Infinity })) &&
+      throwsLayoutError(() => deferArrow(a, b, { standoff: 10n })));
   // the resolve pass copies via through untouched, so its shape is checked here
   check("malformed via waypoints throw at call time",
     throwsLayoutError(() => deferArrow(a, b, { via: null })) &&
       throwsLayoutError(() => deferArrow(a, b, { via: [[1, 2, 3]] })) &&
       throwsLayoutError(() => deferArrow(a, b, { via: [[1, "2"]] })) &&
-      throwsLayoutError(() => deferArrow(a, b, { via: [{ x: 1, y: 2 }] })));
+      throwsLayoutError(() => deferArrow(a, b, { via: [{ x: 1, y: 2 }] })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [[1n, 2n]] })));
   const overlapping = deferArrow(a, b, { standoff: 10, id: "no-room" });
   check("shapes that leave no gap are only refused at resolve time",
     throwsLayoutError(() => resolveArrows([overlapping])));

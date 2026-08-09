@@ -248,6 +248,19 @@ function elbow([sx, sy], [ex, ey], horizontal) {
   return [[sx, my], [ex, my]];
 }
 
+/**
+ * A rejected value, rendered for its own message. JSON reads best and is what the
+ * rest of this module shows, but it throws on a bigint and drops `undefined` —
+ * and an error about a bad value must not fail on the value.
+ */
+const shown = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+
 /** One step below body prose: an edge annotation, not a heading. */
 const LABEL_FONT_SIZE = 16;
 
@@ -310,7 +323,7 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   if (!Array.isArray(via) ||
       via.some((p) => !Array.isArray(p) || p.length !== 2 || !p.every((n) => Number.isFinite(n)))) {
     throw new LayoutError(
-      `via must be an array of [x, y] pairs of finite numbers, got ${JSON.stringify(via)} ` +
+      `via must be an array of [x, y] pairs of finite numbers, got ${shown(via)} ` +
         `(arrow between ${edge()})`,
       { where: "arrowBetween", next: "Pass via: [[x, y], …], or drop via for a straight run." },
     );
@@ -326,7 +339,7 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   // surface as an unplaceable arrow rather than as the typo it is
   if (!Number.isFinite(standoff)) {
     throw new LayoutError(
-      `standoff must be a finite number, got ${JSON.stringify(standoff)} (arrow between ${edge()})`,
+      `standoff must be a finite number, got ${shown(standoff)} (arrow between ${edge()})`,
       { where: "arrowBetween", next: "Pass a number for standoff, or omit it for the 10px default." },
     );
   }

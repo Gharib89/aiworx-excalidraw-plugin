@@ -262,9 +262,9 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   resolve pass takes as given, so write them after the last mover or recompute
   them from the shapes' final positions.
 - Options are checked where you wrote them: an unknown `route`, `route` with
-  `via`, `via` that is not `[[x, y], …]` of real numbers, a label with no text, a
-  non-numeric `standoff`, an unbindable group — each is a `LayoutError` from the
-  call itself. What needs the finished
+  `via`, `via` that is not `[[x, y], …]` of finite numbers, a label with no text,
+  a `standoff` that is not a finite number, an unbindable group — each is a
+  `LayoutError` from the call itself. What needs the finished
   coordinates waits for the resolve pass and names the arrow's id when it
   refuses, so give an arrow an `id` and the refusal traces straight back to the
   line that wrote it.

@@ -19,11 +19,11 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { VENDORED_FONTS } from "../tools/fonts.js";
+import { VENDORED_FONTS, FONT_SOURCE_DIR, FONT_OUTPUT_DIR } from "../tools/fonts.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const distFonts = join(root, "dist", "fonts");
+const distFonts = join(root, FONT_OUTPUT_DIR);
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -51,7 +51,7 @@ const woff2In = (dir) =>
 // suite without it. Absent, there is nothing to compare against and the check
 // reports what it skipped rather than passing silently on no evidence.
 {
-  const pkgFonts = join(root, "node_modules/@excalidraw/excalidraw/dist/prod/fonts");
+  const pkgFonts = join(root, FONT_SOURCE_DIR);
   if (!existsSync(pkgFonts)) {
     console.log("SKIP  vendored bytes match the pinned package — devDependencies not installed");
   } else {

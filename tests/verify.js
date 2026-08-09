@@ -201,6 +201,30 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
   check("an unbound element over a frame is one problem naming the frame", only(r, "unbound-over-frame"), detail(r));
   check("it names the element then its host frame", JSON.stringify(p?.elements) === '["r1","f1"]', JSON.stringify(p?.elements));
   check("an element clear of every frame is counted, not flagged", r.stats.outsideAll === 1, JSON.stringify(r.stats));
+
+  // The band defect this rule exists to refuse, from the evaluation run: two
+  // panels with an unbound connector between them whose ends reach 17px into
+  // each neighbouring frame. Every frame export cropped at its border and
+  // rendered an amputated arrowhead stub, while the file passed the gate — a
+  // flat connector is the orientation a band uses, and a flat outline was the
+  // one shape the overlap test could not see.
+  const connector = (id, x, y, width, height) => ({
+    ...shape(id, x, y, width, height),
+    type: "arrow",
+    points: [[0, 0], [width, height]],
+  });
+  const band = verifyDocument(doc([frame("f1", 0, 0, 200, 200), frame("f2", 260, 0, 200, 200), connector("a1", 183, 100, 94, 0)]));
+  const bandProblem = find(band, "unbound-over-frame");
+  check("a flat connector reaching into the panels it joins is refused", only(band, "unbound-over-frame"), detail(band));
+  check("it names the connector and the frame it reaches into", JSON.stringify(bandProblem?.elements) === '["a1","f1"]', JSON.stringify(bandProblem?.elements));
+
+  // the same defect in a stacked band, where the connector is vertical
+  const stacked = verifyDocument(doc([frame("f1", 0, 0, 200, 200), frame("f2", 0, 260, 200, 200), connector("a1", 100, 183, 0, 94)]));
+  check("a flat vertical connector reaching into stacked panels is refused", only(stacked, "unbound-over-frame"), detail(stacked));
+
+  // and the property the fix had to keep: a band's frames sit edge to edge
+  const abutting = verifyDocument(doc([frame("f1", 0, 0, 200, 200), frame("f2", 200, 0, 200, 200)]));
+  check("frames that merely touch edges are no defect", abutting.problems.length === 0, detail(abutting));
 }
 
 // ---- 8. a bound arrow head should stop at its target's edge ----

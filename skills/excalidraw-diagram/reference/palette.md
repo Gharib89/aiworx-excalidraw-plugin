@@ -7,8 +7,7 @@ hex values into a generator:
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// root resolution and its guard: authoring.md → Measuring
-const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];
+const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];   // guarded as in authoring.md, Measuring
 const { palette, PROSE, CODE } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 palette.roles.remote.stroke   // "#792A8E"
 palette.roles.remote.fill     // "#FFF0FF"

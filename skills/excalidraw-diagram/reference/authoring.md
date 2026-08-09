@@ -86,11 +86,13 @@ node docs/diagrams/gen-thing.js "${CLAUDE_PLUGIN_ROOT}"
 CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" node docs/diagrams/gen-thing.js   # equivalent
 ```
 
-The argument form leads because it survives a Bash permission allowlist: after
-substitution the command line starts with `node`, which a `Bash(node:*)` rule
-admits, while an environment-variable prefix reads as a compound command and is
-denied — as is every `export` or `$VAR` workaround. The environment form stays
-documented so an already-committed generator keeps running unchanged.
+Reach for the argument form: it survives a Bash permission allowlist, because
+after substitution the command line starts with `node`, which a `Bash(node:*)`
+rule admits, while an environment-variable prefix reads as a compound command
+and is denied — as is every `export` or `$VAR` workaround. The environment form
+stays documented so an already-committed generator keeps running unchanged.
+Supply one or the other: a generator reads `CLAUDE_PLUGIN_ROOT` first and the
+argument only when that is unset, so a stale variable beats a good argument.
 
 An install path is also allowed to contain spaces and to start with a Windows
 drive letter, so paths cross the URL boundary through `node:url` — `pathToFileURL`

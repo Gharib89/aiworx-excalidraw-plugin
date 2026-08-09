@@ -46,10 +46,10 @@ const check = (name, cond, detail) => {
   copyFileSync(join(root, "package.json"), join(checkout, "package.json"));
   console.log(`checkout: ${checkout}`);
 
-  // Both documented invocations, because both have to keep working: the argv form
-  // is the primary one (it survives a `node`-scoped Bash allowlist, which an
-  // env-prefixed command line does not), the env form is the documented
-  // alternative every already-committed generator uses.
+  // Both documented invocations, because both have to keep working: the docs lead
+  // with the argument form (it survives a `node`-scoped Bash allowlist, which an
+  // env-prefixed command line does not), and keep the env form as the alternative
+  // every already-committed generator uses.
   const { CLAUDE_PLUGIN_ROOT: _inherited, ...envWithoutRoot } = process.env;
   const forms = [
     ["argv", [checkout], envWithoutRoot],
@@ -71,6 +71,21 @@ const check = (name, cond, detail) => {
     check(`the generator exits clean from a path with a space (${form} form)`, run.status === 0,
       run.status === 0 ? "" : `exit ${run.status}: ${why()}`);
     check(`the diagram lands next to the generator (${form} form)`, existsSync(out), out);
+  }
+
+  // The documented precedence, pinned: the variable is read first and the argument
+  // only when it is unset, so a stale variable beats a good argument — and the
+  // failure names the path it tried. No browser reached: the import fails first.
+  {
+    const stale = join(checkout, "no-such-root");
+    const clash = spawnSync(process.execPath, ["examples/gen-example.js", checkout], {
+      cwd: checkout,
+      env: { ...envWithoutRoot, CLAUDE_PLUGIN_ROOT: stale },
+      encoding: "utf8",
+    });
+    check("the environment is read before the argument",
+      clash.status !== 0 && String(clash.stderr ?? "").includes(stale),
+      `exit ${clash.status}`);
   }
   if (existsSync(out)) {
     const doc = JSON.parse(readFileSync(out, "utf8"));

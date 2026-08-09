@@ -157,6 +157,37 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
     "a linear element is judged on its bounding box",
     outlinesOverlap(diagonal, { type: "rectangle", x: 60, y: 0, width: 20, height: 20 }) === true,
   );
+
+  // a flat connector's box collapses to a segment, and a segment's own quad has
+  // two zero-length edges. Their normal is the null vector, which projects every
+  // point to 0 — read as a separating axis by the touching rule, that hid every
+  // perfectly horizontal or vertical arrow: the orientation connectors use most.
+  const flatFrame = { type: "frame", x: 0, y: 0, width: 400, height: 300 };
+  const flat = { type: "arrow", x: 380, y: 150, width: 60, height: 0, points: [[0, 0], [60, 0]] };
+  const slant = { type: "arrow", x: 380, y: 150, width: 60, height: 2, points: [[0, 0], [60, 2]] };
+  check("a 2px-tilted arrow reaching into a frame overlaps it (the witness)", outlinesOverlap(flatFrame, slant) === true);
+  check("a flat horizontal arrow reaching into a frame overlaps it", outlinesOverlap(flatFrame, flat) === true);
+  check(
+    "a flat vertical line reaching into a frame overlaps it",
+    outlinesOverlap(flatFrame, { type: "line", x: 150, y: 280, width: 0, height: 60, points: [[0, 0], [0, 60]] }) === true,
+  );
+  check(
+    "a flat arrow clear of a frame does not overlap it",
+    outlinesOverlap(flatFrame, { type: "arrow", x: 420, y: 150, width: 60, height: 0, points: [[0, 0], [60, 0]] }) === false,
+  );
+  // the touching rule has to survive the fix: a connector routed along a border
+  // grazes it, and frames sit edge to edge in a band
+  check(
+    "a flat line lying along a frame's border does not overlap it",
+    outlinesOverlap(flatFrame, { type: "line", x: 400, y: 100, width: 0, height: 100, points: [[0, 0], [0, 100]] }) === false,
+  );
+
+  // a zero-by-zero outline is a point: it offers no axis at all, so the test has
+  // nothing to separate it by and must not fall through to "everything overlaps"
+  const point = (x, y) => ({ type: "text", x, y, width: 0, height: 0 });
+  check("a point-sized outline inside a rectangle overlaps it", outlinesOverlap(a, point(50, 50)) === true);
+  check("a point-sized outline outside a rectangle does not overlap it", outlinesOverlap(a, point(500, 500)) === false);
+  check("two point-sized outlines do not overlap", outlinesOverlap(point(10, 10), point(90, 90)) === false);
 }
 
 // ---- 4. outlineContains: ink inside ink, with slack ----

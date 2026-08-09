@@ -51,7 +51,16 @@ export function bounds(e) {
 export function outlinesOverlap(a, b) {
   const pa = convexOutline(a);
   const pb = convexOutline(b);
+  // Two outlines that have both collapsed to a point offer no axis between
+  // them, and a test with no axis to try reports every pair as overlapping.
+  // They have no extent to share, so the touching rule answers this: never.
+  if (isPoint(pa) && isPoint(pb)) return false;
   return !separated(pa, pb) && !separated(pb, pa);
+}
+
+/** Whether an outline has collapsed to a single point — no extent in any direction. */
+function isPoint(pts) {
+  return pts.every(([x, y]) => x === pts[0][0] && y === pts[0][1]);
 }
 
 function convexOutline(e) {
@@ -74,6 +83,12 @@ function separated(pts, other) {
     const [x2, y2] = pts[(i + 1) % pts.length];
     const nx = y2 - y1;
     const ny = x1 - x2;
+    // A zero-length edge — which every degenerate outline has, a flat arrow's
+    // box being a segment walked out and back — has the null vector for a
+    // normal. It projects both sets onto 0, and `aMax <= bMin` then reads that
+    // as a separating axis, so a flat connector deep inside a frame reported no
+    // overlap at all. Skipping it leaves exactly the axes a segment really has.
+    if (nx === 0 && ny === 0) continue;
     const project = (poly) => {
       let min = Infinity;
       let max = -Infinity;

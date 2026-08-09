@@ -136,12 +136,14 @@ tools/
   revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place
   smoke.js          browser smoke suite proving measurement, conversion, export and raster survival
   palette.js        derives brand/palette.json and verifies every contrast claim
-  bundle.js         builds the committed dist/ bundle and its loader page, fonts inlined, stamped with a source fingerprint
+  bundle.js         builds the committed dist/ bundle, its loader page and its vendored fonts, stamped with a source fingerprint
+  fonts.js          the Excalidraw font families dist/ vendors, so nothing is fetched at render time
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
   errors.js         the shared NamedError base every tool error derives from, plus UsageError and DocumentError
                     every error states what failed, where, and the one next action: "where: what — next action"
 tests/              geometry + verifyDocument units, layout units, gate fixtures, failure paths, render + revise CLI, author API suites
-dist/               committed browser bundle and the loader page Chrome navigates to
+dist/               committed browser bundle, the loader page Chrome navigates to, and fonts/ — the vendored woff2 files
+                    Excalidraw would otherwise fetch from a CDN, so measuring and rendering work offline
 brand/              AIWorx palette
 examples/           worked generator (gen-example.js) and its committed output
 ```

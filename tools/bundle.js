@@ -3,9 +3,14 @@
  * Bundle the browser entry into dist/. The bundle is committed so an installed
  * plugin works without a build step; only playwright-core is needed at runtime.
  *
- * Fonts are inlined as data URLs on purpose: exportToSvg embeds whatever font
- * files it can reach, and a bundle that fetches them over the network would
- * silently produce diagrams with substituted fonts.
+ * Fonts are vendored into dist/fonts/ on purpose: exportToSvg embeds whatever
+ * font files it can reach, and reaching for them over the network would put a
+ * CDN on the hot path of every measurement — silently substituting fonts, or
+ * failing outright, whenever it is slow or absent. See tools/fonts.js.
+ *
+ * Asset loaders below still inline anything the entry *imports*; the font files
+ * are not among them, because Excalidraw holds them as path strings it fetches
+ * at run time rather than as imports esbuild could see.
  */
 import * as esbuild from "esbuild";
 import { readFileSync, writeFileSync, appendFileSync, cpSync, rmSync } from "node:fs";

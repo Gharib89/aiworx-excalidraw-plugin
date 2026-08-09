@@ -33,8 +33,9 @@ refer back to this class by name.
 When in doubt between `code` and `docs`, treat it as `code` and write the test.
 
 **Bundle inputs are a tripwire, not a class.** Whatever the class: touching
-`tools/page.js`, `tools/bundle.js`, or moving a lockfile-resolved version of a
-bundled dep requires `npm run bundle` + committing `dist/` in the same change —
+`tools/page.js`, `tools/bundle.js`, `tools/fonts.js`, or moving a
+lockfile-resolved version of a bundled dep requires `npm run bundle` +
+committing `dist/` in the same change —
 `browser.js` refuses a stale fingerprint, so every later browser-dependent step
 goes red if you forget.
 

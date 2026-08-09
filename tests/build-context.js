@@ -36,7 +36,7 @@ const list = (names) => [...names].sort().join(", ");
 
 // The context is one object literal: `const buildContext = (ex, files) => ({ … });`
 const author = read("tools/author.js");
-const literal = author.match(/const buildContext = \([^)]*\) => \(\{\n([\s\S]*?)\n\}\);/);
+const literal = author.match(/const\s+buildContext\s*=\s*\([^)]*\)\s*=>\s*\(\{([\s\S]*?)\n\s*\}\);/);
 
 if (literal === null) {
   check("tools/author.js declares the buildContext object literal", false);

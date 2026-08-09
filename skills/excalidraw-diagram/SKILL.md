@@ -92,9 +92,11 @@ What the rules cover. Structure: a file
 that isn't an Excalidraw document, unknown or degenerate elements, duplicate
 ids, bindings pointing at deleted elements, images whose bytes are missing.
 Geometry (rotation included): overlapping frames, bound text larger than its
-container, elements escaping their frame or sitting over one without belonging
-to it, free texts on top of each other, arrows crossing shapes they aren't
-bound to, arrowheads buried inside their target, off-canvas strays. Style:
+container, elements escaping their frame, sitting flush against its border
+(a frame export crops there, so it renders clipped — 4px minimum inset), or
+sitting over a frame without belonging to it, free texts on top of each other,
+arrows crossing shapes they aren't bound to, arrowheads buried inside their
+target, off-canvas strays. Style:
 text failing 4.5:1 contrast against the fill it sits on, text sitting over an
 image (whose pixels are a ground no ratio can measure), fonts outside the house
 pair.

@@ -60,6 +60,7 @@ warning level.
 | `text-overflow` | live | [text, container] | — | bound text exceeds the container's usable interior |
 | `missing-frame` | live | [element, frame] | — | an element names a frame that is deleted or absent |
 | `frame-escape` | live | [element, frame] | `element`, `frame` (boxes) | an element's outline leaves the frame it belongs to |
+| `frame-edge-crowding` | live | [element, frame] | `clearance`, `needs` | an element stays inside its frame but stops less than 4px from the border |
 | `unbound-over-frame` | live | [element, frame] | — | an element sits over a frame without belonging to it, so per-frame export puts it in the wrong panel |
 | `dangling-binding` | live | [arrow, target] | — | an arrow's `startBinding`/`endBinding` points at a deleted or absent element |
 | `free-text-overlap` | live | [text, text] | — | two unbound texts' outlines overlap |
@@ -71,6 +72,17 @@ warning level.
 | `low-contrast` | live | [text] | `ratio`, `needs`, `ink`, `bg`, `theme` | text misses 4.5:1 (3:1 for large text) against its ground, under the named theme |
 | `foreign-font` | live | [text] | — | the text's `fontFamily` is outside the house pair |
 | `missing-image-bytes` | live | [image] | — | the image's `fileId` has no bytes in the files dictionary |
+
+`frame-edge-crowding` is the near miss `frame-escape` does not cover: a per-frame
+export crops exactly at the frame border — Excalidraw zeroes padding for frame
+export — so content flush with the border renders clipped in the panel even
+though it is technically inside. The minimum inset is **4px**, measured on ink
+like containment is, and reported as `clearance` (what the element has) against
+`needs` (what it must have). A frame that fits itself around `children` places
+content at 10px, so an authored diagram clears the inset by construction; the
+floor sits below 10 so a rotated shape whose ink legitimately fills its frame is
+snug, not a defect. An element that leaves the frame is reported once, as
+`frame-escape`.
 
 Both themes are scored on every run: the dark export is a CSS filter over the
 same colours and does not preserve contrast ratios, so `low-contrast` names the

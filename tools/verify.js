@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bounds, outline, outlinesOverlap, outlineContains, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
+import { bounds, outline, outlinesOverlap, outlineContains, clearance, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
 import { blend, contrast, normalizeHex, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -147,6 +147,23 @@ export function verifyDocument(data) {
         `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} escapes frame "${f.name ?? f.id}": element ${round(b.x1)},${round(b.y1)}–${round(b.x2)},${round(b.y2)} vs frame ${round(fb.x1)},${round(fb.y1)}–${round(fb.x2)},${round(fb.y2)}`,
         [e.id, f.id],
         { element: roundBox(b), frame: roundBox(fb) },
+      );
+      continue;
+    }
+    // 5b. …and it must stop short of the border, not sit flush against it: a
+    //     per-frame export crops exactly at the frame edge (the app zeroes
+    //     padding for frame export), so content on the border reads clipped in
+    //     the rendered panel. An element that already escapes is reported once,
+    //     as an escape. Measured on ink, like containment, so a rotated shape is
+    //     judged by what renders. NaN clearance fails the comparison and is left
+    //     to the non-finite rule.
+    const c = clearance(f, e);
+    if (c < FRAME_EDGE_INSET) {
+      note(
+        "frame-edge-crowding",
+        `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits ${round(c)}px from the border of frame "${f.name ?? f.id}", inside the ${FRAME_EDGE_INSET}px minimum inset: a frame export crops at the border, so it renders clipped`,
+        [e.id, f.id],
+        { clearance: round(c), needs: FRAME_EDGE_INSET },
       );
     }
   }
@@ -399,6 +416,18 @@ export function verifyDocument(data) {
     },
   };
 }
+
+/**
+ * The clearance every framed element must keep from its frame's border.
+ *
+ * A frame that fits itself around `children` lands its content at 10px, so
+ * anything this toolchain authors clears the inset by construction: what the
+ * rule catches is a hand-placed frame or a hand edit that leaves content flush
+ * with the border. The floor sits below 10 deliberately — a rotated shape whose
+ * ink legitimately fills its frame stops a few px inside — so it flags content
+ * on the border, not content that is merely snug.
+ */
+const FRAME_EDGE_INSET = 4;
 
 /**
  * The box the app actually wraps bound text into — Excalidraw's

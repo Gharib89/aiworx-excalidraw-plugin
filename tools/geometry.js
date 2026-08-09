@@ -103,19 +103,32 @@ function separated(pts, other) {
  * and linear elements their box, as `outlinesOverlap` does.
  */
 export function outlineContains(outer, inner, pad = 0.5) {
+  // negated, not `>= -pad`: non-finite geometry yields NaN, and a document the
+  // gate already reports as non-finite must not also be reported as escaping
+  return !(clearance(outer, inner) < -pad);
+}
+
+/**
+ * How far inside `outer`'s outline `inner`'s ink stops, in px: the smallest
+ * clearance to any of outer's edges, measured on the same ink model
+ * `outlineContains` judges containment on. Negative when inner pokes out — then
+ * it is the overhang. `Infinity` for an outer with no edges.
+ */
+export function clearance(outer, inner) {
   const poly = convexOutline(outer);
+  let least = Infinity;
   for (let i = 0; i < poly.length; i++) {
     const [x1, y1] = poly[i];
     const [x2, y2] = poly[(i + 1) % poly.length];
     const len = Math.hypot(x2 - x1, y2 - y1);
     if (!len) continue;
-    // Outward unit normal of this edge, then how far past it inner reaches.
+    // Outward unit normal of this edge, then how far short of it inner stops.
     // `convexOutline` always winds top-left → top-right → bottom-right, which
     // rotation preserves, so (dy, -dx) points away from the interior.
     const n = [(y2 - y1) / len, (x1 - x2) / len];
-    if (support(inner, n) - (x1 * n[0] + y1 * n[1]) > pad) return false;
+    least = Math.min(least, x1 * n[0] + y1 * n[1] - support(inner, n));
   }
-  return true;
+  return least;
 }
 
 /** How far an element's ink reaches in direction `n` (a unit vector). */

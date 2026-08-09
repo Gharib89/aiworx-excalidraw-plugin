@@ -161,6 +161,26 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
   check("a rotated ellipse whose ink fits its frame is no defect", rotated.problems.length === 0, detail(rotated));
 }
 
+// ---- 6b. content inside the frame but flush with its border reads clipped ----
+{
+  const crowded = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", 2, 20, 100, 60, { frameId: "f1" })]));
+  const p = find(crowded, "frame-edge-crowding");
+  check("an element inside the minimum inset is one crowding problem", only(crowded, "frame-edge-crowding"), detail(crowded));
+  check("it names the element then its frame, with the clearance it has and the one it needs",
+    JSON.stringify(p?.elements) === '["r1","f1"]' && p?.clearance === 2 && p?.needs === 4,
+    JSON.stringify(p));
+
+  // an element that leaves the frame is an escape, not crowding: one defect, one
+  // problem — the author moves it either way
+  const escaped = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", -20, 20, 100, 60, { frameId: "f1" })]));
+  check("an escaping element is not also reported as crowding", only(escaped, "frame-escape"), detail(escaped));
+
+  // the toolchain's own frames fit their children with 10px of padding, so
+  // anything it authors clears the inset by construction
+  const roomy = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", 10, 10, 180, 80, { frameId: "f1" })]));
+  check("an element at the converter's own 10px frame padding is no defect", roomy.problems.length === 0, detail(roomy));
+}
+
 // ---- 7. an unbound element over a frame renders in the wrong panel ----
 {
   const r = verifyDocument(doc([frame("f1", 0, 0, 200, 200), shape("r1", 50, 50, 50, 50), shape("r2", 300, 0, 50, 50)]));

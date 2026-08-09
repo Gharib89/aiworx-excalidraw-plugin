@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Unit suite for the gate's geometric foundation (tools/geometry.js). Every
- * rule in tools/verify.js is an opinion built on these seven primitives, so a
+ * rule in tools/verify.js is an opinion built on these primitives, so a
  * regression here surfaces three layers up as a fixture diff unless it is
  * caught at the module that broke.
  *
@@ -18,6 +18,7 @@ import {
   bounds,
   outlinesOverlap,
   outlineContains,
+  clearance,
   gap,
   shapeDepth,
   segmentLengthInsideShape,
@@ -181,6 +182,37 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
   const grazing = { type: "rectangle", x: 10, y: 10, width: 90.3, height: 10 };
   check("a 0.3px overhang is within the default pad", outlineContains(frame, grazing) === true);
   check("a 0.3px overhang fails a zero pad", outlineContains(frame, grazing, 0) === false);
+}
+
+// ---- 4b. clearance: how far inside the outer's ink the inner stops ----
+{
+  const frame = { type: "frame", x: 0, y: 0, width: 100, height: 100 };
+  check("clearance is the distance to the nearest edge",
+    near(clearance(frame, { type: "rectangle", x: 10, y: 20, width: 50, height: 50 }), 10),
+    String(clearance(frame, { type: "rectangle", x: 10, y: 20, width: 50, height: 50 })));
+  check("an element flush with an edge has zero clearance",
+    near(clearance(frame, { type: "rectangle", x: 0, y: 20, width: 50, height: 50 }), 0));
+  check("an escaping element has negative clearance — the overhang",
+    near(clearance(frame, { type: "rectangle", x: 80, y: 10, width: 50, height: 50 }), -30));
+
+  // ink, not box: the same rotated ellipse whose corners escape stops 50 - 44.72
+  // = 5.28px inside the frame's edge
+  check("clearance is measured on ink, like outlineContains",
+    near(clearance(frame, { type: "ellipse", x: -10, y: 30, width: 120, height: 40, angle: DIAGONAL }),
+      50 - Math.SQRT1_2 * Math.hypot(60, 20), 1e-9));
+
+  // outlineContains is this same number against its slack, so the two can never
+  // disagree about where the edge is
+  const cases = [
+    { type: "rectangle", x: 10, y: 10, width: 50, height: 50 },
+    { type: "rectangle", x: 80, y: 10, width: 50, height: 50 },
+    { type: "rectangle", x: 10, y: 10, width: 90.3, height: 10 },
+  ];
+  for (const pad of [0, 0.5, 4]) {
+    check(`clearance agrees with outlineContains at pad ${pad}`,
+      cases.every((e) => outlineContains(frame, e, pad) === (clearance(frame, e) >= -pad)),
+      JSON.stringify(cases.map((e) => clearance(frame, e))));
+  }
 }
 
 // ---- 5. gap: shortest distance between two boxes ----

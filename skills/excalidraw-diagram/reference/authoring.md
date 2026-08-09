@@ -215,8 +215,12 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   `flatten(band).map((el) => el.id)` instead of re-walking the group by hand —
   and give every element the frame should own an id, because an id-less
   element cannot be claimed.
-- `arrowBetween` needs *placed* shapes — call it after the stacks that move
-  them. Where the two shapes' cross ranges overlap the arrow runs level through
+- `arrowBetween` reads both shapes' coordinates once, at the moment you call it,
+  so call it after the **last mover** — the outermost stack that still shifts
+  them. A mover that runs later leaves the arrow on stale coordinates; in a band
+  the last mover is the band-level `row`, not the panel's own stacks: see
+  [Generator shape for a band](#generator-shape-for-a-band). Where
+  the two shapes' cross ranges overlap the arrow runs level through
   the overlap's centre. A hand-written path goes in as `via: [[x, y], …]`
   waypoints (absolute) and keeps its corners with `roundness: null` set for you.
 - `route: "orthogonal"` computes that path instead of asking you to write it:
@@ -365,15 +369,84 @@ glyphs — arrows, check marks, box drawing — are therefore safe to use.
 
 ## Generator shape for a band
 
-A band's panels have content-driven heights, so build in two passes:
+A band's panels have content-driven widths and heights, so every panel reaches
+its final coordinates only once the whole band is placed. Build in three passes,
+in this order:
 
-1. Compose each panel's contents with the layout helpers — measured text into
-   `column`/`box` cards, cards into a `row` — so heights follow content.
-2. Create each frame afterwards with `children`, letting it fit what it contains.
+1. **Compose** each panel's body with the layout helpers — measured text into
+   `column`/`box` cards, cards into a `row` — so its size follows its content.
+   Each body sits at its own local origin.
+2. **Place** every body with one band-level `row`, which sets the pitch from the
+   real widths. This is the **last mover**: it shifts every element inside every
+   panel.
+3. **Bind** — only now call `arrowBetween`, which bakes both endpoints from
+   wherever the shapes stand at that moment. A frame that lists `children` is
+   the exception: it fits at conversion, so its creation order is free — but a
+   frame you size yourself bakes exactly as an arrow does. Build both here and
+   one rule covers them.
 
-Keep the frames' `x` positions on a fixed pitch wide enough for the widest panel,
-and give each frame a `name` that states the claim it lands — the name shows in
-the app's frame list and in per-frame renders.
+Calling `arrowBetween` in step 1, inside the panel that owns the two shapes, is
+this recipe's standing trap: the arrow keeps the coordinates the panel had at
+its local origin, the shapes then move out from under it, and the gate reports
+the wreckage as `frame-overlap` and `frame-escape` whose element boxes read
+local while the frame boxes read global. Keep a closure per panel instead and
+invoke it after the row:
+
+```js
+const text = async (t, o = {}) => {
+  const [m] = await measure([{ text: t, fontSize: 16, fontFamily: PROSE, ...o }]);
+  return { type: "text", text: t, width: m.width, height: m.height,
+           fontSize: 16, fontFamily: PROSE, strokeColor: p.ink, ...o };
+};
+
+// 1 · compose — every body at its own local origin
+const panels = [];
+for (const [i, s] of specs.entries()) {
+  const head = await text(s.head, { id: `p${i}-head`, fontSize: 20 });
+  const from = box(await text(s.from, { id: `p${i}-from-t` }),
+    { padding: 16, id: `p${i}-from`, strokeColor: p.roles.local.stroke,
+      backgroundColor: p.roles.local.fill, roundness: { type: 3 } });
+  const to = box(await text(s.to, { id: `p${i}-to-t` }),
+    { padding: 16, id: `p${i}-to`, strokeColor: p.roles.artifact.stroke,
+      backgroundColor: p.roles.artifact.fill, roundness: { type: 3 } });
+  const body = column([head, row([from, to], { gap: 80, align: "center" })], { gap: 24 });
+  // deferred: from and to still sit at this panel's local origin
+  panels.push({ body, name: s.name, connect: () =>
+    arrowBetween(from, to, { standoff: 10, strokeColor: p.grey.stroke, endArrowhead: "triangle" }) });
+}
+
+// 2 · place — the last mover, one row across the whole band
+row(panels.map((pl) => pl.body), { gap: 200, align: "start" });
+
+// 3 · bind — coordinates are final, so arrows and frames land where they read
+const extras = [];
+const frames = panels.map((pl, i) => {
+  const arrow = { ...pl.connect(), id: `p${i}-arr` };   // arrowBetween returns no id; a frame needs one to claim it
+  extras.push(arrow);
+  return { type: "frame", name: pl.name,
+           children: [...flatten(pl.body).map((el) => el.id), arrow.id] };
+});
+
+// a panel-to-panel connector stays unbound and hand-placed in the gap the row left
+panels.slice(1).forEach(({ body: right }, i) => {
+  const left = panels[i].body;
+  const x = left.x + left.width + 60;                   // 60px clear of each body
+  const span = right.x - 60 - x;                        // so keep the band gap above 120
+  // panels are top-aligned, so run the connector through the centre they share
+  const y = (Math.max(left.y, right.y) + Math.min(left.y + left.height, right.y + right.height)) / 2;
+  extras.push({ type: "arrow", id: `cross-${i}`, roundness: null,
+    x, y, width: span, height: 0, points: [[0, 0], [span, 0]],
+    strokeColor: p.grey.stroke, endArrowhead: "triangle" });
+});
+
+return [...panels.map((pl) => pl.body), ...extras, ...frames];
+```
+
+Give each frame a `name` that states the claim it lands — the name shows in the
+app's frame list and in per-frame renders. Inset the cross-panel connector far
+enough to clear both frames' fitted extents — a frame fits about 10px outside
+its children, so clear the bodies by more than that. A connector reaching into a
+frame it does not belong to is `unbound-over-frame`.
 
 An arrow that crosses from one panel to the next stays **unbound**. A frame's
 auto-fit counts anything bound to one of its children as its own, so binding

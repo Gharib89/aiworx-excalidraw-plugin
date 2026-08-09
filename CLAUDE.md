@@ -41,10 +41,10 @@ Every user-visible change ships its docs in the **same** change:
 
 - **README.md** — capability, flag, or install changes.
 - **`skills/excalidraw-diagram/`** — the shipped skill (SKILL.md + reference/). Update it when tool behavior, gate rules / problem codes, CLI flags, or the authoring workflow change. It is **self-contained**: it ships to plugin users who don't have the repo, so inline what a reader without a checkout needs and keep every link inside `skills/`.
-- **`CONTEXT.md`** — the ubiquitous language. A term settled there is spelled out by its consumers, the shipped skill included, so renaming one updates skill, tools, gate and docs in the same change.
+- **`CONTEXT.md`** — the ubiquitous language. Renaming a term there updates every consumer in the same change; the file states which they are.
 - **History** lives in Conventional-Commit squash subjects; this repo keeps no CHANGELOG.
 
-Documents **written for an agent** — the shipped skill, this file, `CONTEXT.md`, `docs/agents/` — go through the `writing-for-agents` skill, so the edit lands on the levers that keep them predictable (pointer wording, the information hierarchy, leading words, positive phrasing, one home per meaning) rather than only on the fact that changed. Prose aimed at humans — README, code comments — needs no such pass.
+The documents **written for an agent** are the shipped skill, this file, `CONTEXT.md` and `docs/agents/`. Edit those through the `writing-for-agents` skill, which carries the levers. README and code comments are prose for humans and take an ordinary edit.
 
 ## Release
 

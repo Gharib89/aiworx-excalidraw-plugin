@@ -65,9 +65,10 @@ The gate refuses per problem, never per taste. Its rules cover file integrity,
 geometry including rotation, arrow bindings and crossings, text contrast in both
 themes, and the house font pair.
 [reference/problem-codes.md](reference/problem-codes.md) is the whole vocabulary:
-every code, its `elements` order and extra fields, the `--json` report shape, and
-the exit codes. Codes are append-only, so machine handling keys on `code` and the
-`message` prose carries no contract.
+every code with its `elements` order and extra fields, the `--json` report shape,
+and the argument and exit-code conventions all three CLIs share. Codes are
+append-only, so machine handling keys on `code` and the `message` prose carries
+no contract.
 
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
 refuse to write a failing file, so a generator's output arrives pre-gated; the

@@ -156,9 +156,11 @@ export function verifyDocument(data) {
     //     the rendered panel. An element that already escapes is reported once,
     //     as an escape. Measured on ink, like containment, so a rotated shape is
     //     judged by what renders. NaN clearance fails the comparison and is left
-    //     to the non-finite rule.
+    //     to the non-finite rule. Containment allows a sub-pixel graze, so the
+    //     band between grazing and flush belongs to neither code: crowding
+    //     reports what is genuinely inside, never a fraction of a pixel out.
     const inset = clearance(f, e);
-    if (inset < FRAME_EDGE_INSET) {
+    if (inset >= 0 && inset < FRAME_EDGE_INSET) {
       note(
         "frame-edge-crowding",
         `${e.type} ${e.id}${e.text ? ` "${preview(e.text)}"` : ""} sits ${round(inset)}px from the border of frame "${f.name ?? f.id}", inside the ${FRAME_EDGE_INSET}px minimum inset: a frame export crops at the border, so it renders clipped`,

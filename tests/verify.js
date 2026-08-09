@@ -175,6 +175,12 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
   const escaped = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", -20, 20, 100, 60, { frameId: "f1" })]));
   check("an escaping element is not also reported as crowding", only(escaped, "frame-escape"), detail(escaped));
 
+  // containment tolerates a 0.3px graze, so that element is not an escape — and
+  // it is not crowding either: a fraction of a pixel *out* is neither "inside
+  // the inset" nor a negative clearance to report
+  const grazing = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", -0.3, 20, 100, 60, { frameId: "f1" })]));
+  check("a sub-pixel graze is neither an escape nor crowding", grazing.problems.length === 0, detail(grazing));
+
   // the toolchain's own frames fit their children with 10px of padding, so
   // anything it authors clears the inset by construction
   const roomy = verifyDocument(doc([frame("f1", 0, 0, 200, 100), shape("r1", 10, 10, 180, 80, { frameId: "f1" })]));

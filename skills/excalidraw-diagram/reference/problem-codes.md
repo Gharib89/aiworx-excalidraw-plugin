@@ -82,7 +82,8 @@ like containment is, and reported as `clearance` (what the element has) against
 content at 10px, so an authored diagram clears the inset by construction; the
 floor sits below 10 so a rotated shape whose ink legitimately fills its frame is
 snug, not a defect. An element that leaves the frame is reported once, as
-`frame-escape`.
+`frame-escape`; containment tolerates a sub-pixel graze, and an element in that
+band is out, so it is not reported as crowding either.
 
 Both themes are scored on every run: the dark export is a CSS filter over the
 same colours and does not preserve contrast ratios, so `low-contrast` names the

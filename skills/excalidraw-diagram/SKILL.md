@@ -103,15 +103,17 @@ the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — th
 defects there are legal geometry the gate cannot see.
 
 You have been staring at the coordinates, so you will see what you meant, not
-what renders. For a band beyond a few frames, hand the PNGs and the step 1
-panel list to a fresh subagent: *"For each frame, name the claim you read from
-the picture alone, then list mechanical defects — overlap, clipping, crowding,
+what renders. **Four or more frames: dispatch a fresh subagent for the
+read-back**; three or fewer, read them yourself. Hand the subagent the PNGs and
+the step 1 panel list: *"For each frame, name the claim you read from the
+picture alone, then list mechanical defects — overlap, clipping, crowding,
 arrows missing their target."* A frame whose read-back claim differs from the
 panel list has failed the isomorphism test — send it back to step 2, where the
 pattern is chosen, rather than nudging its geometry here.
 
-Done when every frame has been viewed, each defect found is either fixed or
-named as a deliberate choice, and any fix has re-passed the step 4 gate.
+Done when every frame has been viewed — by the read-back subagent for a band of
+four or more frames — each defect found is either fixed or named as a deliberate
+choice, and any fix has re-passed the step 4 gate.
 
 ## Step 6 — ship the right files
 

@@ -379,9 +379,11 @@ in this order:
 2. **Place** every body with one band-level `row`, which sets the pitch from the
    real widths. This is the **last mover**: it shifts every element inside every
    panel.
-3. **Bind** — only now create the arrows (`arrowBetween`) and the frames. Both
-   read coordinates at the moment you call them, so both are right only after
-   step 2.
+3. **Bind** — only now call `arrowBetween`, which bakes both endpoints from
+   wherever the shapes stand at that moment. A frame that lists `children` is
+   the exception: it fits at conversion, so its creation order is free — but a
+   frame you size yourself bakes exactly as an arrow does. Build both here and
+   one rule covers them.
 
 Calling `arrowBetween` in step 1, inside the panel that owns the two shapes, is
 this recipe's standing trap: the arrow keeps the coordinates the panel had at

@@ -45,6 +45,9 @@ const CASES = [
   // same ellipse pushed until its own ink pokes out is still reported
   { name: "rotated-ellipse-in-frame", exit: 0, expect: "no mechanical defects" },
   { name: "rotated-ellipse-escapes-frame", exit: 1, expect: "escapes frame", code: "frame-escape" },
+  // inside the frame, but flush with its border: a frame export crops at the
+  // border, so the panel renders it clipped
+  { name: "frame-edge-crowding", exit: 1, expect: "inside the 4px minimum inset", code: "frame-edge-crowding" },
   { name: "unbound-over-frame", exit: 1, expect: "without being bound to it", code: "unbound-over-frame" },
   // overlap is judged on the rotated outline, not its axis-aligned box
   { name: "rotated-clear-of-frame", exit: 0, expect: "no mechanical defects" },
@@ -319,6 +322,11 @@ for (const c of CASES) {
     escape?.elements.join() === "r1,f1" &&
       [escape.element, escape.frame].every((b) => ["x1", "y1", "x2", "y2"].every((k) => typeof b?.[k] === "number")),
     JSON.stringify(escape));
+
+  const crowding = find(jsonFile("frame-edge-crowding"), "frame-edge-crowding");
+  check("frame-edge-crowding carries the clearance and the inset it needs",
+    crowding?.clearance === 2 && crowding.needs === 4 && crowding.elements.join() === "r1,f1",
+    JSON.stringify(crowding));
 
   const buried = find(jsonFile("arrowhead-inside-target"), "arrow-buried");
   check("arrow-buried carries depth and names arrow then target",

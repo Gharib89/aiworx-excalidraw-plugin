@@ -281,16 +281,15 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   const edge = () => `${bindId(a) ?? a?.type} and ${bindId(b) ?? b?.type}`;
   if (route !== undefined && route !== "orthogonal") {
     throw new LayoutError(
-      `arrowBetween route must be "orthogonal", got ${JSON.stringify(route)} ` +
-        `(arrow between ${edge()}) — that is the only computed route; for any other path ` +
-        "pass the waypoints yourself as via",
+      `route must be "orthogonal", got ${JSON.stringify(route)} (arrow between ${edge()})`,
+      { where: "arrowBetween", next: 'Pass route: "orthogonal", or pass the waypoints yourself as via.' },
     );
   }
   if (route !== undefined && via.length) {
     throw new LayoutError(
-      `arrowBetween takes route: ${JSON.stringify(route)} or ${via.length} via waypoints, ` +
-        `not both (arrow between ${edge()}) — drop via to have the route computed, or drop ` +
-        "route to keep your own path",
+      `takes route: ${JSON.stringify(route)} or ${via.length} via waypoints, not both ` +
+        `(arrow between ${edge()})`,
+      { where: "arrowBetween", next: "Drop via to have the route computed, or drop route to keep your own path." },
     );
   }
   requireBindable(a, "source");

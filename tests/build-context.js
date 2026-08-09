@@ -12,10 +12,10 @@
  *      helper cannot land undocumented;
  *   2. no table row names a member the factory does not pass, so the inventory
  *      cannot promise a helper that was renamed or dropped;
- *   3. every line of the factory literal yields a member name. Rules 1-2 read
+ *   3. every entry of the factory literal yields a member name. Rules 1-2 read
  *      the factory with a regex, and a spread (`...extras`) or computed key
  *      would be invisible to it *and* absent from the table — a silent pass in
- *      both directions. Counting lines against matched names closes that hole.
+ *      both directions. Counting entries against matched names closes that hole.
  *
  * Exits non-zero on any mismatch, naming the members on each side.
  */
@@ -44,15 +44,33 @@ if (literal === null) {
   process.exit(1);
 }
 
-// `measure: ex.measureText,` and shorthand `stack,` both name their member first.
-const body = literal[1].split("\n").filter((l) => l.trim() && !l.trim().startsWith("//"));
-const members = body.flatMap((l) => l.match(/^\s*([A-Za-z_$][\w$]*)\s*[,:]/)?.slice(1, 2) ?? []);
+// One entry per member, split on the literal's own commas — the ones outside any
+// nested call or bracket, so `image: makeImage(ex, files)` stays one entry. Line
+// counting would miss a second member sharing a line, which is the shape a new
+// helper is most likely to arrive in.
+const source = literal[1].replace(/^\s*\/\/.*$/gm, "");
+const entries = [];
+let depth = 0;
+let entry = "";
+for (const ch of source) {
+  if ("([{".includes(ch)) depth += 1;
+  else if (")]}".includes(ch)) depth -= 1;
+  if (ch === "," && depth === 0) {
+    entries.push(entry);
+    entry = "";
+  } else entry += ch;
+}
+if (entry.trim()) entries.push(entry);
 
-// Invariant 3 — a line the regex cannot read is a member the table can omit.
+// `measure: ex.measureText` and shorthand `stack` both name their member first.
+const named = entries.filter((e) => e.trim());
+const members = named.flatMap((e) => e.match(/^\s*([A-Za-z_$][\w$]*)\s*(?::|$)/)?.slice(1, 2) ?? []);
+
+// Invariant 3 — an entry the regex cannot read is a member the table can omit.
 check(
-  "every buildContext line names a literal member",
-  members.length === body.length,
-  `${members.length} literal of ${body.length} lines`,
+  "every buildContext entry names a literal member",
+  members.length === named.length,
+  `${members.length} literal of ${named.length} entries`,
 );
 
 const reference = read("skills/excalidraw-diagram/reference/authoring.md");

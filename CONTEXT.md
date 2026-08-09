@@ -56,7 +56,7 @@ The author-supplied element description handed to the converter before it become
 _Avoid_: template, draft element
 
 **Layout group**:
-A `column`/`row` positioning construct. It places children but is not an Excalidraw group and cannot be an arrow target.
+A `stack`/`column`/`row` positioning construct. It places children but is not an Excalidraw group and cannot be an arrow target.
 _Avoid_: group (unqualified)
 
 **Last mover**:

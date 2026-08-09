@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { verifyDocument } from "../tools/verify.js";
 // the router under test, so the gate scores the path the authoring API really
 // emits instead of one transcribed into this file by hand
-import { arrowBetween } from "../tools/layout.js";
+import { arrowBetween, resolveArrows } from "../tools/layout.js";
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -373,7 +373,7 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
 // elbow's orientation follows the wider separation, so each is its own path.
 {
   const routed = (src, dst) => {
-    const a = arrowBetween(src, dst, { standoff: 10, route: "orthogonal" });
+    const [a] = resolveArrows([arrowBetween(src, dst, { standoff: 10, route: "orthogonal" })]);
     return {
       ...shape("a1", a.x, a.y, a.width, a.height),
       type: "arrow",

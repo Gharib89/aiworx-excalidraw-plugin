@@ -62,11 +62,18 @@ _Avoid_: group (unqualified)
 **Last mover**:
 The outermost layout call that still shifts a given shape — in a band, the
 band-level `row` that spreads the panels, not the panel's own stacks. Layout
-groups place by mutating their children, and `arrowBetween` bakes both endpoints
-from where the shapes stand when it is called, so an arrow belongs after its
-shapes' last mover. A frame listing `children` fits at conversion instead, so its
-creation order is free.
+groups place by mutating their children, so anything holding coordinates it wrote
+for itself — `via` waypoints, a frame sized by hand — belongs after its shapes'
+last mover. A deferred arrow and a frame listing `children` are settled later
+still, so their creation order is free.
 _Avoid_: final placement, outer row
+
+**Deferred arrow**:
+The arrow `arrowBetween` returns: it holds its two endpoints by reference and
+takes its geometry from a resolve pass the authoring pipeline runs once the build
+is done, so no later mover can leave it behind. Id, bindings, label and style are
+carried from the moment it is written; only the path waits.
+_Avoid_: lazy arrow, unresolved arrow
 
 **Splice**:
 Inserting a library item into a diagram with freshly regenerated ids so repeated insertions never collide.

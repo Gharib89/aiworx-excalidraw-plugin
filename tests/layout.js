@@ -8,7 +8,15 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { column, row, stack, box, arrowBetween, flatten, LayoutError } from "../tools/layout.js";
+import {
+  column, row, stack, box, arrowBetween as deferArrow, resolveArrows, flatten, LayoutError,
+} from "../tools/layout.js";
+
+// arrowBetween returns a deferred arrow — the pipeline resolves its geometry once
+// every mover has run. The geometry claims below are claims about the resolved
+// arrow, so resolve on the spot; the deferral itself is pinned further down.
+const resolveOne = (arrow) => resolveArrows([arrow])[0];
+const arrowBetween = (a, b, opts) => resolveOne(deferArrow(a, b, opts));
 // the gate's own scoring, so the routing claim is checked against the rule that
 // would refuse it rather than against a second opinion written here
 import { shapeDepth, segmentLengthInsideShape } from "../tools/geometry.js";
@@ -377,6 +385,123 @@ const throwsLayoutError = (fn) => {
   plainGroup.id = "hand-set";
   check("an id on the group itself does not make it bindable",
     throwsLayoutError(() => arrowBetween(a, plainGroup, { standoff: 10 })));
+}
+
+// ---- deferred resolution: call order stops mattering ----
+{
+  // the #108 shape: compose a panel at its local origin, bind it there, then move
+  // the whole thing with a band-level row. The arrow must land on the final
+  // coordinates, not the local ones it was written at.
+  const panel = (id) => {
+    const from = box({ type: "text", width: 60, height: 30 }, { padding: 10, id: `${id}-from` });
+    const to = box({ type: "text", width: 60, height: 30 }, { padding: 10, id: `${id}-to` });
+    const body = row([from, to], { gap: 80, align: "center" });
+    return { body, from, to };
+  };
+
+  const early = panel("e");
+  const earlyArrow = deferArrow(early.from, early.to, { standoff: 10, strokeColor: "#123456" });
+  row([early.body], { x: 900, y: 400 });
+
+  const late = panel("l");
+  row([late.body], { x: 900, y: 400 });
+  const lateArrow = deferArrow(late.from, late.to, { standoff: 10, strokeColor: "#123456" });
+
+  resolveArrows([earlyArrow, lateArrow]);
+  const geometry = (arw) => JSON.stringify([arw.x, arw.y, arw.width, arw.height, arw.points]);
+  check("an arrow written before the last mover resolves to the same geometry as one written after",
+    geometry(earlyArrow) === geometry(lateArrow), `${geometry(earlyArrow)} vs ${geometry(lateArrow)}`);
+  check("a deferred arrow anchors on the moved shape, not its local origin",
+    earlyArrow.x === 900 + 80 + 10 && earlyArrow.y === 400 + 25,
+    `${earlyArrow.x},${earlyArrow.y}`);
+}
+{
+  // the same equivalence for every geometry-bearing option: a computed route and
+  // a label both come out of the resolve pass, so both have to be order-blind
+  const panel = (id) => {
+    const from = box({ type: "text", width: 60, height: 30 }, { padding: 10, id: `${id}-from` });
+    const to = box({ type: "text", width: 60, height: 30 }, { padding: 10, id: `${id}-to` });
+    // drop `to` clear of `from`'s cross range, so the run really does need an elbow
+    const dropped = column([{ type: "rectangle", width: 10, height: 140 }, to], { gap: 0 });
+    return { from, to, group: row([from, dropped], { gap: 200, align: "start" }) };
+  };
+  const opts = { standoff: 10, route: "orthogonal", label: "writes", endArrowhead: "triangle" };
+  const early = panel("e");
+  const earlyArrow = deferArrow(early.from, early.to, opts);
+  row([early.group], { x: 300, y: 70 });
+  const late = panel("l");
+  row([late.group], { x: 300, y: 70 });
+  const lateArrow = deferArrow(late.from, late.to, opts);
+  resolveArrows([earlyArrow, lateArrow]);
+  const shape = (arw) => JSON.stringify({ ...arw, start: null, end: null });
+  check("a routed, labelled arrow is order-blind too", shape(earlyArrow) === shape(lateArrow),
+    `${shape(earlyArrow)} vs ${shape(lateArrow)}`);
+  check("a resolved arrow keeps its computed corners", earlyArrow.roundness === null);
+}
+{
+  // what a frame needs to claim an arrow — an id — and what binding needs are
+  // known at call time, so both survive the wait for geometry
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 50 };
+  const deferred = deferArrow(a, b, { standoff: 10, id: "link", strokeColor: "#123456" });
+  check("a deferred arrow carries its id, type, bindings and style before resolution",
+    deferred.id === "link" && deferred.type === "arrow" && deferred.start.id === "a" &&
+      deferred.end.id === "b" && deferred.strokeColor === "#123456",
+    JSON.stringify(deferred));
+  check("a deferred arrow carries no geometry yet", !("points" in deferred));
+  check("a deferred arrow flattens like a placed element",
+    flatten([box({ type: "text", width: 10, height: 10 }, { padding: 5 }), deferred])[2] === deferred);
+  const copied = resolveOne({ ...deferArrow(a, b, { standoff: 10 }), id: "copied" });
+  check("a deferred arrow copied with extra props stays resolvable",
+    copied.id === "copied" && JSON.stringify(copied.points) === "[[0,0],[40,0]]",
+    JSON.stringify(copied));
+  const resolved = resolveArrows([a, deferred, b]);
+  check("resolveArrows returns the same elements, arrows resolved in place",
+    resolved[1] === deferred && JSON.stringify(deferred.points) === "[[0,0],[40,0]]",
+    JSON.stringify(deferred.points));
+  check("resolveArrows leaves already-resolved elements alone",
+    JSON.stringify(resolveArrows([a, deferred, b])) === JSON.stringify(resolved),
+    JSON.stringify(deferred));
+  check("a resolved arrow serialises without the deferral",
+    !/deferred/i.test(JSON.stringify(deferred)), JSON.stringify(deferred));
+}
+{
+  // a typo is caught where it was written; a geometry defect can only be caught
+  // once everything has moved, and names the arrow so it traces back to code
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 100 };
+  const b = { type: "rectangle", id: "b", x: 50, y: 50, width: 100, height: 100 };
+  check("an unknown route still throws at call time",
+    throwsLayoutError(() => deferArrow(a, b, { route: "elbowed" })));
+  check("route together with via still throws at call time",
+    throwsLayoutError(() => deferArrow(a, b, { route: "orthogonal", via: [[1, 2]] })));
+  check("an empty label still throws at call time",
+    throwsLayoutError(() => deferArrow(a, b, { label: "" })));
+  check("an unbindable group still throws at call time",
+    throwsLayoutError(() => deferArrow(a, column([{ type: "rectangle", width: 1, height: 1 }]))));
+  // a bigint is neither finite nor stringifiable as JSON — the refusal must still
+  // be a LayoutError, not a TypeError from rendering the message
+  check("a non-finite standoff throws at call time",
+    throwsLayoutError(() => deferArrow(a, b, { standoff: "10" })) &&
+      throwsLayoutError(() => deferArrow(a, b, { standoff: NaN })) &&
+      throwsLayoutError(() => deferArrow(a, b, { standoff: Infinity })) &&
+      throwsLayoutError(() => deferArrow(a, b, { standoff: 10n })));
+  // the resolve pass copies via through untouched, so its shape is checked here
+  check("malformed via waypoints throw at call time",
+    throwsLayoutError(() => deferArrow(a, b, { via: null })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [[1, 2, 3]] })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [[1, "2"]] })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [{ x: 1, y: 2 }] })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [[1n, 2n]] })));
+  const overlapping = deferArrow(a, b, { standoff: 10, id: "no-room" });
+  check("shapes that leave no gap are only refused at resolve time",
+    throwsLayoutError(() => resolveArrows([overlapping])));
+  let message = "";
+  try {
+    resolveArrows([deferArrow(a, b, { standoff: 10, id: "no-room" })]);
+  } catch (err) {
+    message = `${err.message}`;
+  }
+  check("the resolve-time refusal names the arrow", /no-room/.test(message), message);
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

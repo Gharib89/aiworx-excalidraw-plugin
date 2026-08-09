@@ -17,7 +17,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `column` | `column(items, opts)` | `stack` fixed to `direction: "column"` | [Composing layout](#composing-layout) |
 | `row` | `row(items, opts)` | `stack` fixed to `direction: "row"` | [Composing layout](#composing-layout) |
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
-| `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, ...style })` | one arrow spanning both shapes, from their coordinates at call time | [Composing layout](#composing-layout) |
+| `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
 | `spliceLibraryItem` | `spliceLibraryItem(path, { item, at })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |
@@ -246,14 +246,28 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   `flatten(band).map((el) => el.id)` instead of re-walking the group by hand —
   and give every element the frame should own an id, because an id-less
   element cannot be claimed.
-- `arrowBetween` reads both shapes' coordinates once, at the moment you call it,
-  so call it after the **last mover** — the outermost stack that still shifts
-  them. A mover that runs later leaves the arrow on stale coordinates; in a band
-  the last mover is the band-level `row`, not the panel's own stacks: see
-  [Generator shape for a band](#generator-shape-for-a-band). Where
-  the two shapes' cross ranges overlap the arrow runs level through
-  the overlap's centre. A hand-written path goes in as `via: [[x, y], …]`
-  waypoints (absolute) and keeps its corners with `roundness: null` set for you.
+- `arrowBetween` returns a **deferred arrow**: it holds both shapes by reference
+  and takes its path from a resolve pass `authorDiagram` runs after your build
+  returns, so a `row` that shifts either shape later still finds the arrow
+  waiting. Write it wherever it reads best — before, between or after the movers,
+  all three give one answer. The arrow carries its id, bindings, label and style
+  from the moment you write it, so a frame can list it in `children` and the
+  finish register reaches it as usual. Its size arrives with its path, so return
+  an arrow beside a group rather than as an item inside one — `column`/`row`
+  place by size, and a deferred arrow has none yet.
+  Where the two shapes' cross ranges overlap
+  the arrow runs level through the overlap's centre. A hand-written path goes in
+  as `via: [[x, y], …]` waypoints and keeps its corners with `roundness: null`
+  set for you — those coordinates are **absolute** and yours, the one part the
+  resolve pass takes as given, so write them after the last mover or recompute
+  them from the shapes' final positions.
+- Options are checked where you wrote them: an unknown `route`, `route` with
+  `via`, `via` that is not `[[x, y], …]` of finite numbers, a label with no text,
+  a `standoff` that is not a finite number, an unbindable group — each is a
+  `LayoutError` from the call itself. What needs the finished
+  coordinates waits for the resolve pass and names the arrow's id when it
+  refuses, so give an arrow an `id` and the refusal traces straight back to the
+  line that wrote it.
 - `route: "orthogonal"` computes that path instead of asking you to write it:
   the arrow leaves the source level, jogs once across the middle of the gap, and
   arrives level at the target — axis-aligned throughout, corners kept. Where the
@@ -401,27 +415,20 @@ glyphs — arrows, check marks, box drawing — are therefore safe to use.
 ## Generator shape for a band
 
 A band's panels have content-driven widths and heights, so every panel reaches
-its final coordinates only once the whole band is placed. Build in three passes,
-in this order:
+its final coordinates only once the whole band is placed. Build in two passes:
 
-1. **Compose** each panel's body with the layout helpers — measured text into
-   `column`/`box` cards, cards into a `row` — so its size follows its content.
-   Each body sits at its own local origin.
+1. **Compose** each panel whole, at its own local origin — measured text into
+   `column`/`box` cards, cards into a `row`, `arrowBetween` across them, a frame
+   listing their ids. Arrows are deferred and a frame fits its `children` at
+   conversion, so both settle on the coordinates the panel ends up with.
 2. **Place** every body with one band-level `row`, which sets the pitch from the
    real widths. This is the **last mover**: it shifts every element inside every
    panel.
-3. **Bind** — only now call `arrowBetween`, which bakes both endpoints from
-   wherever the shapes stand at that moment. A frame that lists `children` is
-   the exception: it fits at conversion, so its creation order is free — but a
-   frame you size yourself bakes exactly as an arrow does. Build both here and
-   one rule covers them.
 
-Calling `arrowBetween` in step 1, inside the panel that owns the two shapes, is
-this recipe's standing trap: the arrow keeps the coordinates the panel had at
-its local origin, the shapes then move out from under it, and the gate reports
-the wreckage as `frame-overlap` and `frame-escape` whose element boxes read
-local while the frame boxes read global. Keep a closure per panel instead and
-invoke it after the row:
+What the last mover still binds is anything you compute coordinates for by hand:
+`via` waypoints, a frame you size yourself instead of listing `children`, and the
+cross-panel connector below. Write those after the row, from the placed bodies'
+own `x`/`y`/`width`/`height`:
 
 ```js
 const text = async (t, o = {}) => {
@@ -430,8 +437,9 @@ const text = async (t, o = {}) => {
            fontSize: 16, fontFamily: PROSE, strokeColor: p.ink, ...o };
 };
 
-// 1 · compose — every body at its own local origin
+// 1 · compose — every panel whole, at its own local origin
 const panels = [];
+const extras = [];
 for (const [i, s] of specs.entries()) {
   const head = await text(s.head, { id: `p${i}-head`, fontSize: 20 });
   const from = box(await text(s.from, { id: `p${i}-from-t` }),
@@ -441,24 +449,18 @@ for (const [i, s] of specs.entries()) {
     { padding: 16, id: `p${i}-to`, strokeColor: p.roles.artifact.stroke,
       backgroundColor: p.roles.artifact.fill, roundness: { type: 3 } });
   const body = column([head, row([from, to], { gap: 80, align: "center" })], { gap: 24 });
-  // deferred: from and to still sit at this panel's local origin
-  panels.push({ body, name: s.name, connect: () =>
-    arrowBetween(from, to, { standoff: 10, strokeColor: p.grey.stroke, endArrowhead: "triangle" }) });
+  // give the arrow an id, so the frame can claim it and a refusal names it
+  extras.push(arrowBetween(from, to, { standoff: 10, id: `p${i}-arr`,
+    strokeColor: p.grey.stroke, endArrowhead: "triangle" }));
+  panels.push({ body, name: s.name,
+    frame: { type: "frame", name: s.name,
+             children: [...flatten(body).map((el) => el.id), `p${i}-arr`] } });
 }
 
 // 2 · place — the last mover, one row across the whole band
 row(panels.map((pl) => pl.body), { gap: 200, align: "start" });
 
-// 3 · bind — coordinates are final, so arrows and frames land where they read
-const extras = [];
-const frames = panels.map((pl, i) => {
-  const arrow = { ...pl.connect(), id: `p${i}-arr` };   // arrowBetween returns no id; a frame needs one to claim it
-  extras.push(arrow);
-  return { type: "frame", name: pl.name,
-           children: [...flatten(pl.body).map((el) => el.id), arrow.id] };
-});
-
-// a panel-to-panel connector stays unbound and hand-placed in the gap the row left
+// a panel-to-panel connector is hand-placed, so it comes after the last mover
 panels.slice(1).forEach(({ body: right }, i) => {
   const left = panels[i].body;
   const x = left.x + left.width + 60;                   // 60px clear of each body
@@ -470,7 +472,7 @@ panels.slice(1).forEach(({ body: right }, i) => {
     strokeColor: p.grey.stroke, endArrowhead: "triangle" });
 });
 
-return [...panels.map((pl) => pl.body), ...extras, ...frames];
+return [...panels.map((pl) => pl.body), ...extras, ...panels.map((pl) => pl.frame)];
 ```
 
 Give each frame a `name` that states the claim it lands — the name shows in the

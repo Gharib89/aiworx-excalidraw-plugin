@@ -210,6 +210,57 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
     (gate.stdout + gate.stderr).trim().split("\n").pop());
 }
 
+// the failure shape from #108, end to end: compose each panel at its own local
+// origin, bind it there, and only then place the whole band with one row. The
+// arrows are written before the mover that shifts them, which used to leave them
+// on local coordinates and surface as frame-escape / frames-overlap defects whose
+// element boxes read local while the frame boxes read global.
+{
+  const out = join(outDir, "deferred.excalidraw");
+  const PITCH = 520; // panel body 320 wide + the band row's 200 gap
+  const result = await authorDiagram({
+    out,
+    build: ({ row, arrowBetween, flatten, palette: p, PROSE }) => {
+      const stage = (id, role, text) => ({
+        type: "rectangle", id, width: 120, height: 60,
+        label: { text, fontSize: 16, fontFamily: PROSE, strokeColor: p.grey.ink },
+        strokeColor: p.roles[role].stroke, backgroundColor: p.roles[role].fill,
+      });
+      const panels = [0, 1].map((i) => {
+        const from = stage(`p${i}-from`, "local", "read");
+        const to = stage(`p${i}-to`, "artifact", "write");
+        const body = row([from, to], { gap: 80, align: "center" });
+        // bound here, at the local origin, before the band-level row runs
+        const arrow = arrowBetween(from, to,
+          { standoff: 10, id: `p${i}-arr`, strokeColor: p.grey.stroke, endArrowhead: "triangle" });
+        return { body, arrow, frame: {
+          type: "frame", id: `p${i}-frame`, name: `${i + 1} · panel`,
+          children: [...flatten(body).map((el) => el.id), `p${i}-arr`],
+        } };
+      });
+      // the last mover: it shifts every element inside every panel
+      row(panels.map((pl) => pl.body), { gap: 200, align: "start" });
+      return [...panels.flatMap((pl) => [pl.body, pl.arrow]), ...panels.map((pl) => pl.frame)];
+    },
+  });
+  const arrows = result.elements.filter((el) => el.type === "arrow")
+    .sort((l, r) => l.x - r.x);
+  check("an arrow bound before the last mover lands on the moved coordinates",
+    arrows.length === 2 && arrows[1].x > arrows[0].x + PITCH - 1 &&
+      arrows[1].x < arrows[0].x + PITCH + 1,
+    arrows.map((a) => a.x).join(" / "));
+  check("a frame claims the deferred arrow its children named",
+    arrows[0].frameId === "p0-frame" && arrows[1].frameId === "p1-frame",
+    arrows.map((a) => `${a.id}:${a.frameId}`).join(" "));
+  check("the deferred arrows stay bound at both ends",
+    arrows.every((a, i) => a.startBinding?.elementId === `p${i}-from` &&
+      a.endBinding?.elementId === `p${i}-to`),
+    arrows.map((a) => `${a.startBinding?.elementId}->${a.endBinding?.elementId}`).join(" "));
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("the band bound before its last mover passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
 // hand-edit: shorten the title but keep its stale (too-wide) metrics, and point
 // an arrow binding at an element that does not exist
 {

@@ -7,6 +7,11 @@
  * `measure`/`wrap`). Helpers mutate x/y in place and return a group — itself
  * placeable, so rows nest in columns and vice versa. `flatten` turns the tree
  * back into the element list a skeleton wants; authorDiagram does it for you.
+ *
+ * Arrows are the one thing that cannot be placed as it is written, because it
+ * spans two shapes either of which a later call may still move. `arrowBetween`
+ * therefore returns a deferred arrow and `resolveArrows` measures them all once
+ * the movers are done — again, authorDiagram does it for you.
  */
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -243,6 +248,19 @@ function elbow([sx, sy], [ex, ey], horizontal) {
   return [[sx, my], [ex, my]];
 }
 
+/**
+ * A rejected value, rendered for its own message. JSON reads best and is what the
+ * rest of this module shows, but it throws on a bigint and drops `undefined` —
+ * and an error about a bad value must not fail on the value.
+ */
+const shown = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+
 /** One step below body prose: an edge annotation, not a heading. */
 const LABEL_FONT_SIZE = 16;
 
@@ -264,8 +282,23 @@ function labelSpec(label) {
 }
 
 /**
+ * The endpoints an arrow still has to be measured against, parked on the arrow
+ * until `resolveArrows` runs. A symbol so it never reaches JSON — and an ordinary
+ * enumerable one, so an arrow copied with `{ ...arrow, id }` stays resolvable.
+ */
+const DEFERRED = Symbol("deferred arrow endpoints");
+
+/**
  * An arrow that owns the gap between two placed shapes (or boxes): it leaves the
  * source edge `standoff` px out and enters the target edge `standoff` px short.
+ *
+ * Geometry is **deferred**: the returned arrow carries its id, bindings, label and
+ * style, and holds its two endpoints by reference until `resolveArrows` measures
+ * them. So a layout call that moves either shape afterwards cannot leave the arrow
+ * behind, and calling this before, between or after the movers gives one answer.
+ * Options are still checked here, where they were written. `via` waypoints are the
+ * exception the deferral cannot cover: they are absolute coordinates you supplied,
+ * so they stay yours to keep in step with the shapes.
  *
  * The converter does not run the app's elbow router, so a path with corners goes
  * in as explicit points with roundness off. `route: "orthogonal"` computes those
@@ -285,6 +318,16 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
       { where: "arrowBetween", next: 'Pass route: "orthogonal", or pass the waypoints yourself as via.' },
     );
   }
+  // the resolve pass takes these coordinates as given, so a malformed pair would
+  // reach the gate as arrow geometry rather than the typo it is
+  if (!Array.isArray(via) ||
+      via.some((p) => !Array.isArray(p) || p.length !== 2 || !p.every((n) => Number.isFinite(n)))) {
+    throw new LayoutError(
+      `via must be an array of [x, y] pairs of finite numbers, got ${shown(via)} ` +
+        `(arrow between ${edge()})`,
+      { where: "arrowBetween", next: "Pass via: [[x, y], …], or drop via for a straight run." },
+    );
+  }
   if (route !== undefined && via.length) {
     throw new LayoutError(
       `takes route: ${JSON.stringify(route)} or ${via.length} via waypoints, not both ` +
@@ -292,8 +335,32 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
       { where: "arrowBetween", next: "Drop via to have the route computed, or drop route to keep your own path." },
     );
   }
+  // the geometry it feeds is measured a pass later, where a bad number would
+  // surface as an unplaceable arrow rather than as the typo it is
+  if (!Number.isFinite(standoff)) {
+    throw new LayoutError(
+      `standoff must be a finite number, got ${shown(standoff)} (arrow between ${edge()})`,
+      { where: "arrowBetween", next: "Pass a number for standoff, or omit it for the 10px default." },
+    );
+  }
   requireBindable(a, "source");
   requireBindable(b, "target");
+  const arrow = {
+    type: "arrow",
+    ...(label !== undefined ? { label: labelSpec(label) } : {}),
+    ...style,
+  };
+  const startId = bindId(a);
+  const endId = bindId(b);
+  if (startId) arrow.start = { id: startId };
+  if (endId) arrow.end = { id: endId };
+  arrow[DEFERRED] = { a, b, standoff, via, route };
+  return arrow;
+}
+
+/** Measure one deferred arrow's endpoints where they now stand, and place it. */
+function resolveArrow(arrow) {
+  const { a, b, standoff, via, route } = arrow[DEFERRED];
   const A = boundsOf(a);
   const B = boundsOf(b);
   const dxGap = Math.max(B.x1 - A.x2, A.x1 - B.x2);
@@ -303,7 +370,10 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
     throw new LayoutError(
       `no gap between ${bindId(a) ?? a.type} and ${bindId(b) ?? b.type} ` +
         `(separation ${Math.round(Math.max(dxGap, dyGap))}px, standoff ${standoff}px each side)`,
-      { where: "arrowBetween", next: "Move the shapes further apart, or lower standoff." },
+      {
+        where: arrow.id ? `arrow ${arrow.id}` : "arrowBetween",
+        next: "Move the shapes further apart, or lower standoff.",
+      },
     );
   }
 
@@ -336,20 +406,27 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   const points = [start, ...waypoints, end].map(([px, py]) => [px - start[0], py - start[1]]);
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
-  const arrow = {
-    type: "arrow",
-    x: start[0],
-    y: start[1],
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-    points,
-    ...(waypoints.length ? { roundness: null } : {}),
-    ...(label !== undefined ? { label: labelSpec(label) } : {}),
-    ...style,
-  };
-  const startId = bindId(a);
-  const endId = bindId(b);
-  if (startId) arrow.start = { id: startId };
-  if (endId) arrow.end = { id: endId };
+  delete arrow[DEFERRED];
+  // a corner the caller did not ask for still needs roundness off, but a
+  // roundness they set for themselves is theirs — the same ownership rule the
+  // finish register follows
+  if (waypoints.length && !Object.hasOwn(arrow, "roundness")) arrow.roundness = null;
+  arrow.x = start[0];
+  arrow.y = start[1];
+  arrow.width = Math.max(...xs) - Math.min(...xs);
+  arrow.height = Math.max(...ys) - Math.min(...ys);
+  arrow.points = points;
   return arrow;
+}
+
+/**
+ * Place every deferred arrow in a flat element list, in place, and hand the list
+ * back. This is the pass that makes `arrowBetween`'s call order irrelevant, so it
+ * belongs after the build returns and every mover has run — `authorDiagram` runs
+ * it for you, right after `flatten`. It is idempotent: an arrow already resolved
+ * (or one written by hand) passes through untouched.
+ */
+export function resolveArrows(elements) {
+  for (const el of elements) if (el?.[DEFERRED]) resolveArrow(el);
+  return elements;
 }

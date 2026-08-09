@@ -451,6 +451,10 @@ const throwsLayoutError = (fn) => {
   check("a deferred arrow carries no geometry yet", !("points" in deferred));
   check("a deferred arrow flattens like a placed element",
     flatten([box({ type: "text", width: 10, height: 10 }, { padding: 5 }), deferred])[2] === deferred);
+  const copied = resolveOne({ ...deferArrow(a, b, { standoff: 10 }), id: "copied" });
+  check("a deferred arrow copied with extra props stays resolvable",
+    copied.id === "copied" && JSON.stringify(copied.points) === "[[0,0],[40,0]]",
+    JSON.stringify(copied));
   const resolved = resolveArrows([a, deferred, b]);
   check("resolveArrows returns the same elements, arrows resolved in place",
     resolved[1] === deferred && JSON.stringify(deferred.points) === "[[0,0],[40,0]]",

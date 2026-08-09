@@ -252,7 +252,10 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   waiting. Write it wherever it reads best — before, between or after the movers,
   all three give one answer. The arrow carries its id, bindings, label and style
   from the moment you write it, so a frame can list it in `children` and the
-  finish register reaches it as usual. Where the two shapes' cross ranges overlap
+  finish register reaches it as usual. Its size arrives with its path, so return
+  an arrow beside a group rather than as an item inside one — `column`/`row`
+  place by size, and a deferred arrow has none yet.
+  Where the two shapes' cross ranges overlap
   the arrow runs level through the overlap's centre. A hand-written path goes in
   as `via: [[x, y], …]` waypoints and keeps its corners with `roundness: null`
   set for you — those coordinates are **absolute** and yours, the one part the

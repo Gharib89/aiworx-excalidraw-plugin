@@ -649,8 +649,9 @@ const buildContext = (ex, files) => ({
 async function authorInto(ex, { out, build, svg = true, background, register }) {
   validateRegister(register);
   const files = {};
-  // resolveArrows before the register: every arrow the register governs has to be
-  // a placed one by then, and the build is the last thing that can move a shape
+  // the build is the last thing that can move a shape and validateSkeleton has
+  // just flattened its groups, so this is the first and only moment at which
+  // every deferred arrow can read its endpoints where they finally stand
   const built = resolveArrows(validateSkeleton(await build(buildContext(ex, files))));
   const skeleton = applyRegister(built, register);
   const stitches = planBindingStitches(skeleton);

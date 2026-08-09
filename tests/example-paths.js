@@ -5,7 +5,8 @@
  * drive letter. Both survive `node:url` and neither survives `URL.pathname`, so:
  *
  *   1. the example generator produces its diagram from a checkout path
- *      containing a space
+ *      containing a space, given the plugin root either way it is documented —
+ *      as the first argument, or in CLAUDE_PLUGIN_ROOT
  *   2. no `URL.pathname` is used as a filesystem path in the examples or in the
  *      skill's docs templates — the form that leaves `%20` in a path with a
  *      space and yields `/C:/…` on Windows
@@ -14,7 +15,7 @@
  *      on Windows with ERR_UNSUPPORTED_ESM_URL_SCHEME
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,19 +46,32 @@ const check = (name, cond, detail) => {
   copyFileSync(join(root, "package.json"), join(checkout, "package.json"));
   console.log(`checkout: ${checkout}`);
 
-  const run = spawnSync(process.execPath, ["examples/gen-example.js"], {
-    cwd: checkout,
-    env: { ...process.env, CLAUDE_PLUGIN_ROOT: checkout },
-    encoding: "utf8",
-  });
+  // Both documented invocations, because both have to keep working: the argv form
+  // is the primary one (it survives a `node`-scoped Bash allowlist, which an
+  // env-prefixed command line does not), the env form is the documented
+  // alternative every already-committed generator uses.
+  const { CLAUDE_PLUGIN_ROOT: _inherited, ...envWithoutRoot } = process.env;
+  const forms = [
+    ["argv", [checkout], envWithoutRoot],
+    ["env", [], { ...envWithoutRoot, CLAUDE_PLUGIN_ROOT: checkout }],
+  ];
+
   const out = join(checkout, "examples", "example.excalidraw");
-  // A spawn that never ran has no status and no stderr; say so rather than
-  // reporting `exit null: undefined` and sending the reader to the wrong place.
-  const why = () => String(run.stderr ?? "").split("\n").filter(Boolean).slice(-1)[0]
-    ?? run.error?.message ?? "no output on stderr";
-  check("the generator exits clean from a path with a space", run.status === 0,
-    run.status === 0 ? "" : `exit ${run.status}: ${why()}`);
-  check("the diagram lands next to the generator", existsSync(out), out);
+  for (const [form, args, env] of forms) {
+    rmSync(out, { force: true });
+    const run = spawnSync(process.execPath, ["examples/gen-example.js", ...args], {
+      cwd: checkout,
+      env,
+      encoding: "utf8",
+    });
+    // A spawn that never ran has no status and no stderr; say so rather than
+    // reporting `exit null: undefined` and sending the reader to the wrong place.
+    const why = () => String(run.stderr ?? "").split("\n").filter(Boolean).slice(-1)[0]
+      ?? run.error?.message ?? "no output on stderr";
+    check(`the generator exits clean from a path with a space (${form} form)`, run.status === 0,
+      run.status === 0 ? "" : `exit ${run.status}: ${why()}`);
+    check(`the diagram lands next to the generator (${form} form)`, existsSync(out), out);
+  }
   if (existsSync(out)) {
     const doc = JSON.parse(readFileSync(out, "utf8"));
     check("the image travels in the files dictionary",

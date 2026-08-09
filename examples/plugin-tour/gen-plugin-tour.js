@@ -7,14 +7,15 @@
  * spliceLibraryItem, frames, palette roles, both fonts, arrowhead vocabulary,
  * and color.js for real dark-theme contrast numbers.
  *
- *   CLAUDE_PLUGIN_ROOT=<plugin root> node gen-plugin-tour.js
+ *   node gen-plugin-tour.js <plugin root>                    # plugin root as the first argument
+ *   CLAUDE_PLUGIN_ROOT=<plugin root> node gen-plugin-tour.js   # equivalent
  */
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = process.env.CLAUDE_PLUGIN_ROOT;
-if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];
+if (!root) throw new Error("gen-plugin-tour.js: no plugin root — run `node gen-plugin-tour.js <path to aiworx-excalidraw plugin>`, or set CLAUDE_PLUGIN_ROOT to it");
 const { withAuthoring } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 const { contrast, toDarkTheme } = await import(pathToFileURL(join(root, "tools/color.js")).href);
 

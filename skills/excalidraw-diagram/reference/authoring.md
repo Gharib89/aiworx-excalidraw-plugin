@@ -77,13 +77,20 @@ stitches them back onto the converted elements.
 ## Measuring
 
 A generator never hardcodes the plugin's install path — it differs per machine
-and per user, and a band's generator is committed. Load the tools through the
-environment instead, and run the script with the variable set (in a skill bash
-block `${CLAUDE_PLUGIN_ROOT}` already resolves):
+and per user, and a band's generator is committed. Pass the path in at the
+invocation instead, as the script's first argument (in a skill bash block
+`${CLAUDE_PLUGIN_ROOT}` already resolves to it):
 
 ```bash
-CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" node docs/diagrams/gen-thing.js
+node docs/diagrams/gen-thing.js "${CLAUDE_PLUGIN_ROOT}"
+CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}" node docs/diagrams/gen-thing.js   # equivalent
 ```
+
+The argument form leads because it survives a Bash permission allowlist: after
+substitution the command line starts with `node`, which a `Bash(node:*)` rule
+admits, while an environment-variable prefix reads as a compound command and is
+denied — as is every `export` or `$VAR` workaround. The environment form stays
+documented so an already-committed generator keeps running unchanged.
 
 An install path is also allowed to contain spaces and to start with a Windows
 drive letter, so paths cross the URL boundary through `node:url` — `pathToFileURL`
@@ -95,8 +102,8 @@ prefixes `C:` with a slash, and the read fails later, somewhere else.
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const root = process.env.CLAUDE_PLUGIN_ROOT;
-if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];
+if (!root) throw new Error("gen-thing.js: no plugin root — run `node docs/diagrams/gen-thing.js <path to aiworx-excalidraw plugin>`, or set CLAUDE_PLUGIN_ROOT to it");
 const { authorDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await authorDiagram({
@@ -502,8 +509,7 @@ From inside a generator, the same round-trip is one call:
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const root = process.env.CLAUDE_PLUGIN_ROOT;
-if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];   // guarded as in Measuring
 const { reviseDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });

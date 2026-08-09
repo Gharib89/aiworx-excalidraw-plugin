@@ -5,10 +5,11 @@
  * role colours, a bound arrow owning the gap, content-fitted frames, an
  * image travelling in the files dictionary, and a spliced library item.
  *
- *   CLAUDE_PLUGIN_ROOT="$PWD" node examples/gen-example.js
+ *   node examples/gen-example.js "$PWD"                  # plugin root as the first argument
+ *   CLAUDE_PLUGIN_ROOT="$PWD" node examples/gen-example.js   # equivalent
  *
- * Imports through CLAUDE_PLUGIN_ROOT — the same form a committed generator uses
- * (reference/authoring.md), since an install path differs per machine. Paths
+ * Takes the plugin root from the invocation — the same form a committed generator
+ * uses (reference/authoring.md), since an install path differs per machine. Paths
  * cross the URL boundary through node:url, never `URL.pathname`, which keeps
  * `%20` in a path with a space and prefixes a Windows drive with a slash.
  */
@@ -16,8 +17,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = process.env.CLAUDE_PLUGIN_ROOT;
-if (!root) throw new Error("run with CLAUDE_PLUGIN_ROOT=<path to aiworx-excalidraw plugin>");
+const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];
+if (!root) throw new Error("gen-example.js: no plugin root — run `node examples/gen-example.js <path to aiworx-excalidraw plugin>`, or set CLAUDE_PLUGIN_ROOT to it");
 const { authorDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
 await authorDiagram({

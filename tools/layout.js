@@ -305,6 +305,16 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
       { where: "arrowBetween", next: 'Pass route: "orthogonal", or pass the waypoints yourself as via.' },
     );
   }
+  // the resolve pass takes these coordinates as given, so a malformed pair would
+  // reach the gate as arrow geometry rather than the typo it is
+  if (!Array.isArray(via) ||
+      via.some((p) => !Array.isArray(p) || p.length !== 2 || !p.every((n) => Number.isFinite(n)))) {
+    throw new LayoutError(
+      `via must be an array of [x, y] pairs of finite numbers, got ${JSON.stringify(via)} ` +
+        `(arrow between ${edge()})`,
+      { where: "arrowBetween", next: "Pass via: [[x, y], …], or drop via for a straight run." },
+    );
+  }
   if (route !== undefined && via.length) {
     throw new LayoutError(
       `takes route: ${JSON.stringify(route)} or ${via.length} via waypoints, not both ` +

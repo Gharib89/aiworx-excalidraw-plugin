@@ -481,6 +481,12 @@ const throwsLayoutError = (fn) => {
   check("a non-finite standoff throws at call time",
     throwsLayoutError(() => deferArrow(a, b, { standoff: "10" })) &&
       throwsLayoutError(() => deferArrow(a, b, { standoff: NaN })));
+  // the resolve pass copies via through untouched, so its shape is checked here
+  check("malformed via waypoints throw at call time",
+    throwsLayoutError(() => deferArrow(a, b, { via: null })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [[1, 2, 3]] })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [[1, "2"]] })) &&
+      throwsLayoutError(() => deferArrow(a, b, { via: [{ x: 1, y: 2 }] })));
   const overlapping = deferArrow(a, b, { standoff: 10, id: "no-room" });
   check("shapes that leave no gap are only refused at resolve time",
     throwsLayoutError(() => resolveArrows([overlapping])));

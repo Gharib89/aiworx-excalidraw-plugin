@@ -91,9 +91,10 @@ When iterating on one frame, re-render just it instead of the whole band:
 `--background COLOR`. Invalid values fail loudly with a `UsageError`.
 
 `--padding` pads the whole-picture SVG only: Excalidraw zeroes padding when
-exporting a frame, so every frame PNG crops exactly at the frame border, and
-content flush with the frame edge reads as clipped in its PNG. That is the
-export, not a layout defect — the fix is room inside the frame, not a flag.
+exporting a frame, so every frame PNG crops exactly at the frame border. Content
+flush with that border renders clipped — which step 4 already refuses as
+`frame-edge-crowding`, so the fix is clearance inside the frame rather than a
+flag here.
 
 For each frame, check the composition against the claim from step 1, then hunt
 the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — the

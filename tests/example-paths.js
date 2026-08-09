@@ -50,7 +50,11 @@ const check = (name, cond, detail) => {
   // with the argument form (it survives a `node`-scoped Bash allowlist, which an
   // env-prefixed command line does not), and keep the env form as the alternative
   // every already-committed generator uses.
-  const { CLAUDE_PLUGIN_ROOT: _inherited, ...envWithoutRoot } = process.env;
+  // Compared case-folded: Windows environment names are case-insensitive, so an
+  // inherited `Claude_Plugin_Root` would survive dropping the upper-cased key and
+  // hand the argv form a root through the variable — the opposite of the test.
+  const envWithoutRoot = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => k.toUpperCase() !== "CLAUDE_PLUGIN_ROOT"));
   const forms = [
     ["argv", [checkout], envWithoutRoot],
     ["env", [], { ...envWithoutRoot, CLAUDE_PLUGIN_ROOT: checkout }],

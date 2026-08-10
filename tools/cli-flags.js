@@ -1,13 +1,17 @@
 /**
- * What each CLI accepts, named in one place. The parsers stay in the CLIs; this
- * module only holds the inventory, so a guard can read it without running one:
- * `check.js` and `revise.js` parse `process.argv` at module top level, so
- * importing either to ask what it takes would execute the tool.
+ * What each CLI accepts, named in one place, so a guard can read the inventory
+ * without running a CLI: `check.js` and `revise.js` parse `process.argv` at
+ * module top level, so importing either to ask what it takes would execute the
+ * tool. `tests/drawn-commands.js` holds a band's drawn `--flag` to the flags of
+ * the script it follows; `tests/cli-flags.js` holds this declaration to what the
+ * CLIs really do with those flags, which is what keeps the two from drifting.
  *
- * The flags are public surface — this module is not. Its one job is that the
- * inventory a parser enforces and the inventory a guard reads cannot drift
- * apart, so `tests/drawn-commands.js` can hold a band's drawn `--flag` to the
- * real flags of the script it follows.
+ * render.js parses generically — flag name to option key — so it takes its two
+ * sets straight from here. check.js and revise.js each match one flag by name,
+ * which keeps a flag added to a set below from silently aliasing the one already
+ * handled; `tests/cli-flags.js` is what proves those names still agree.
+ *
+ * The flags are public surface. This module is not.
  */
 
 /** render.js flags that consume the next argument. */

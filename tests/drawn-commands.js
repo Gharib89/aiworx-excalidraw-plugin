@@ -47,9 +47,9 @@ const artifacts = (dir) =>
       : [],
   );
 
-const committed = artifacts("examples");
-const diagrams = committed.filter((f) => f.endsWith(".excalidraw"));
-const svgs = committed.filter((f) => f.endsWith(".svg"));
+const committedArtifacts = artifacts("examples");
+const diagrams = committedArtifacts.filter((f) => f.endsWith(".excalidraw"));
+const svgs = committedArtifacts.filter((f) => f.endsWith(".svg"));
 
 // `originalText` is the string as authored; `text` is the same string with any
 // line break Excalidraw inserted to wrap it. A break landing mid-command would
@@ -121,8 +121,8 @@ const drawn = diagrams.flatMap((file) => drawnIn(file).map((text) => ({ file, te
   // band drawing the old name would go on teaching a command that exits 2, with
   // nothing red: drawn text is never executed, so the CLI's own unknown-flag
   // rejection never fires on it. The inventories come from tools/cli-flags.js,
-  // the same sets the parsers enforce.
-  const anyFlag = new Set(Object.values(FLAGS_BY_SCRIPT).flatMap((s) => [...s]));
+  // which tests/cli-flags.js holds to what the CLIs really accept.
+  const everyInventory = new Set(Object.values(FLAGS_BY_SCRIPT).flatMap((s) => [...s]));
   const unknown = [];
   for (const { file, text } of drawn) {
     // One pass in reading order, so each flag is judged against the script most
@@ -131,11 +131,15 @@ const drawn = diagrams.flatMap((file) => drawnIn(file).map((text) => ({ file, te
     // inventory instead: a renamed flag belongs to none of them either way, and
     // guessing an owner would blame the wrong CLI. A script this repo keeps no
     // inventory for (a generator) hands the rest of the string to the union too.
+    // One drawn element is one scope: a string naming a CLI and then discussing
+    // another CLI's flag reads as the first one's, so keep each drawn command,
+    // and the prose about it, in its own element — which is how a band lays a
+    // command and its caption out anyway.
     let script = null;
     for (const [token] of text.matchAll(/[\w-]+\.m?js|--[a-z][a-z\d-]*/g)) {
       if (!token.startsWith("--")) {
         script = FLAGS_BY_SCRIPT[token] ? token : null;
-      } else if (!(script ? FLAGS_BY_SCRIPT[script] : anyFlag).has(token.slice(2))) {
+      } else if (!(script ? FLAGS_BY_SCRIPT[script] : everyInventory).has(token.slice(2))) {
         unknown.push(`${file}: ${token} after ${script ?? "no CLI"} (in "${text}")`);
       }
     }

@@ -351,8 +351,10 @@ slot each, and run a dashed leader to the thing each names — and route a leade
 that would cross a sibling around it, not through it.
 
 Free text wrapped to the wrong width collides with its neighbours: `check.js`
-flags two free texts sitting on each other, but text landing on a drawing is
-legal (labels sit on shapes all the time) and only the render shows it. So wrap
+flags two free texts sitting on each other and an arrow passing within 6px of
+any text it does not label (`text-struck-by-arrow`), but text landing on a
+drawing is legal (labels sit on shapes all the time) and only the render shows
+it. So wrap
 to the distance to the *next drawn thing* — a mock, an icon, a swatch — not to
 the card's inner width, and confirm it in the frame render.
 

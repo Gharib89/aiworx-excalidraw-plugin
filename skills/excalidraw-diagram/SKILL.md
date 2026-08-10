@@ -151,7 +151,7 @@ Excalidraw document is rejected with a `DocumentError`, a revision that would
 fail the gate with a `GateError`, and neither writes anything. Revise also drops
 image bytes no element references any more, so deleting an image by hand shrinks
 the file instead of carrying its data URL forever. A pass that re-centered bound
-arrow labels onto their paths names them — that is the house form, and
+labels onto their arrows names them — that is the house form, and
 [reference/authoring.md](reference/authoring.md) carries the recipe for a label
 that must sit off the line, plus the `reviseDiagram` call for use from inside a
 generator.

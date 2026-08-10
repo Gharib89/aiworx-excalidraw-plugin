@@ -781,7 +781,7 @@ export async function reviseDiagram({ file, svg = true }) {
     const arrows = new Set(
       data.elements.filter((e) => e.type === "arrow" && !e.isDeleted).map((e) => e.id),
     );
-    const wasAt = new Map(
+    const labelsBefore = new Map(
       data.elements
         .filter((e) => e.type === "text" && !e.isDeleted && arrows.has(e.containerId))
         .map((e) => [e.id, { x: e.x, y: e.y, containerId: e.containerId }]),
@@ -790,9 +790,11 @@ export async function reviseDiagram({ file, svg = true }) {
     const elements = restored.elements.filter((e) => !e.isDeleted);
     // Half a pixel: re-measuring the same label under the same font can shift it
     // by a rounding error, and that is not a move anyone made.
-    const recentered = elements
-      .filter((e) => wasAt.has(e.id) && Math.hypot(e.x - wasAt.get(e.id).x, e.y - wasAt.get(e.id).y) > 0.5)
-      .map((e) => ({ id: e.id, containerId: wasAt.get(e.id).containerId }));
+    const recentered = elements.flatMap((e) => {
+      const was = labelsBefore.get(e.id);
+      if (!was || Math.hypot(e.x - was.x, e.y - was.y) <= 0.5) return [];
+      return [{ id: e.id, containerId: was.containerId }];
+    });
     // A hand edit that moves an element out of its frame leaves a stale
     // frameId behind; clear membership the geometry no longer supports so
     // bindToFrames can re-infer it. Generated files never get here — the

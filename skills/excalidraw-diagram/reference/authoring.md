@@ -546,7 +546,8 @@ re-centered 1 bound label (t-writes on a-writes)
 ```
 
 Re-centering is by design: a bound label rides its arrow's path and the renderer
-masks the path behind it, so every pass puts a hand-moved one back. A label that
+masks the path behind it, so every pass places it afresh — a hand-moved one goes
+back, and one whose text you edited re-centers on its new width. A label that
 must sit **off** the line is free text instead — clear the text's `containerId`
 and drop the `boundElements` entry naming it from the arrow. The report names
 both ids because the unbind edit needs both. Free text stays where you put it,
@@ -566,5 +567,6 @@ import { pathToFileURL } from "node:url";
 const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];   // guarded as in Measuring
 const { reviseDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
-await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
+const { recentered } = await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
+// [{ id: "t-writes", containerId: "a-writes" }, …] — empty when the pass moved none
 ```

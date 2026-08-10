@@ -33,9 +33,12 @@ const check = (name, cond, detail) => {
 const DIAGRAM = "examples/plugin-tour/plugin-tour.excalidraw";
 const SVG = "examples/plugin-tour/plugin-tour.svg";
 
+// `originalText` is the string as authored; `text` is the same string with any
+// line break Excalidraw inserted to wrap it. A break landing mid-command would
+// hide it from both guards below, so read what was typed and fall back.
 const drawn = JSON.parse(readFileSync(join(root, DIAGRAM), "utf8"))
   .elements.filter((e) => e.type === "text")
-  .map((e) => e.text ?? "");
+  .map((e) => e.originalText ?? e.text ?? "");
 
 // ---- 1. no drawn invocation prefixes CLAUDE_PLUGIN_ROOT ----
 {

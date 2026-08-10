@@ -243,7 +243,11 @@ function local(e, [px, py]) {
  * Shortest distance from segment p→q to an element's outline, in px — 0 when
  * the segment crosses an edge of the outline or either endpoint lies inside
  * it. The outline is `outline(e)`'s point list read as a closed polygon, so
- * rotation is honoured the same way the rest of this module honours it.
+ * rotation is honoured the same way the rest of this module honours it. That
+ * polygon is the element's rotated box, not the inscribed-ellipse ink model
+ * `shapeDepth` and `segmentLengthInsideShape` use for ellipse and diamond —
+ * right for a text's rectangular outline, wrong for an ellipse or diamond's
+ * ink.
  */
 export function segmentGap(e, p, q) {
   const poly = outline(e);
@@ -258,13 +262,13 @@ export function segmentGap(e, p, q) {
   return least;
 }
 
-/** Ray-casting point-in-polygon test; `poly` need not be convex. */
+/** Ray-casting point-in-polygon test. */
 function pointInPolygon([px, py], poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     const [xi, yi] = poly[i];
     const [xj, yj] = poly[j];
-    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
 }

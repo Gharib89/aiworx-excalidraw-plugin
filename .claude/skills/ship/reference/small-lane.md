@@ -10,9 +10,9 @@ verification no-ops by construction (nothing on the public surface changed;
 nothing browser-dependent to prove). On top of that:
 
 - **The phase-4 self-review still runs** — it is the mandatory gate and never
-  collapses. The phase-7 Copilot rounds are additive, not a substitute.
-- **Phase 7 still runs** — the Copilot rounds are cheap and a small diff is
-  quick to re-read; the small lane does not buy an exemption from them.
+  collapses. The phase-7 CodeRabbit rounds are additive, not a substitute.
+- **Phase 7 still runs** — CodeRabbit reviews the PR regardless, and a small
+  diff converges fast; the small lane does not buy an exemption from triage.
 - **Local gate (phase 5) = `scripts/local-gate.sh --small <test-file>`** — the
   bundle-fingerprint staleness check + the one regression test file (red→green
   proof). Lean on CI for the rest of the suite, the browser smoke, and the
@@ -26,7 +26,7 @@ nothing browser-dependent to prove). On top of that:
 ## The floor — never collapses
 
 The worktree (phase 0), **one regression test** proving any behavior change, the
-**self-review** (the gate — Copilot only ever adds to it), the **fingerprint check**
+**self-review** (the gate — CodeRabbit only ever adds to it), the **fingerprint check**
 (a stale committed bundle silently reproduces the bugs the sources fixed), the
 PR, CI, and the **merge gate**.
 

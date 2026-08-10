@@ -53,18 +53,13 @@ Manual. Bump the version in **both** `package.json` and `.claude-plugin/plugin.j
 
 ## Code review
 
-**GitHub Copilot reviews on request only** — this repo runs no review ruleset, so a PR sits unread until you ask. Request it over REST (the GraphQL `--add-reviewer` path flakes 401 mid-session):
+**CodeRabbit reviews every ready (non-draft) PR automatically** (`.coderabbit.yaml`) — it reviews on open and posts an incremental review after every push; nothing to request. A PR still silent minutes after opening means the reviewer never ran — trigger one with a `@coderabbitai review` comment.
 
-```bash
-gh api -X POST repos/Gharib89/aiworx-excalidraw-plugin/pulls/<pr>/requested_reviewers \
-  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-```
+**Drive it until converged, soft cap four rounds.** Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
 
-**Two rounds maximum.** Round 1 on the opened PR; fix what's valid, then re-request for round 2. Stop there — a third round buys noise, and a round 2 that is still substantive is a shape problem more rounds won't fix.
+**Triage every comment.** CodeRabbit does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
 
-**Triage every comment.** Copilot re-reads the whole PR each round and does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
-
-Copilot is a second pair of eyes. **The gate** is a deliberate self-review (`code-review` skill) on the diff plus green CI — give it the same attention as the code it covers.
+CodeRabbit is a second pair of eyes. **The gate** is a deliberate self-review (`code-review` skill) on the diff plus green CI — give it the same attention as the code it covers.
 
 ## Agent skills
 

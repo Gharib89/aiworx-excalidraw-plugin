@@ -5,8 +5,8 @@
  *
  *   1. wrap never exceeds the requested width — measured, including the
  *      single-long-word case
- *   2. empty or malformed skeletons and unknown element types are rejected
- *      with a named error and nothing is written
+ *   2. empty or malformed skeletons, unknown element types and a frame with no
+ *      children list are rejected with a named error and nothing is written
  *   3. the geometry gate runs in-process before the file is written
  *   4. the output directory is created
  *   5. reviseDiagram round-trips a hand-edited file: the mangled file fails

@@ -390,10 +390,9 @@ function validateSkeleton(built) {
     // the converter iterates a frame's children to size it and stamp frameId,
     // so a missing list surfaces as a bare TypeError from inside the page
     if (el.type === "frame" && !Array.isArray(el.children)) {
-      const named = el.id ?? el.name;
       throw new SkeletonError(
-        `(frame${named == null ? "" : ` ${JSON.stringify(named)}`}) has no children array`
-        + ` — got ${el.children === undefined ? "nothing" : JSON.stringify(el.children)}`,
+        `(frame ${JSON.stringify(el.id ?? el.name ?? "unnamed")}) has no children array, got `
+        + (el.children === undefined ? "nothing" : JSON.stringify(el.children)),
         {
           where: `skeleton[${i}]`,
           next: 'List the ids the frame contains: children: ["card-a", "card-b"].'

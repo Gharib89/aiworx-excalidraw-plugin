@@ -53,7 +53,9 @@ pixel offsets), real assets (`image` embeds bytes in the files dictionary;
 and the generator shape for a band — compose, place, then bind, in that order.
 
 Four options in there carry most of the leverage, and a session that misses them
-rebuilds by hand what already exists:
+rebuilds by hand what already exists — the first three live under
+[Composing layout](reference/authoring.md#composing-layout), the fourth under
+[the skeleton format](reference/authoring.md#the-skeleton-format):
 
 - `arrowBetween(a, b, { route: "orthogonal" })` computes an elbow's points for
   you — the app's elbow router never runs in the converter.

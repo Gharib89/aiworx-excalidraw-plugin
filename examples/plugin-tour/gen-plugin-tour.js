@@ -362,7 +362,7 @@ await withAuthoring(async (author) => {
       // ── 9 · the workflow: four commands on a timeline ──────────────────────
       {
         const steps = [
-          ["CLAUDE_PLUGIN_ROOT=<plugin> node gen-tour.js",
+          ["node gen-plugin-tour.js <plugin>",
            "the generator is the source of truth — withAuthoring measures, gates and writes the .excalidraw and its SVG"],
           ["node tools/check.js tour.excalidraw --json --dark",
            "re-prove any file: exit 0 clean, 1 defects, 2 unreadable; --dark re-scores contrast on the dark export"],

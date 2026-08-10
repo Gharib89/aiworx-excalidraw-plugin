@@ -17,7 +17,8 @@ use. This table is the whole surface; the sections below detail each one.
 | `column` | `column(items, opts)` | `stack` fixed to `direction: "column"` | [Composing layout](#composing-layout) |
 | `row` | `row(items, opts)` | `stack` fixed to `direction: "row"` | [Composing layout](#composing-layout) |
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
-| `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
+| `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
+| `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
 | `spliceLibraryItem` | `spliceLibraryItem(path, { item, at })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |

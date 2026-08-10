@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  column, row, stack, box, arrowBetween as deferArrow, resolveArrows, flatten, LayoutError,
+  column, row, stack, box, arrowBetween as deferArrow, fanOut, resolveArrows, flatten, LayoutError,
 } from "../tools/layout.js";
 
 // arrowBetween returns a deferred arrow — the pipeline resolves its geometry once
@@ -502,6 +502,146 @@ const throwsLayoutError = (fn) => {
     message = `${err.message}`;
   }
   check("the resolve-time refusal names the arrow", /no-room/.test(message), message);
+}
+
+// ---- originAt / landAt: a fraction of the facing edge, in place of the
+// overlap midpoint, for the end supplied ----
+{
+  // landAt overrides only the end; the start keeps today's overlap midpoint
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 80 };
+  const arrow = arrowBetween(a, b, { standoff: 10, landAt: 0.25 });
+  check("landAt places the end at a fraction of the target's facing edge",
+    arrow.y === 25 && JSON.stringify(arrow.points) === "[[0,0],[40,-5]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // originAt overrides only the start; the end keeps today's overlap midpoint
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 80 };
+  const arrow = arrowBetween(a, b, { standoff: 10, originAt: 0.75 });
+  check("originAt places the start at a fraction of the source's facing edge",
+    arrow.y === 37.5 && JSON.stringify(arrow.points) === "[[0,0],[40,-12.5]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // both omitted: today's overlap-midpoint pick at both ends is unchanged
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 80 };
+  const arrow = arrowBetween(a, b, { standoff: 10 });
+  check("originAt and landAt both omitted keep the overlap midpoint at both ends",
+    arrow.y === 25 && JSON.stringify(arrow.points) === "[[0,0],[40,0]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // the vertical branch honours both the same way, off the top/bottom edges
+  const a = { type: "rectangle", id: "top", x: 0, y: 0, width: 100, height: 40 };
+  const b = { type: "rectangle", id: "bot", x: 0, y: 100, width: 140, height: 40 };
+  const arrow = arrowBetween(a, b, { standoff: 8, originAt: 0.25, landAt: 0.75 });
+  check("originAt and landAt on the vertical axis pick fractions of the top/bottom edges",
+    arrow.x === 25 && arrow.y === 48 && JSON.stringify(arrow.points) === "[[0,0],[80,44]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // out-of-range or non-finite fractions are refused where they were written,
+  // the same treatment standoff already gets
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 50 };
+  const b = { type: "rectangle", id: "b", x: 160, y: 0, width: 100, height: 50 };
+  check("an out-of-range or non-finite originAt is a LayoutError",
+    throwsLayoutError(() => deferArrow(a, b, { originAt: -0.1 })) &&
+      throwsLayoutError(() => deferArrow(a, b, { originAt: 1.1 })) &&
+      throwsLayoutError(() => deferArrow(a, b, { originAt: NaN })) &&
+      throwsLayoutError(() => deferArrow(a, b, { originAt: "0.5" })));
+  check("an out-of-range or non-finite landAt is a LayoutError",
+    throwsLayoutError(() => deferArrow(a, b, { landAt: -0.1 })) &&
+      throwsLayoutError(() => deferArrow(a, b, { landAt: 1.1 })) &&
+      throwsLayoutError(() => deferArrow(a, b, { landAt: NaN })) &&
+      throwsLayoutError(() => deferArrow(a, b, { landAt: "0.5" })));
+  check("an out-of-range or non-finite spread is a LayoutError",
+    throwsLayoutError(() => fanOut(a, [b], { spread: -0.1 })) &&
+      throwsLayoutError(() => fanOut(a, [b], { spread: 1.1 })) &&
+      throwsLayoutError(() => fanOut(a, [b], { spread: NaN })) &&
+      throwsLayoutError(() => fanOut(a, [b], { spread: "0.5" })));
+  check("fanOut needs a non-empty targets array",
+    throwsLayoutError(() => fanOut(a, [])) && throwsLayoutError(() => fanOut(a, null)));
+}
+
+// ---- fanOut: one source, N deferred arrows, united origin, spread landings ----
+{
+  const src = { type: "rectangle", id: "src", x: 0, y: 0, width: 100, height: 200 };
+  const t1 = { type: "rectangle", id: "t1", x: 200, y: 0, width: 80, height: 40 };
+  const t2 = { type: "rectangle", id: "t2", x: 200, y: 100, width: 80, height: 40 };
+  const t3 = { type: "rectangle", id: "t3", x: 200, y: 200, width: 80, height: 40 };
+  const arrows = fanOut(src, [t1, t2, t3], { standoff: 10 }).map(resolveOne);
+  check("fanOut unites every origin at the source edge middle",
+    arrows.every((arw) => arw.x === 110 && arw.y === 100),
+    arrows.map((arw) => `${arw.x},${arw.y}`).join(" | "));
+  const ends = arrows.map((arw) => [arw.x + arw.points.at(-1)[0], arw.y + arw.points.at(-1)[1]]);
+  check("fanOut spreads landings at 0.2/0.5/0.8 of each target's own facing edge",
+    JSON.stringify(ends) === JSON.stringify([[190, 8], [190, 120], [190, 232]]),
+    JSON.stringify(ends));
+}
+{
+  // fanOut returns deferred arrows too: a mover after the call still resolves
+  // against the final position, same as any arrowBetween arrow
+  const src = { type: "rectangle", id: "src2", width: 100, height: 50 };
+  const t1 = { type: "rectangle", id: "t1-2", width: 80, height: 40 };
+  const [arrow] = fanOut(src, [t1], { standoff: 10 });
+  row([src, t1], { gap: 60, x: 500, y: 300, align: "start" });
+  resolveArrows([arrow]);
+  check("a fanOut arrow deferred before a mover resolves against the moved shapes",
+    arrow.x === 610 && arrow.y === 325 && JSON.stringify(arrow.points) === "[[0,0],[40,-5]]",
+    `${arrow.x},${arrow.y} ${JSON.stringify(arrow.points)}`);
+}
+{
+  // fanOut composes with route: "orthogonal" — every arrow keeps axis-aligned
+  // segments, the same guarantee a single arrowBetween route gives
+  const src = { type: "rectangle", id: "src3", x: 0, y: 0, width: 100, height: 200 };
+  const t1 = { type: "rectangle", id: "ot1", x: 200, y: 0, width: 80, height: 40 };
+  const t2 = { type: "rectangle", id: "ot2", x: 200, y: 100, width: 80, height: 40 };
+  const t3 = { type: "rectangle", id: "ot3", x: 200, y: 200, width: 80, height: 40 };
+  const arrows = fanOut(src, [t1, t2, t3], { standoff: 10, route: "orthogonal" }).map(resolveOne);
+  const sloped = arrows.flatMap((arw) => {
+    const pts = arw.points.map(([px, py]) => [arw.x + px, arw.y + py]);
+    return pts.slice(0, -1)
+      .map((p, i) => [p, pts[i + 1]])
+      .filter(([p, q]) => p[0] !== q[0] && p[1] !== q[1]);
+  });
+  check("fanOut with route: orthogonal keeps every segment axis-aligned",
+    sloped.length === 0, JSON.stringify(sloped));
+}
+{
+  // fanOut hands label, standoff and style through to every arrowBetween call
+  const src = { type: "rectangle", id: "src4", x: 0, y: 0, width: 100, height: 50 };
+  const t1 = { type: "rectangle", id: "pt1", x: 200, y: 0, width: 80, height: 40 };
+  const [arrow] = fanOut(src, [t1], { standoff: 20, label: "writes", strokeWidth: 3 }).map(resolveOne);
+  check("fanOut passes label, standoff and style through to each arrow",
+    arrow.label.text === "writes" && arrow.strokeWidth === 3 && arrow.x === 120,
+    JSON.stringify(arrow));
+}
+{
+  // a single target still gets a computed landAt, at the edge middle — the
+  // same geometry as asking for originAt/landAt 0.5 explicitly
+  const src = { type: "rectangle", id: "src5", x: 0, y: 0, width: 100, height: 50 };
+  const t1 = { type: "rectangle", id: "one", x: 200, y: 0, width: 80, height: 90 };
+  const [viaFanOut] = fanOut(src, [t1], { standoff: 10 }).map(resolveOne);
+  const viaExplicit = arrowBetween(src, t1, { standoff: 10, originAt: 0.5, landAt: 0.5 });
+  const shape = (arw) => JSON.stringify({ x: arw.x, y: arw.y, points: arw.points });
+  check("fanOut with one target computes landAt 0.5, same as asking for it explicitly",
+    shape(viaFanOut) === shape(viaExplicit), `${shape(viaFanOut)} vs ${shape(viaExplicit)}`);
+}
+{
+  // many-to-one: two arrows landing on one target at distinct landAt fractions
+  // separate instead of both pinning to the target's centre
+  const a1 = { type: "rectangle", id: "m1", x: 0, y: 0, width: 100, height: 50 };
+  const a2 = { type: "rectangle", id: "m2", x: 0, y: 100, width: 100, height: 50 };
+  const target = { type: "rectangle", id: "shared", x: 200, y: 0, width: 100, height: 150 };
+  const arrow1 = arrowBetween(a1, target, { standoff: 10, landAt: 0.28 });
+  const arrow2 = arrowBetween(a2, target, { standoff: 10, landAt: 0.72 });
+  const endY = (arw) => arw.y + arw.points.at(-1)[1];
+  check("two arrows into one target at distinct landAt fractions land apart",
+    near(endY(arrow1), 42) && near(endY(arrow2), 108) && endY(arrow1) !== endY(arrow2),
+    `${endY(arrow1)} vs ${endY(arrow2)}`);
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

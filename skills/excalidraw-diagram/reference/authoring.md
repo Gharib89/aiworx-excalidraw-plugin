@@ -141,6 +141,16 @@ the same rules as `check.js` **in-process, before the file is written**: a
 defective build throws a `GateError` listing every defect and writes nothing.
 The output directory is created for you.
 
+A relative `out:` resolves against the **process cwd**, so a generator run from
+somewhere else — a scratchpad, a worktree root — writes its copy there. The
+success line names the **resolved absolute path** of every file it wrote, so
+read that path to see where the diagram landed:
+
+```
+/home/you/repo/docs/diagrams/thing.excalidraw  24 elements, 3 frames
+/home/you/repo/docs/diagrams/thing.svg
+```
+
 ## The finish register
 
 Finish is chosen once per diagram, not per element. `register:` sets it once and
@@ -540,8 +550,8 @@ exit 1 and write nothing; a bad invocation exits 2 with a `UsageError`.
 A pass that re-centered bound labels names them, after the artifacts:
 
 ```
-docs/diagrams/thing.excalidraw  24 elements, 3 frames
-docs/diagrams/thing.svg
+/home/you/repo/docs/diagrams/thing.excalidraw  24 elements, 3 frames
+/home/you/repo/docs/diagrams/thing.svg
 re-centered 1 bound label (t-writes on a-writes)
 ```
 

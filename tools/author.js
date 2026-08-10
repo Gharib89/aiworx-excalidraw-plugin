@@ -20,7 +20,7 @@
  * repaired bindings) and the same gate.
  */
 import { readFileSync, writeFileSync, mkdirSync, renameSync, rmSync } from "node:fs";
-import { join, dirname, extname } from "node:path";
+import { join, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
@@ -632,15 +632,20 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
       { problems, where: out, next: "Fix the defects, then re-run." },
     );
   }
-  const svgOut = svg ? out.replace(/\.excalidraw$/, "") + ".svg" : null;
+  // Every path the success report names is resolved: a relative `out:` resolves
+  // against the process cwd, so a generator run from another directory writes
+  // there instead — and echoing the path as given made the two runs report the
+  // same line. The gate refusal above still names the path as given.
+  const outPath = resolve(out);
+  const svgOut = svg ? outPath.replace(/\.excalidraw$/, "") + ".svg" : null;
   const rendered = svgOut ? await ex.exportSvg({ elements, appState, files }) : null;
-  mkdirSync(dirname(out), { recursive: true });
+  mkdirSync(dirname(outPath), { recursive: true });
   writeTogether([
-    [out, JSON.stringify(doc, null, 2) + "\n"],
+    [outPath, JSON.stringify(doc, null, 2) + "\n"],
     ...(svgOut ? [[svgOut, rendered.svg]] : []),
   ]);
   const frames = elements.filter((e) => e.type === "frame");
-  const lines = [`${out}  ${elements.length} elements, ${frames.length} frames`];
+  const lines = [`${outPath}  ${elements.length} elements, ${frames.length} frames`];
   if (svgOut) lines.push(svgOut);
   // Part of the success report, not a warning — the file is written either way.
   // Both ids, because unbinding a label needs both: clear the text's containerId
@@ -650,7 +655,7 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
       `(${recentered.map((r) => `${r.id} on ${r.containerId}`).join(", ")})`);
   }
   console.log(lines.join("\n"));
-  return { elements, frames, out, svgOut, recentered };
+  return { elements, frames, out: outPath, svgOut, recentered };
 }
 
 const buildContext = (ex, files) => ({

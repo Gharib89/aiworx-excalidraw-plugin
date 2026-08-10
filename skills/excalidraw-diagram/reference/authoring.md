@@ -262,9 +262,37 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   set for you — those coordinates are **absolute** and yours, the one part the
   resolve pass takes as given, so write them after the last mover or recompute
   them from the shapes' final positions.
+- `originAt` / `landAt` name where an arrow leaves and lands as a fraction of the
+  **facing edge** — the cross-axis edge of that shape the arrow departs from or
+  arrives at. `0` is the edge's low-coordinate end (its top when the edge runs
+  vertically, its left when horizontally), `1` the high end, `0.5` the middle.
+  Each replaces the overlap centre for its own end only, so the end you leave out
+  keeps the behaviour above. Two arrows into one box read as two arrows once
+  their landings differ — `landAt: 0.28` and `landAt: 0.72` separate the heads
+  that a single anchor piles on one point.
+- `fanOut` writes a **fan** — one source, one arrow per target — in a single
+  call, so the fractions come out computed rather than hand-accumulated. Every
+  arrow leaves the middle of the source's facing edge, and the landings spread
+  evenly across a band centred on each target's own facing edge. `spread` sets
+  that band's width as a fraction of the edge and defaults to `0.6`, which puts
+  three landings at `0.2 / 0.5 / 0.8`; `spread: 0` sends them all to the middle.
+  Every other option rides through to `arrowBetween` untouched — `standoff`,
+  `label`, style, and `route: "orthogonal"`, whose arrows share one jog line and
+  read as a bus:
+
+  ```js
+  return [band, ...fanOut(spec, [t1, t2, t3], { standoff: 10, route: "orthogonal" })];
+  ```
+
+  Spread the returned array into what you return: `flatten` unrolls groups, and
+  an array of arrows is neither a group nor an element. The origins unite while
+  every target sits off the **same** source edge — a target straddling the source
+  picks its own facing edge and leaves from there, so keep a fan's targets to one
+  side, or pass `landAt` per arrow through `arrowBetween` where they cannot be.
 - Options are checked where you wrote them: an unknown `route`, `route` with
   `via`, `via` that is not `[[x, y], …]` of finite numbers, a label with no text,
-  a `standoff` that is not a finite number, an unbindable group — each is a
+  a `standoff` that is not a finite number, an `originAt`, `landAt` or `spread`
+  outside `[0, 1]`, an empty `targets` array, an unbindable group — each is a
   `LayoutError` from the call itself. What needs the finished
   coordinates waits for the resolve pass and names the arrow's id when it
   refuses, so give an arrow an `id` and the refusal traces straight back to the

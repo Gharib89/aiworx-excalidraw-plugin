@@ -45,8 +45,8 @@ await withAuthoring(async (author) => {
         return { type: "text", text: str, fontSize, fontFamily, strokeColor: color,
                  width: m.width, height: m.height, ...rest };
       };
-      // an arrow endpoint needs its id here, where the arrow is written:
-      // arrowBetween defers the geometry but binds by id at the call
+      // `id` is for a card an arrow binds to: arrowBetween defers the geometry
+      // but reads the endpoint's id at the call
       const card = async (str, role, { fontSize = 16, pad = 14, mono = false, id } = {}) => {
         const t = await text(str, { fontSize, fontFamily: mono ? CODE : PROSE });
         return box(t, { id, padding: pad, strokeColor: p.roles[role]?.stroke ?? grey.stroke,
@@ -399,9 +399,8 @@ await withAuthoring(async (author) => {
       row(panels.map((pl) => pl.g), { gap: 170, align: "start" });
       for (const [i, pl] of panels.entries()) {
         const own = idsOf(pl.g, `p${i + 1}`);
-        // an overlay reads coordinates, so it runs here, after the row settled
-        // them; the arrows were written beside their shapes and only their
-        // geometry waits — resolveArrows measures it after this build returns
+        // an overlay reads coordinates, so it waits for the row that settled
+        // them; an arrow does not — resolveArrows places it after build returns
         const extra = [...(pl.overlay ? await pl.overlay() : []), ...(pl.arrows ?? [])];
         extras.push(...extra);
         const children = [...own, ...extra.flatMap((e) => idsOf(e, `p${i + 1}x`))];

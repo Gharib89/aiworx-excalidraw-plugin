@@ -75,6 +75,12 @@ const CASES = [
   { name: "arrow-vertex-inside-shape", exit: 1, expect: "crosses rectangle r1", code: "arrow-crossing" },
   { name: "arrow-ends-inside-shape", exit: 0, expect: "no mechanical defects" },
   { name: "arrowhead-inside-target", exit: 1, expect: "lands inside its target", code: "arrow-buried" },
+  { name: "text-struck-by-arrow", exit: 1, expect: "arrow a1 strikes through text t1", code: "text-struck-by-arrow" },
+  // a bound label is exempt from its own container arrow — arrow-label-wide
+  // (below, still a pass case) is exactly that — but a different arrow
+  // striking the same label is still a strike
+  { name: "bound-label-other-arrow", exit: 1, expect: "arrow a2 strikes through text t1", code: "text-struck-by-arrow" },
+  { name: "text-clear-of-arrow", exit: 0, expect: "no mechanical defects" },
   { name: "off-canvas-stray", exit: 1, expect: "off-canvas stray", code: "stray" },
   // two elements and one gap between them: the gap is the defect, so it is
   // reported once — not once per end (counted below)
@@ -332,6 +338,20 @@ for (const c of CASES) {
   check("arrow-buried carries depth and names arrow then target",
     typeof buried?.depth === "number" && buried.depth > 0 && buried.elements.join() === "a1,r2",
     JSON.stringify(buried));
+
+  const struck = find(jsonFile("text-struck-by-arrow"), "text-struck-by-arrow");
+  check("text-struck-by-arrow carries clearance and names text then arrow",
+    struck?.clearance === 0 && struck.elements.join() === "t1,a1",
+    JSON.stringify(struck));
+
+  const struckLabel = find(jsonFile("bound-label-other-arrow"), "text-struck-by-arrow");
+  check("a bound label struck by a different arrow names the label then that arrow",
+    struckLabel?.elements.join() === "t1,a2",
+    JSON.stringify(struckLabel));
+
+  check("a label sitting on its own container arrow gets no text-struck-by-arrow",
+    !find(jsonFile("arrow-label-wide"), "text-struck-by-arrow"),
+    JSON.stringify(jsonFile("arrow-label-wide").problems));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall gate fixtures behave");

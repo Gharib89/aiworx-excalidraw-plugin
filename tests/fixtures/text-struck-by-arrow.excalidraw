@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: an arrow passes straight through a free text's bbox",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 50, "y": 50, "width": 100, "height": 20, "text": "do not cross", "fontFamily": 6 },
+    { "id": "a1", "type": "arrow", "x": 30, "y": 60, "width": 140, "height": 0,
+      "points": [[0, 0], [140, 0]] }
+  ],
+  "appState": {},
+  "files": {}
+}

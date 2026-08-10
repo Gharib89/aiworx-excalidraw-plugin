@@ -249,6 +249,25 @@ function elbow([sx, sy], [ex, ey], horizontal) {
 }
 
 /**
+ * The midpoint of two ranges' shared span, or `null` where they miss each other
+ * entirely — the coordinate an arrow runs level through when both its shapes
+ * reach across it.
+ */
+const overlapCentre = (a1, a2, b1, b2) => {
+  const lo = Math.max(a1, b1);
+  const hi = Math.min(a2, b2);
+  return lo < hi ? (lo + hi) / 2 : null;
+};
+
+/**
+ * A **facing edge** read at `fraction` — `0` its low-coordinate end, `1` its
+ * high one — falling back to the coordinate the arrow would have taken on its
+ * own. One definition, so the horizontal and vertical branches cannot drift.
+ */
+const along = (fraction, lo, hi, fallback) =>
+  fraction === undefined ? fallback : lo + fraction * (hi - lo);
+
+/**
  * A rejected value, rendered for its own message. JSON reads best and is what the
  * rest of this module shows, but it throws on a bigint and drops `undefined` —
  * and an error about a bad value must not fail on the value.
@@ -309,8 +328,17 @@ const DEFERRED = Symbol("deferred arrow endpoints");
  * arrow, centred on the path. It is drawn over whatever lies behind it, so a
  * label wider than a short arrow is normal — but check the render when the arrow
  * runs close to a neighbour.
+ *
+ * `originAt`/`landAt` each pick a fraction of the source's/target's **facing
+ * edge** — the cross-axis edge the arrow leaves or enters — in place of that
+ * end's overlap midpoint: `0` is the low-coordinate end of the edge (top for a
+ * vertical edge, left for a horizontal one), `1` the high end. Either one
+ * omitted keeps today's overlap-midpoint (or shape-centre) behaviour for that
+ * end, so nothing existing moves. This is what unpiles a many-to-one fan: two
+ * arrows into one box at `landAt: 0.28` and `0.72` land apart instead of both
+ * on the centre.
  */
-export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...style } = {}) {
+export function arrowBetween(a, b, { standoff = 10, via = [], route, label, originAt, landAt, ...style } = {}) {
   const edge = () => `${bindId(a) ?? a?.type} and ${bindId(b) ?? b?.type}`;
   if (route !== undefined && route !== "orthogonal") {
     throw new LayoutError(
@@ -343,6 +371,19 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
       { where: "arrowBetween", next: "Pass a number for standoff, or omit it for the 10px default." },
     );
   }
+  // same reasoning as standoff — a bad fraction is caught here, not as a
+  // landing silently pinned to the wrong edge a pass later
+  for (const [name, value] of [["originAt", originAt], ["landAt", landAt]]) {
+    if (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 1)) {
+      throw new LayoutError(
+        `${name} must be a finite number in [0, 1], got ${shown(value)} (arrow between ${edge()})`,
+        {
+          where: "arrowBetween",
+          next: `Pass a fraction in [0, 1] for ${name}, or omit it to keep the overlap midpoint.`,
+        },
+      );
+    }
+  }
   requireBindable(a, "source");
   requireBindable(b, "target");
   const arrow = {
@@ -354,13 +395,13 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, ...s
   const endId = bindId(b);
   if (startId) arrow.start = { id: startId };
   if (endId) arrow.end = { id: endId };
-  arrow[DEFERRED] = { a, b, standoff, via, route };
+  arrow[DEFERRED] = { a, b, standoff, via, route, originAt, landAt };
   return arrow;
 }
 
 /** Measure one deferred arrow's endpoints where they now stand, and place it. */
 function resolveArrow(arrow) {
-  const { a, b, standoff, via, route } = arrow[DEFERRED];
+  const { a, b, standoff, via, route, originAt, landAt } = arrow[DEFERRED];
   const A = boundsOf(a);
   const B = boundsOf(b);
   const dxGap = Math.max(B.x1 - A.x2, A.x1 - B.x2);
@@ -378,24 +419,25 @@ function resolveArrow(arrow) {
   }
 
   // where the shapes' cross ranges overlap the arrow runs level through the
-  // overlap's centre; otherwise it leaves and enters each shape at its own centre
+  // overlap's centre; otherwise it leaves and enters each shape at its own
+  // centre. `originAt`/`landAt`, when supplied, replace that end's pick with a
+  // fraction along the shape's own facing edge instead — the caller's fraction
+  // always wins over the computed fallback.
   let start;
   let end;
   // the wider separation picks the axis, and it is the one `usable` vouched for
   const horizontal = dxGap >= dyGap;
   if (horizontal) {
-    const o1 = Math.max(A.y1, B.y1);
-    const o2 = Math.min(A.y2, B.y2);
-    const sy = o1 < o2 ? (o1 + o2) / 2 : A.cy;
-    const ey = o1 < o2 ? (o1 + o2) / 2 : B.cy;
+    const centre = overlapCentre(A.y1, A.y2, B.y1, B.y2);
+    const sy = along(originAt, A.y1, A.y2, centre ?? A.cy);
+    const ey = along(landAt, B.y1, B.y2, centre ?? B.cy);
     const leftToRight = B.x1 >= A.x2;
     start = [leftToRight ? A.x2 + standoff : A.x1 - standoff, sy];
     end = [leftToRight ? B.x1 - standoff : B.x2 + standoff, ey];
   } else {
-    const o1 = Math.max(A.x1, B.x1);
-    const o2 = Math.min(A.x2, B.x2);
-    const sx = o1 < o2 ? (o1 + o2) / 2 : A.cx;
-    const ex = o1 < o2 ? (o1 + o2) / 2 : B.cx;
+    const centre = overlapCentre(A.x1, A.x2, B.x1, B.x2);
+    const sx = along(originAt, A.x1, A.x2, centre ?? A.cx);
+    const ex = along(landAt, B.x1, B.x2, centre ?? B.cx);
     const topToBottom = B.y1 >= A.y2;
     start = [sx, topToBottom ? A.y2 + standoff : A.y1 - standoff];
     end = [ex, topToBottom ? B.y1 - standoff : B.y2 + standoff];
@@ -429,4 +471,45 @@ function resolveArrow(arrow) {
 export function resolveArrows(elements) {
   for (const el of elements) if (el?.[DEFERRED]) resolveArrow(el);
   return elements;
+}
+
+/**
+ * One source fanning out to N targets: N deferred arrows (each `arrowBetween`,
+ * so bindings/label/style/standoff/route all come along unchanged), origins
+ * united on the source's facing-edge middle and landings spread evenly across
+ * the band centred on it. Written arrow by arrow, `arrowBetween`'s
+ * overlap-midpoint pick scatters those origins across the source edge — each
+ * pair is measured on its own, so the fan-out reads as unrelated stubs rather than
+ * one argument.
+ *
+ * Arrow `i`'s `landAt`: `n === 1 ? 0.5 : 0.5 + spread * (i / (n - 1) - 0.5)`.
+ * Fractions follow **argument order**, not target position. `spread` (default
+ * `0.6`) bands the middle of the edge — `spread: 0` collapses every landing
+ * back to the edge middle.
+ *
+ * Origins unite only while every target sits off the *same* source edge: one
+ * straddling the source picks a different facing edge and legitimately gets a
+ * different origin there too. An `originAt` or `landAt` of your own in `opts`
+ * lands last and holds, the same ownership rule `roundness` follows.
+ */
+export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
+  // named for the source, because two fans in one build otherwise refuse in
+  // byte-identical words — the same reason `arrowBetween` names its own edge
+  const from = () => `fan from ${bindId(source) ?? source?.type}`;
+  if (!Array.isArray(targets) || targets.length === 0) {
+    throw new LayoutError(`targets must be a non-empty array, got ${shown(targets)} (${from()})`, {
+      where: "fanOut", next: "Pass at least one target shape.",
+    });
+  }
+  if (!Number.isFinite(spread) || spread < 0 || spread > 1) {
+    throw new LayoutError(`spread must be a finite number in [0, 1], got ${shown(spread)} (${from()})`, {
+      where: "fanOut", next: "Pass a fraction in [0, 1] for spread, or omit it for the 0.6 default.",
+    });
+  }
+  const n = targets.length;
+  return targets.map((target, i) => arrowBetween(source, target, {
+    originAt: 0.5,
+    landAt: n === 1 ? 0.5 : 0.5 + spread * (i / (n - 1) - 0.5),
+    ...opts,
+  }));
 }

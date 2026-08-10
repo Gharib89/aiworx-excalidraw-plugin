@@ -75,6 +75,20 @@ is done, so no later mover can leave it behind. Id, bindings, label and style ar
 carried from the moment it is written; only the path waits.
 _Avoid_: lazy arrow, unresolved arrow
 
+**Facing edge**:
+The cross-axis edge of a shape an arrow leaves from or arrives at, picked by the
+axis of the wider separation. `originAt`/`landAt` name a point along it as a
+fraction — `0` its low-coordinate end, `1` its high end — in place of the overlap
+centre the arrow would otherwise take.
+_Avoid_: near side, anchor edge
+
+**Fan-out**:
+One source, one arrow per target, every arrow leaving one united origin on the
+source's facing edge and landing spread across its own target's. `fanOut` writes
+one; the spread is a band centred on each landing edge, never hand-accumulated
+offsets. The shape the skill's pattern catalogue names for one-to-many.
+_Avoid_: fan (unqualified), spray, splay, one-to-many arrows
+
 **Bound label**:
 Text bound to an arrow — its `containerId` names the arrow, and `arrowBetween`'s
 `label:` option writes one. The house form for on-arrow text: the renderer masks

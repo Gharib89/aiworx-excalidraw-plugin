@@ -47,8 +47,8 @@ frame sizes derive from those measurements.
 See [reference/authoring.md](reference/authoring.md) — it opens with the build
 context inventory, one row per member `build` receives, and goes on to the
 skeleton format, the measurement API, the layout helpers
-(`stack`/`column`/`row`/`box`/`arrowBetween` — no hand-accumulated pixel
-offsets), real assets (`image` embeds bytes in the files dictionary;
+(`stack`/`column`/`row`/`box`/`arrowBetween`/`fanOut` — no hand-accumulated
+pixel offsets), real assets (`image` embeds bytes in the files dictionary;
 `spliceLibraryItem` inserts a community `.excalidrawlib` item with fresh ids),
 and the generator shape for a band — compose, place, then bind, in that order.
 

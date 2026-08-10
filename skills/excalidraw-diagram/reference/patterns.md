@@ -4,7 +4,7 @@
 
 | The idea | The pattern |
 |---|---|
-| one input produces many outputs | fan-out — arrows radiating from a single source |
+| one input produces many outputs | fan-out — arrows radiating from a single source, written by `fanOut` |
 | many inputs become one | funnel — arrows converging, narrowing to the result |
 | a fixed order of steps | timeline — a line with dots, labels beside each dot |
 | a hierarchy | tree — trunk and branch lines, free text at the nodes |

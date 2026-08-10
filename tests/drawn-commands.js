@@ -12,13 +12,17 @@
  *      allowlist, which an env-prefixed command line does not. That one variable
  *      stands in for the form: it is the only environment a generator here reads
  *   2. every script a drawn command names exists on disk
- *   3. the committed SVG does not prefix it either — one generator run writes
- *      both files, so the SVG holding a string the diagram dropped is the
+ *   3. the committed SVGs do not prefix it either — one generator run writes
+ *      both files, so an SVG holding a string its diagram dropped is the
  *      readable sign of a partial regenerate
  *
- * Only the plugin tour draws commands; `examples/example.excalidraw` draws none.
+ * Every committed `.excalidraw` and `.svg` under `examples/` is walked, so the
+ * next band this repo commits arrives under the guard with no edit here. The
+ * deliberately-broken inputs under `tests/fixtures/` are out of the walk by
+ * construction — they live under `tests/`, and their text is a defect on
+ * purpose. A band that draws no command simply contributes no strings.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,15 +34,38 @@ const check = (name, cond, detail) => {
   if (!cond) fail.push(name);
 };
 
-const DIAGRAM = "examples/plugin-tour/plugin-tour.excalidraw";
-const SVG = "examples/plugin-tour/plugin-tour.svg";
+/** Every committed `.excalidraw` and `.svg` under `dir`, at any depth. */
+const artifacts = (dir) =>
+  readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? artifacts(`${dir}/${e.name}`)
+      : /\.(excalidraw|svg)$/.test(e.name) ? [`${dir}/${e.name}`]
+      : [],
+  );
+
+const committed = artifacts("examples");
+const diagrams = committed.filter((f) => f.endsWith(".excalidraw"));
+const svgs = committed.filter((f) => f.endsWith(".svg"));
 
 // `originalText` is the string as authored; `text` is the same string with any
 // line break Excalidraw inserted to wrap it. A break landing mid-command would
-// hide it from both guards below, so read what was typed and fall back.
-const drawn = JSON.parse(readFileSync(join(root, DIAGRAM), "utf8"))
-  .elements.filter((e) => e.type === "text")
-  .map((e) => e.originalText ?? e.text ?? "");
+// hide it from the guards below, so read what was typed and fall back.
+const drawnIn = (file) =>
+  JSON.parse(readFileSync(join(root, file), "utf8"))
+    .elements.filter((e) => e.type === "text")
+    .map((e) => e.originalText ?? e.text ?? "");
+
+/** Each drawn string paired with the artifact it came from, so a failure locates itself. */
+const drawn = diagrams.flatMap((file) => drawnIn(file).map((text) => ({ file, text })));
+
+// ---- 0. the walk found the committed bands ----
+{
+  // Every check below is a filter over `drawn`: a walk that returned nothing
+  // would report all of them green. The floor is the artifacts this repo commits
+  // in pairs, so the count is not pinned — only that both kinds were found.
+  check("the walk finds committed diagrams and SVGs",
+    diagrams.length > 0 && svgs.length > 0,
+    `${diagrams.length} diagram(s), ${svgs.length} SVG(s)`);
+}
 
 // ---- 1. no drawn invocation prefixes CLAUDE_PLUGIN_ROOT ----
 {
@@ -46,24 +73,25 @@ const drawn = JSON.parse(readFileSync(join(root, DIAGRAM), "utf8"))
   // reason to *draw* the name, and any `NAME=<value> node` shape would be fooled
   // by a quoted value containing a space. Named for the variable rather than for
   // the env-prefix form, so a failure says what was actually found.
-  const prefixed = drawn.filter((t) => t.includes("CLAUDE_PLUGIN_ROOT="));
-  check("no drawn invocation prefixes CLAUDE_PLUGIN_ROOT",
-    prefixed.length === 0, prefixed.join(" | ") || `${drawn.length} strings clean`);
+  const prefixed = drawn.filter(({ text }) => text.includes("CLAUDE_PLUGIN_ROOT="));
+  check("no drawn invocation prefixes CLAUDE_PLUGIN_ROOT", prefixed.length === 0,
+    prefixed.map(({ file, text }) => `${file}: ${text}`).join(" | ")
+      || `${drawn.length} strings clean`);
 }
 
 // ---- 2. every script a drawn command names exists ----
 {
-  // The operand of a drawn `node` only — elsewhere the band labels modules
+  // The operand of a drawn `node` only — elsewhere a band labels modules
   // (`author.js`, `verify.js + check.js`), which name no path and resolve
   // nowhere. Flags before the operand are skipped so `node --flag gen.js` stays
   // covered. A drawn relative path means one of two roots: the checkout, as the
-  // `tools/…` steps use, or the example's own directory, where its generator runs.
-  const bases = [root, join(root, dirname(DIAGRAM))];
+  // `tools/…` steps use, or the band's own directory, where its generator runs.
   const missing = [];
-  for (const text of drawn) {
+  for (const { file, text } of drawn) {
+    const bases = [root, join(root, dirname(file))];
     for (const [, script] of text.matchAll(/\bnode\s+(?:-\S+\s+)*(\S+\.m?js)\b/g)) {
       if (!bases.some((base) => existsSync(join(base, script)))) {
-        missing.push(`${script} (in "${text}")`);
+        missing.push(`${file}: ${script} (in "${text}")`);
       }
     }
   }
@@ -71,15 +99,15 @@ const drawn = JSON.parse(readFileSync(join(root, DIAGRAM), "utf8"))
     missing.length === 0, missing.join(" | ") || "all drawn scripts resolve");
 }
 
-// ---- 3. the committed SVG does not prefix it either ----
+// ---- 3. the committed SVGs do not prefix it either ----
 {
-  // The SVG is what a README or a PR preview shows, so a half-finished
+  // An SVG is what a README or a PR preview shows, so a half-finished
   // regenerate keeps publishing the string the diagram no longer holds. Checking
   // the one variable, not the whole export: the two files agreeing in full is
-  // the generator's job, and re-deriving the SVG here would need a browser.
-  const svg = readFileSync(join(root, SVG), "utf8");
-  check("the committed SVG does not prefix CLAUDE_PLUGIN_ROOT either",
-    !svg.includes("CLAUDE_PLUGIN_ROOT="), SVG);
+  // the generator's job, and re-deriving an SVG here would need a browser.
+  const prefixed = svgs.filter((f) => readFileSync(join(root, f), "utf8").includes("CLAUDE_PLUGIN_ROOT="));
+  check("no committed SVG prefixes CLAUDE_PLUGIN_ROOT either",
+    prefixed.length === 0, prefixed.join(", ") || `${svgs.length} SVG(s) clean`);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall checks passed");

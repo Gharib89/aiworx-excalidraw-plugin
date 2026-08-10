@@ -1,60 +1,53 @@
 # Phase 7 — driving an automated review to convergence
 
-**In this repo: GitHub Copilot, on request only, two rounds maximum** (no Copilot
-ruleset, no CodeRabbit — nothing auto-reviews). Phase-4 self-review + green CI is
-still the gate; these rounds are a second pair of eyes on top. `CLAUDE.md`'s
-*Code review* section is the authority on the policy; this file holds the
-mechanics.
+**In this repo: CodeRabbit, automatic, until converged — soft cap four rounds**
+(configured in `.coderabbit.yaml`; no other bot reviews). Phase-4 self-review +
+green CI is still the gate; these rounds are a second pair of eyes on top.
+`CLAUDE.md`'s *Code review* section is the authority on the policy; this file
+holds the mechanics.
 
-A review bot re-reads the **whole PR** on each round, so treat every round's
-output as a fresh read of the committed tree, not a conversation.
+## The loop
 
-## The two rounds
+CodeRabbit reviews the PR on open and posts an **incremental review** after
+every push — there is no request step. Each round:
 
-Copilot is a **requested** reviewer: it never triggers itself, and a plain push
-does **not** re-trigger it. Each round is an explicit request:
+1. Wait for the round's review to land (poll mechanics below).
+2. Triage every comment: fix the valid ones in one batched push, reply on each
+   thread (`fixed in <sha>` / decline + one-line reason).
+3. That push triggers the next incremental round on the corrected tree.
 
-```bash
-gh api -X POST repos/<owner>/<repo>/pulls/<pr>/requested_reviewers \
-  -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-```
+**Converged = the latest round returns nothing actionable + every thread from
+all rounds dispositioned + green CI.** A round with no actionable comments is
+the convergence signal — stop pushing, you are done. CodeRabbit's dispositions
+get their **own block** in the merge summary.
 
-(REST, not `--add-reviewer` — the GraphQL path flakes 401 mid-session.)
+**The soft cap.** A round 4 that is still substantive is a shape problem more
+rounds won't fix — stop, mark the exit **degraded** in the merge summary, and
+leave the call to the human at the merge gate.
 
-- **Round 1** — request it once the PR is open and CI is running. Triage every
-  comment: fix the valid ones in one batched push, reply on each thread
-  (`fixed in <sha>` / decline + evidence).
-- **Round 2** — re-request after that push, so it reads the corrected tree. Same
-  triage. **Then stop**: two rounds is the cap.
-
-**Converged = every comment from both rounds dispositioned + green CI.** A round
-that returns nothing is a pass, not a miss — but only if you actually requested
-it. Copilot's dispositions get their **own block** in the merge summary.
-
-If round 2 is still substantive, that's a shape problem more rounds won't fix —
-stop and report rather than requesting a third.
-
-**Triage, don't apply.** Copilot does not know this repo's constraints: verify
-every nit against the **pinned** dependency versions, harden rather than rip out
-capability, and reject known non-issues with a one-line reason.
+**Triage, don't apply.** CodeRabbit does not know this repo's constraints:
+verify every nit against the **pinned** dependency versions, harden rather than
+rip out capability, and reject known non-issues with a one-line reason.
 
 ## Poll mechanics
 
-Reviews take minutes. Run `scripts/poll-pr.sh <n> [--await-review <login>]`
-inline — a bounded foreground loop that returns ONE JSON summary: check
-conclusions, reviews keyed to the current head sha, `mergeable_state`.
-`done: false` means the window closed first — re-run to extend; never a
-detached background monitor. No subagent: the script already projects its
-output. Auto-triage what it returns on the **judgment tier**.
+Reviews take minutes. Run
+`scripts/poll-pr.sh <n> --await-review "coderabbitai[bot]"` inline — a bounded
+foreground loop that returns ONE JSON summary: check conclusions, reviews keyed
+to the current head sha, `mergeable_state`. `done: false` means the window
+closed first — re-run to extend; never a detached background monitor. No
+subagent: the script already projects its output. Auto-triage what it returns
+on the **judgment tier**.
 
 ## Infra flakes — don't wait forever
 
-- A review body that says it "encountered an error and was unable to review" with
-  zero comments is an **infra failure**, not feedback. After a couple consecutive
-  error bodies, proceed on green CI — but note in the merge summary that the
-  reviewer never actually passed, a **degraded** exit, not convergence.
-- A re-review that simply never lands (silence, no error) is flakiness. Bounded
-  wait (~one poll window), then proceed — don't loop forever.
+- A PR still silent minutes after open, or a push whose incremental review
+  never lands within one poll window, is flakiness — trigger a round manually
+  with a `@coderabbitai review` comment. If that also produces nothing,
+  proceed on green CI and note in the merge summary that the reviewer never
+  actually passed: a **degraded** exit, not convergence.
+- A review body that is only an error notice with zero comments is an **infra
+  failure**, not feedback — same handling: retry once, then degraded exit.
 
 After any merge command, re-verify PR state before declaring done
 (`scripts/merge-and-verify.sh` does).

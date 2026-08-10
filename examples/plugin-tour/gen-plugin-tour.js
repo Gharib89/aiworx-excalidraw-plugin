@@ -45,15 +45,17 @@ await withAuthoring(async (author) => {
         return { type: "text", text: str, fontSize, fontFamily, strokeColor: color,
                  width: m.width, height: m.height, ...rest };
       };
-      const card = async (str, role, { fontSize = 16, pad = 14, mono = false } = {}) => {
+      // an arrow endpoint needs its id here, where the arrow is written:
+      // arrowBetween defers the geometry but binds by id at the call
+      const card = async (str, role, { fontSize = 16, pad = 14, mono = false, id } = {}) => {
         const t = await text(str, { fontSize, fontFamily: mono ? CODE : PROSE });
-        return box(t, { padding: pad, strokeColor: p.roles[role]?.stroke ?? grey.stroke,
+        return box(t, { id, padding: pad, strokeColor: p.roles[role]?.stroke ?? grey.stroke,
                         backgroundColor: p.roles[role]?.fill ?? grey.fill,
                         roundness: { type: 3 }, strokeWidth: 2 });
       };
 
-      const panels = [];   // { group, name, post(extra) }
-      const extras = [];   // elements added after placement (arrows, leaders, overlays)
+      const panels = [];   // { g, name, arrows, overlay() }
+      const extras = [];   // elements added beside the placed panels (arrows, leaders, overlays)
       const frames = [];
 
       // ── 1 · the problem: guessed widths overflow, measured widths fit ──────
@@ -71,7 +73,7 @@ await withAuthoring(async (author) => {
         const g = column([title, body], { gap: 30 });
         panels.push({
           g, name: "1 · guessed widths overflow — measured widths fit",
-          post: async () => {
+          overlay: async () => {
             // the overflow, drawn as a mock: free code text overhanging the red card
             const spill = await text("doc.export_to_markdown()", { fontSize: 15, fontFamily: CODE });
             spill.x = badRect.x + 10;
@@ -91,67 +93,63 @@ await withAuthoring(async (author) => {
 
       // ── 2 · the pipeline: build → measure/convert → gate → artifacts ──────
       {
-        const buildBox = await card("build() returns a skeleton", "local");
-        const chromeBox = await card("measure · wrap · convert\nheadless Chrome", "local");
-        const gateBox = await card("verifyDocument()", "decision", { mono: true });
-        const failBox = await card("GateError — nothing written", "fail", { fontSize: 14 });
-        const svgBox = await card("tour.excalidraw", "artifact", { fontSize: 14, mono: true });
+        const buildBox = await card("build() returns a skeleton", "local", { id: "p2-build" });
+        const chromeBox = await card("measure · wrap · convert\nheadless Chrome", "local", { id: "p2-chrome" });
+        const gateBox = await card("verifyDocument()", "decision", { mono: true, id: "p2-gate" });
+        const failBox = await card("GateError — nothing written", "fail", { fontSize: 14, id: "p2-fail" });
+        const svgBox = await card("tour.excalidraw", "artifact", { fontSize: 14, mono: true, id: "p2-file" });
         const svgBox2 = await card("tour.svg", "artifact", { fontSize: 14, mono: true });
+        const arrows = [
+          arrowBetween(buildBox, chromeBox, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle", label: "skeleton" }),
+          arrowBetween(chromeBox, gateBox, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle", label: "elements" }),
+          // one arrow to the artifact pair: a second, diagonal bound arrow gets
+          // re-routed by the converter straight through its sibling box and the
+          // gate rejects the crossing
+          arrowBetween(gateBox, svgBox, { standoff: 10, strokeColor: p.roles.pass.stroke,
+            strokeWidth: 2, endArrowhead: "triangle",
+            label: { text: "0 defects", fontSize: 13, strokeColor: ink } }),
+          arrowBetween(gateBox, failBox, { standoff: 10, strokeColor: p.roles.fail.stroke,
+            strokeWidth: 2, endArrowhead: "bar" }),
+        ];
         const gateCol = column([gateBox, failBox], { gap: 80, align: "center" });
         const artCol = column([svgBox, svgBox2], { gap: 26 });
         const body = row([buildBox, chromeBox, gateCol, artCol], { gap: [120, 120, 190], align: "start" });
         const title = await text("one call: authorDiagram — skeleton in, gated files out", { fontSize: 22 });
         const g = column([title, body], { gap: 30 });
-        panels.push({
-          g, name: "2 · the pipeline: build, measure, gate, write",
-          post: () => [
-            arrowBetween(buildBox, chromeBox, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle", label: "skeleton" }),
-            arrowBetween(chromeBox, gateBox, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle", label: "elements" }),
-            // one arrow to the artifact pair: a second, diagonal bound arrow gets
-            // re-routed by the converter straight through its sibling box and the
-            // gate rejects the crossing
-            arrowBetween(gateBox, svgBox, { standoff: 10, strokeColor: p.roles.pass.stroke,
-              strokeWidth: 2, endArrowhead: "triangle",
-              label: { text: "0 defects", fontSize: 13, strokeColor: ink } }),
-            arrowBetween(gateBox, failBox, { standoff: 10, strokeColor: p.roles.fail.stroke,
-              strokeWidth: 2, endArrowhead: "bar" }),
-          ],
-        });
+        panels.push({ g, name: "2 · the pipeline: build, measure, gate, write", arrows });
       }
 
       // ── 3 · components: author.js fans out; geometry.js is shared ─────────
       {
-        const mod = async (name, sub, role) => {
+        const mod = async (name, sub, role, id) => {
           const n = await text(name, { fontSize: 15, fontFamily: CODE });
           const s = await text(sub, { fontSize: 12, color: grey.stroke });
-          return box(column([n, s], { gap: 6 }), { padding: 12,
+          return box(column([n, s], { gap: 6 }), { id, padding: 12,
             strokeColor: p.roles[role]?.stroke ?? grey.stroke,
             backgroundColor: p.roles[role]?.fill ?? grey.fill,
             roundness: { type: 3 }, strokeWidth: 2 });
         };
-        const authorM = await mod("author.js", "authors, gates, writes", "local");
-        const layoutM = await mod("layout.js", "column · row · box · arrow", undefined);
-        const verifyM = await mod("verify.js + check.js", "the gate's rules + CLI", "decision");
-        const browserM = await mod("browser.js + page.js", "headless Chrome driver", undefined);
-        const renderM = await mod("render.js · revise.js", "SVG, PNGs, round-trip", "artifact");
-        const geomM = await mod("geometry.js", "one bounds definition", undefined);
+        const authorM = await mod("author.js", "authors, gates, writes", "local", "p3-author");
+        const layoutM = await mod("layout.js", "column · row · box · arrow", undefined, "p3-layout");
+        const verifyM = await mod("verify.js + check.js", "the gate's rules + CLI", "decision", "p3-verify");
+        const browserM = await mod("browser.js + page.js", "headless Chrome driver", undefined, "p3-browser");
+        const renderM = await mod("render.js · revise.js", "SVG, PNGs, round-trip", "artifact", "p3-render");
+        const geomM = await mod("geometry.js", "one bounds definition", undefined, "p3-geometry");
+        const arrows = [
+          ...[layoutM, verifyM, browserM, renderM].map((m) =>
+            arrowBetween(authorM, m, { standoff: 10, strokeColor: grey.stroke,
+              strokeWidth: 2, endArrowhead: "diamond" })),
+          arrowBetween(verifyM, geomM, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "diamond", label: { text: "shared bounds", fontSize: 13 } }),
+        ];
         const mid = row([layoutM, verifyM, browserM, renderM], { gap: 34, align: "start" });
         const title = await text("author.js composes everything; geometry.js is shared", { fontSize: 22 });
         // fan gap must exceed the horizontal distance to the outer cards, or
         // arrowBetween picks the horizontal axis and the diagonal clips a neighbour
         const g = column([title, authorM, mid, geomM], { gap: [30, 220, 64], align: "center" });
-        panels.push({
-          g, name: "3 · the components, and who owns whom",
-          post: () => [
-            ...[layoutM, verifyM, browserM, renderM].map((m) =>
-              arrowBetween(authorM, m, { standoff: 10, strokeColor: grey.stroke,
-                strokeWidth: 2, endArrowhead: "diamond" })),
-            arrowBetween(verifyM, geomM, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "diamond", label: { text: "shared bounds", fontSize: 13 } }),
-          ],
-        });
+        panels.push({ g, name: "3 · the components, and who owns whom", arrows });
       }
 
       // ── 4 · layout helpers: the mock, labelled from beside ────────────────
@@ -168,10 +166,12 @@ await withAuthoring(async (author) => {
           await lab('column(items, { gap: 16 })'),
           await lab("measure() sized every bar"),
         ], { gap: 34 });
-        const demoA = { type: "rectangle", width: 60, height: 40, strokeColor: grey.stroke,
+        const demoA = { type: "rectangle", id: "p4-demo-a", width: 60, height: 40, strokeColor: grey.stroke,
           backgroundColor: grey.fill, roundness: { type: 3 }, strokeWidth: 2 };
-        const demoB = { type: "rectangle", width: 60, height: 40, strokeColor: grey.stroke,
+        const demoB = { type: "rectangle", id: "p4-demo-b", width: 60, height: 40, strokeColor: grey.stroke,
           backgroundColor: grey.fill, roundness: { type: 3 }, strokeWidth: 2 };
+        const gapArrow = arrowBetween(demoA, demoB, { standoff: 10, strokeColor: grey.stroke,
+          strokeWidth: 2, label: { text: "gap", fontSize: 13 } });
         const demo = row([demoA, demoB], { gap: 110, align: "center" });
         const demoCap = await text("arrowBetween leaves 10 px at each end — the arrow owns the gap",
           { fontSize: 13, color: grey.stroke });
@@ -179,8 +179,10 @@ await withAuthoring(async (author) => {
         const g = column([title, row([mock, labels], { gap: 70, align: "start" }),
                           demo, demoCap], { gap: [30, 44, 12] });
         panels.push({
-          g, name: "4 · layout helpers: box, column, row, arrowBetween",
-          post: () => {
+          g, name: "4 · layout helpers: box, column, row, arrowBetween", arrows: [gapArrow],
+          // the leaders are hand-drawn between two placed elements, so they can
+          // only be measured once the band's row has settled both
+          overlay: () => {
             const leaders = bars.slice(0, 2).map((bar, i) => {
               const li = flat(labels)[i];
               const sx = li.x - 12;
@@ -191,9 +193,7 @@ await withAuthoring(async (author) => {
                 points: [[0, 0], [ex - sx, ey - sy]], strokeColor: grey.faint,
                 strokeStyle: "dashed", strokeWidth: 1, roundness: null };
             });
-            return [...leaders,
-              arrowBetween(demoA, demoB, { standoff: 10, strokeColor: grey.stroke,
-                strokeWidth: 2, label: { text: "gap", fontSize: 13 } })];
+            return leaders;
           },
         });
       }
@@ -224,34 +224,32 @@ await withAuthoring(async (author) => {
           { fontSize: 13, fontFamily: CODE, color: grey.stroke });
         const title = await text("the gate rejects defects mechanically", { fontSize: 22 });
         const g = column([title, funnel, rulesEl, cmd], { gap: [30, 34, 18] });
-        panels.push({ g, name: "5 · the gate: every rule, one exit code", post: () => [] });
+        panels.push({ g, name: "5 · the gate: every rule, one exit code" });
       }
 
       // ── 6 · the loop: render, look, fix, re-gate ───────────────────────────
       {
-        const renderB = await card("render.js", "local", { mono: true });
-        const pngsB = await card("one PNG per frame", "artifact");
-        const lookB = await card("look at every frame", "decision");
-        const regateB = await card("fix, re-gate", "pass");
+        const renderB = await card("render.js", "local", { mono: true, id: "p6-render" });
+        const pngsB = await card("one PNG per frame", "artifact", { id: "p6-pngs" });
+        const lookB = await card("look at every frame", "decision", { id: "p6-look" });
+        const regateB = await card("fix, re-gate", "pass", { id: "p6-regate" });
+        const arrows = [
+          arrowBetween(renderB, pngsB, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle" }),
+          arrowBetween(pngsB, lookB, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle" }),
+          arrowBetween(lookB, regateB, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle" }),
+          arrowBetween(regateB, renderB, { standoff: 10, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle", label: { text: "until clean", fontSize: 13 } }),
+        ];
         const top = row([renderB, pngsB], { gap: 150, align: "center" });
         const bot = row([regateB, lookB], { gap: 150, align: "center" });
         const cmd = await text("node tools/render.js d.excalidraw --frame 3   # re-render one frame while iterating",
           { fontSize: 13, fontFamily: CODE, color: grey.stroke });
         const title = await text("JSON hides overlap; the picture shows it", { fontSize: 22 });
         const g = column([title, top, bot, cmd], { gap: [30, 90, 40] });
-        panels.push({
-          g, name: "6 · the loop: render, look, fix, re-gate",
-          post: () => [
-            arrowBetween(renderB, pngsB, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle" }),
-            arrowBetween(pngsB, lookB, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle" }),
-            arrowBetween(lookB, regateB, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle" }),
-            arrowBetween(regateB, renderB, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle", label: { text: "until clean", fontSize: 13 } }),
-          ],
-        });
+        panels.push({ g, name: "6 · the loop: render, look, fix, re-gate", arrows });
       }
 
       // ── 7 · real assets: bytes travel in the file ─────────────────────────
@@ -264,20 +262,18 @@ await withAuthoring(async (author) => {
         const dictCol = column(dictLines.map((t, i) => ({ type: "text", text: t, fontSize: 13,
           fontFamily: CODE, strokeColor: ink, width: measured[i].width, height: measured[i].height })),
           { gap: 4 });
-        const dictCard = box(dictCol, { padding: 16, strokeColor: p.roles.artifact.stroke,
+        const dictCard = box(dictCol, { id: "p7-dict", padding: 16, strokeColor: p.roles.artifact.stroke,
           backgroundColor: p.roles.artifact.fill, roundness: { type: 3 }, strokeWidth: 2 });
+        const arrows = [
+          arrowBetween(logo, dictCard, { standoff: 8, strokeColor: grey.stroke,
+            strokeWidth: 2, endArrowhead: "triangle", label: { text: "sha1", fontSize: 13, fontFamily: CODE } }),
+        ];
         const cap = await text("spliceLibraryItem regenerates every id — place the same item twice, no collision",
           { fontSize: 13, color: grey.stroke });
         const title = await text("assets are bytes in the document, not paths", { fontSize: 22 });
         const body = row([logo, dictCard, figure], { gap: [70, 70], align: "center" });
         const g = column([title, body, cap], { gap: [30, 26] });
-        panels.push({
-          g, name: "7 · real assets: images and spliced library items",
-          post: () => [
-            arrowBetween(logo, dictCard, { standoff: 8, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "triangle", label: { text: "sha1", fontSize: 13, fontFamily: CODE } }),
-          ],
-        });
+        panels.push({ g, name: "7 · real assets: images and spliced library items", arrows });
       }
 
       // ── 8 · dark theme: measured contrast, light vs dark ──────────────────
@@ -299,7 +295,7 @@ await withAuthoring(async (author) => {
         const SCALE = 9, BAR_W = 32, INNER = 12, PITCH = 132;
         const maxH = Math.max(...shown.flatMap((r) => [r.light, r.dark])) * SCALE;
         const chart = [];
-        const post8 = [];
+        const overlay8 = [];
         shown.forEach((r, i) => {
           const x0 = i * PITCH;
           for (const [j, [val, fill, stroke]] of [
@@ -310,14 +306,14 @@ await withAuthoring(async (author) => {
             const x = x0 + j * (BAR_W + INNER);
             chart.push({ type: "rectangle", x, y: maxH - h, width: BAR_W, height: h,
               strokeColor: stroke, backgroundColor: fill, strokeWidth: 2, roughness: 0 });
-            post8.push(async (base) => {
+            overlay8.push(async (base) => {
               const t = await text(val.toFixed(1), { fontSize: 12, fontFamily: CODE, color: grey.stroke });
               t.x = base.x + x + (BAR_W - t.width) / 2;
               t.y = base.y + maxH - h - t.height - 4;
               return t;
             });
           }
-          post8.push(async (base) => {
+          overlay8.push(async (base) => {
             const t = await text(r.name, { fontSize: 12, color: grey.stroke });
             t.x = base.x + x0 + (BAR_W * 2 + INNER - t.width) / 2;
             t.y = base.y + maxH + 10;
@@ -337,10 +333,10 @@ await withAuthoring(async (author) => {
         const g = column([title, chartGroup, filterCap, verdict], { gap: [36, 44, 10] });
         panels.push({
           g, name: "8 · dark exports: contrast re-measured, not assumed",
-          post: async () => {
+          overlay: async () => {
             const base = chartGroup;
             const out = [];
-            for (const fn of post8) out.push(await fn(base));
+            for (const fn of overlay8) out.push(await fn(base));
             const thr = 4.5 * SCALE;
             out.push({ type: "line", x: base.x - 8, y: base.y + maxH - thr,
               width: 2 * PITCH + BAR_W * 2 + INNER + 16, height: 0,
@@ -383,7 +379,7 @@ await withAuthoring(async (author) => {
         const g = column([title, stepsCol], { gap: 30 });
         panels.push({
           g, name: "9 · the workflow, end to end",
-          post: () => {
+          overlay: () => {
             const dots = stepEls.map((s) => {
               const first = flat(s)[0];
               return { type: "ellipse", x: stepsCol.x - 36, y: first.y + first.height / 2 - 7,
@@ -399,11 +395,14 @@ await withAuthoring(async (author) => {
         });
       }
 
-      // ── place the band, run post passes, bind frames ───────────────────────
+      // ── place the band, draw the overlays, bind frames ─────────────────────
       row(panels.map((pl) => pl.g), { gap: 170, align: "start" });
       for (const [i, pl] of panels.entries()) {
-        const own = idsOf(pl.g, `p${i + 1}`);   // ids exist before arrows bind to shapes
-        const extra = await pl.post();
+        const own = idsOf(pl.g, `p${i + 1}`);
+        // an overlay reads coordinates, so it runs here, after the row settled
+        // them; the arrows were written beside their shapes and only their
+        // geometry waits — resolveArrows measures it after this build returns
+        const extra = [...(pl.overlay ? await pl.overlay() : []), ...(pl.arrows ?? [])];
         extras.push(...extra);
         const children = [...own, ...extra.flatMap((e) => idsOf(e, `p${i + 1}x`))];
         frames.push({ type: "frame", id: uid("frame"), children, name: pl.name });

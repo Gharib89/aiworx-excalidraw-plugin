@@ -75,6 +75,17 @@ is done, so no later mover can leave it behind. Id, bindings, label and style ar
 carried from the moment it is written; only the path waits.
 _Avoid_: lazy arrow, unresolved arrow
 
+**Bound label**:
+Text bound to an arrow — its `containerId` names the arrow, and `arrowBetween`'s
+`label:` option writes one. The house form for on-arrow text: the renderer masks
+the arrow's own path behind the label's box, so its own line never strikes it.
+The mask covers only that arrow — a *different* arrow crossing the label is still
+a defect. The pipeline re-centers a bound label onto its arrow on every pass, so
+a hand-moved one snaps back by design; a label that must sit off the line is
+unbound free text instead (clear `containerId` and the arrow's `boundElements`
+entry).
+_Avoid_: arrow label (unqualified), floating label
+
 **Splice**:
 Inserting a library item into a diagram with freshly regenerated ids so repeated insertions never collide.
 _Avoid_: import, paste

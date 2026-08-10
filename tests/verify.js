@@ -393,5 +393,54 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
   check("a vertical-dominant route draws no problem", v.problems.length === 0, detail(v));
 }
 
+// ---- 22. text struck through by an arrow it is not the label of ----
+{
+  const t1 = text("t1", 50, 50, 100, 20);
+  const strike = { ...shape("a1", 30, 60, 140, 0), type: "arrow", points: [[0, 0], [140, 0]] };
+  const struck = verifyDocument(doc([t1, strike]));
+  const p = find(struck, "text-struck-by-arrow");
+  check(
+    "an arrow crossing a free text's outline is a strike naming the text then the arrow, with clearance and needs",
+    only(struck, "text-struck-by-arrow") && JSON.stringify(p?.elements) === '["t1","a1"]' && p?.clearance === 0 && p?.needs === 6,
+    JSON.stringify(p),
+  );
+
+  // a bound label sitting on its own container arrow is exempt: that pairing is
+  // how a labelled edge renders
+  const edge = { ...shape("a2", 0, 0, 40, 0), type: "arrow", points: [[0, 0], [40, 0]], boundElements: [{ id: "t2", type: "text" }] };
+  const label = text("t2", -28, -11, 97, 22, { containerId: "a2" });
+  const ownArrow = verifyDocument(doc([edge, label]));
+  check("a bound label crossed only by its own container arrow is no defect", ownArrow.problems.length === 0, detail(ownArrow));
+
+  // an arrow bound to a labelled shape container terminates at the container's
+  // border, 5px outside the padded label (BOUND_TEXT_PADDING) — inside the 6px
+  // clearance floor, but it can never truly strike through: it stops at the
+  // edge, not the words
+  const container = shape("c1", 0, 0, 200, 100);
+  const boxLabel = text("t3", 5, 5, 190, 90, { containerId: "c1" });
+  const boundArrow = { ...shape("a3", -100, 50, 100, 0), type: "arrow", points: [[0, 0], [100, 0]], endBinding: { elementId: "c1" } };
+  const containerBound = verifyDocument(doc([container, boxLabel, boundArrow]));
+  check(
+    "an arrow bound to a labelled container's edge does not strike its label",
+    containerBound.problems.length === 0,
+    detail(containerBound),
+  );
+
+  // clear of every arrow by more than 6px is silent
+  const clear = verifyDocument(
+    doc([text("t4", 0, 0, 100, 20), { ...shape("a4", 0, 40, 100, 0), type: "arrow", points: [[0, 0], [100, 0]] }]),
+  );
+  check("free text clear of every arrow is no defect", clear.problems.length === 0, detail(clear));
+
+  // a points-less arrow has no polyline to strike with — it is degenerate,
+  // and only degenerate: no strike is fabricated from its box
+  const noPts = verifyDocument(doc([text("t5", 50, 50, 100, 20), { ...shape("a5", 30, 60, 140, 0), type: "arrow" }]));
+  check(
+    "an arrow without points is degenerate, never a strike",
+    !find(noPts, "text-struck-by-arrow") && find(noPts, "degenerate"),
+    detail(noPts),
+  );
+}
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nverifyDocument holds at its export");
 process.exit(fail.length ? 1 : 0);

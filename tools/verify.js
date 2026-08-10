@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bounds, outline, outlinesOverlap, outlineContains, clearance, gap, shapeDepth, segmentLengthInsideShape } from "./geometry.js";
+import { bounds, outline, outlinesOverlap, outlineContains, clearance, gap, shapeDepth, segmentLengthInsideShape, segmentGap } from "./geometry.js";
 import { blend, contrast, normalizeHex, toDarkTheme } from "./color.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -260,7 +260,40 @@ export function verifyDocument(data) {
     }
   }
 
-  // 11. an element far from everything else is a coordinate typo: it silently
+  // 11. a text struck through by an arrow it isn't the label of reads as
+  //     crossed out rather than pointed at. Two pairings are exempt: a bound
+  //     label sitting on its own container arrow — that is how a labelled edge
+  //     renders — and an arrow bound to the text's own shape container, which
+  //     terminates at the container's border and so can never truly strike
+  //     through it (the label padding, BOUND_TEXT_PADDING = 5, sits just under
+  //     the clearance floor, which is why this is an exemption and not a
+  //     re-tuned threshold). A different arrow grazing the same label is still
+  //     a strike.
+  for (const t of texts.filter((e) => !nonFinite.has(e.id))) {
+    // a points-less arrow is already reported as degenerate; without a real
+    // polyline, outline() would fabricate a box and strike from nowhere
+    for (const a of arrows.filter((a) => !nonFinite.has(a.id) && Array.isArray(a.points) && a.points.length >= 2)) {
+      // an arrow "related" to this text is itself, if the text is its own bound
+      // label, or whatever it terminates at, if the text is that target's label
+      const related = new Set([a.id, a.startBinding?.elementId, a.endBinding?.elementId]);
+      if (t.containerId && related.has(t.containerId)) continue;
+      const pts = outline(a);
+      let least = Infinity;
+      for (let i = 0; i + 1 < pts.length; i++) least = Math.min(least, segmentGap(t, pts[i], pts[i + 1]));
+      if (least < TEXT_ARROW_CLEARANCE) {
+        // one decimal, not whole px: see the frame-edge-crowding rule above
+        const px = Math.round(least * 10) / 10;
+        note(
+          "text-struck-by-arrow",
+          `arrow ${a.id} strikes through text ${t.id} "${preview(t.text)}" (${px}px clearance, needs ${TEXT_ARROW_CLEARANCE}px)`,
+          [t.id, a.id],
+          { clearance: px, needs: TEXT_ARROW_CLEARANCE },
+        );
+      }
+    }
+  }
+
+  // 12. an element far from everything else is a coordinate typo: it silently
   //     stretches the export canvas and shrinks the diagram to a corner
   const STRAY_GAP = 1000;
   // one NaN box would silence the rule for every element, so measure finite ones only
@@ -282,7 +315,7 @@ export function verifyDocument(data) {
     });
   }
 
-  // 12. text must clear WCAG contrast against the fill it sits on: the
+  // 13. text must clear WCAG contrast against the fill it sits on: the
   //     container's fill for bound text, the topmost solid shape under a free
   //     text's centre, the canvas otherwise. Hachure and cross-hatch fills are
   //     mostly canvas behind the glyphs, so only solid fills count as the ground.
@@ -391,7 +424,7 @@ export function verifyDocument(data) {
     }
   }
 
-  // 13. fonts outside the house pair substitute per machine and reflow the layout
+  // 14. fonts outside the house pair substitute per machine and reflow the layout
   const HOUSE = new Set([palette.fontFamily.prose, palette.fontFamily.code]);
   for (const t of texts) {
     if (!HOUSE.has(t.fontFamily)) {
@@ -403,7 +436,7 @@ export function verifyDocument(data) {
     }
   }
 
-  // 14. an image whose bytes aren't in the files dictionary renders as an empty box
+  // 15. an image whose bytes aren't in the files dictionary renders as an empty box
   const files = data.files ?? {};
   for (const e of others.filter((e) => e.type === "image")) {
     if (!e.fileId || !files[e.fileId]?.dataURL) {
@@ -433,6 +466,16 @@ export function verifyDocument(data) {
  * on the border, not content that is merely snug.
  */
 const FRAME_EDGE_INSET = 4;
+
+/**
+ * Minimum clearance a text's outline must keep from an arrow it isn't the
+ * bound label of. Below this the line visually touches glyph ascenders and
+ * descenders and reads as a strikethrough rather than a line passing near the
+ * words. Set just above BOUND_TEXT_PADDING (5) — the padded label rule (11)
+ * exempts an arrow bound to the text's own container rather than shrinking
+ * this floor to fit under it.
+ */
+const TEXT_ARROW_CLEARANCE = 6;
 
 /**
  * The box the app actually wraps bound text into — Excalidraw's

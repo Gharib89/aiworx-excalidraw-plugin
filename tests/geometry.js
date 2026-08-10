@@ -22,6 +22,7 @@ import {
   gap,
   shapeDepth,
   segmentLengthInsideShape,
+  segmentGap,
 } from "../tools/geometry.js";
 
 const fail = [];
@@ -330,6 +331,36 @@ const box = (x1, y1, x2, y2) => ({ x1, y1, x2, y2 });
 
   // a shape thinner than twice the inset has no interior left to cross
   check("a shape thinner than the inset swallows nothing", segmentLengthInsideShape({ type: "rectangle", x: 0, y: 0, width: 2, height: 40 }, [-10, 20], [10, 20]) === 0);
+}
+
+// ---- 8. segmentGap: distance from a segment to an outline ----
+{
+  const rect = { type: "text", x: 0, y: 0, width: 100, height: 40 };
+  check(
+    "a segment crossing straight through an outline has no gap",
+    segmentGap(rect, [50, -10], [50, 50]) === 0,
+  );
+  check(
+    "a segment ending inside an outline has no gap",
+    segmentGap(rect, [200, 20], [50, 20]) === 0,
+  );
+
+  // known offset, hand-computed: the segment runs along y=50, 10px below the
+  // rectangle's bottom edge (y=40); every point of that edge sits directly
+  // above a point of the segment, so the perpendicular 10px is the answer,
+  // not a diagonal to either endpoint
+  const offset = segmentGap(rect, [-10, 50], [110, 50]);
+  check("a segment clear of an outline measures the known offset", near(offset, 10), String(offset));
+
+  // the rotated case: a 100x40 text turned a quarter turn about its centre
+  // (50,20) stands up to x:[30,70], y:[-30,70] (outline() rotation, same as
+  // section 1). A vertical segment at x=80 sits 10px right of that box's right
+  // edge (x=70) for its whole span — the axis-aligned answer (distance to the
+  // *unrotated* box's edge at x=100) would be 20, so this is the one rotation
+  // must not give.
+  const turned = { ...rect, angle: QUARTER };
+  const rotatedOffset = segmentGap(turned, [80, -50], [80, 90]);
+  check("a rotated outline's gap is measured on the turned box, not the original", near(rotatedOffset, 10, 1e-9), String(rotatedOffset));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\ngeometry primitives hold under rotation");

@@ -1,0 +1,12 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — clean: free text sits clear of a nearby arrow",
+  "elements": [
+    { "id": "t1", "type": "text", "x": 0, "y": 0, "width": 100, "height": 20, "text": "clear of the arrow", "fontFamily": 6 },
+    { "id": "a1", "type": "arrow", "x": 0, "y": 40, "width": 100, "height": 0,
+      "points": [[0, 0], [100, 0]] }
+  ],
+  "appState": {},
+  "files": {}
+}

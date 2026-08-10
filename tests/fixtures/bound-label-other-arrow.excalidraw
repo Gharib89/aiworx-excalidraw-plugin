@@ -1,0 +1,16 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: a second arrow strikes through a label bound to a different arrow",
+  "elements": [
+    { "id": "a1", "type": "arrow", "x": 0, "y": 0, "width": 40, "height": 0,
+      "points": [[0, 0], [40, 0]],
+      "boundElements": [{ "id": "t1", "type": "text" }] },
+    { "id": "t1", "type": "text", "x": -28, "y": -11, "width": 97, "height": 22, "text": "writes to disk", "fontFamily": 6,
+      "containerId": "a1" },
+    { "id": "a2", "type": "arrow", "x": 0, "y": -30, "width": 0, "height": 60,
+      "points": [[0, 0], [0, 60]] }
+  ],
+  "appState": {},
+  "files": {}
+}

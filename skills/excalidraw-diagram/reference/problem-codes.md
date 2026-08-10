@@ -66,6 +66,7 @@ warning level.
 | `free-text-overlap` | live | [text, text] | — | two unbound texts' outlines overlap |
 | `arrow-crossing` | live | [arrow, shape] | — | an arrow's polyline passes through a solid shape it is not bound to |
 | `arrow-buried` | live | [arrow, target] | `depth` | an arrowhead or tail lands too far inside its target to read |
+| `text-struck-by-arrow` | live | [text, arrow] | `clearance`, `needs` | an arrow's polyline passes within 6px of a text, and the text is not its bound label nor the arrow bound to the text's container |
 | `stray` | live | [element] | — | an element sits more than 1000px from anything else — off-canvas, not merely outside a frame |
 | `unparseable-color` | live | [element] or (empty) | `field`, `value` | a colour field is neither a hex value, `transparent`, nor empty |
 | `text-over-image` | live | [text, image] | — | text sits over an image, whose pixels are a ground no contrast ratio can measure |
@@ -84,6 +85,15 @@ floor sits below 10 so a rotated shape whose ink legitimately fills its frame is
 snug, not a defect. An element that leaves the frame is reported once, as
 `frame-escape`; containment tolerates a sub-pixel graze, and an element in that
 band is out, so it is not reported as crowding either.
+
+`text-struck-by-arrow` reads text struck through by an arrow as crossed out
+rather than pointed at: the minimum clearance is **6px**, reported as
+`clearance` against `needs`. Two exemptions, both arrows that cannot truly
+strike: a bound label against its *own* container arrow — the renderer masks
+that arrow's path behind the label's box, so its line never touches the words —
+and an arrow *bound to* the text's container, which terminates at the
+container's border while the label sits inside it. The mask covers only the
+label's own arrow: any other arrow through the same text still flags.
 
 Both themes are scored on every run, which is why `low-contrast` names the
 `theme` it failed under — [palette.md](palette.md) has the filter that makes a

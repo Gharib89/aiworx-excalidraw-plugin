@@ -240,6 +240,55 @@ function local(e, [px, py]) {
 }
 
 /**
+ * Shortest distance from segment p→q to an element's outline, in px — 0 when
+ * the segment crosses an edge of the outline or either endpoint lies inside
+ * it. The outline is `outline(e)`'s point list read as a closed polygon, so
+ * rotation is honoured the same way the rest of this module honours it.
+ */
+export function segmentGap(e, p, q) {
+  const poly = outline(e);
+  if (pointInPolygon(p, poly) || pointInPolygon(q, poly)) return 0;
+  let least = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    if (segmentsCross(p, q, a, b)) return 0;
+    least = Math.min(least, pointToSegment(p, a, b), pointToSegment(q, a, b), pointToSegment(a, p, q), pointToSegment(b, p, q));
+  }
+  return least;
+}
+
+/** Ray-casting point-in-polygon test; `poly` need not be convex. */
+function pointInPolygon([px, py], poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Whether segments p→q and a→b cross properly (touching at an endpoint isn't a cross, but the point-distance below is 0 either way). */
+function segmentsCross([px, py], [qx, qy], [ax, ay], [bx, by]) {
+  const cross = (ox, oy, ux, uy, vx, vy) => (ux - ox) * (vy - oy) - (uy - oy) * (vx - ox);
+  const d1 = cross(ax, ay, bx, by, px, py);
+  const d2 = cross(ax, ay, bx, by, qx, qy);
+  const d3 = cross(px, py, qx, qy, ax, ay);
+  const d4 = cross(px, py, qx, qy, bx, by);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+/** Distance from point p to segment a→b. */
+function pointToSegment([px, py], [ax, ay], [bx, by]) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+/**
  * Length of the part of segment p→q that lies inside box r (Liang–Barsky clip).
  * Zero when the segment misses the box.
  */

@@ -29,7 +29,7 @@ Self-review (code-review skill — the review gate)
   - <comment> → <fixed | rejected: reason | n/a>
   ...
 
-CodeRabbit (auto, <n> rounds — converged | degraded: <cap hit | reviewer never ran>)
+CodeRabbit (auto, <n> rounds — converged | degraded: <cap hit | reviewer never ran | reviewer errored>)
   - round <n>: <comment> → <fixed in <sha> | declined: reason>
   ...                                     (or: clean — no comments)
 

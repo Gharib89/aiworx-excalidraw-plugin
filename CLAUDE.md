@@ -53,9 +53,9 @@ Manual. Bump the version in **both** `package.json` and `.claude-plugin/plugin.j
 
 ## Code review
 
-**CodeRabbit reviews every PR automatically** (`.coderabbit.yaml`) — it reviews on open and posts an incremental review after every push; nothing to request. A PR still silent minutes after opening means the reviewer never ran — trigger one with a `@coderabbitai review` comment.
+**CodeRabbit reviews every ready (non-draft) PR automatically** (`.coderabbit.yaml`) — it reviews on open and posts an incremental review after every push; nothing to request. A PR still silent minutes after opening means the reviewer never ran — trigger one with a `@coderabbitai review` comment.
 
-**Drive it until converged, soft cap four rounds.** Converged = the latest round returns nothing actionable and every thread from all rounds is dispositioned. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
+**Drive it until converged, soft cap four rounds.** Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
 
 **Triage every comment.** CodeRabbit does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
 

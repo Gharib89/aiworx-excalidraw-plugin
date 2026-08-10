@@ -36,8 +36,11 @@ Reviews take minutes. Run
 foreground loop that returns ONE JSON summary: check conclusions, reviews keyed
 to the current head sha, `mergeable_state`. `done: false` means the window
 closed first — re-run to extend; never a detached background monitor. No
-subagent: the script already projects its output. Auto-triage what it returns
-on the **judgment tier**.
+subagent: the script already projects its output. The poll is the **landing
+signal** only — it projects `{login, state}` per review, so before triage fetch
+the round's review body and comment threads (that fetch is also what tells an
+error-only body apart from a real round). Auto-triage those on the
+**judgment tier**.
 
 ## Infra flakes — don't wait forever
 

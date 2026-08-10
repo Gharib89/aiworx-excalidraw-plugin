@@ -27,7 +27,11 @@ const check = (name, cond, detail) => {
   if (!cond) fail.push(name);
 };
 
-/** stderr of `node tools/<script> <args…>`, run with no input file. */
+/**
+ * Both streams of `node tools/<script> <args…>`, run with no input file. Joined
+ * rather than kept apart: a CLI's own choice of stream for a usage error is not
+ * what these checks are about.
+ */
 const run = (script, ...args) => {
   const r = spawnSync(process.execPath, [join("tools", script), ...args], {
     cwd: root, encoding: "utf8",

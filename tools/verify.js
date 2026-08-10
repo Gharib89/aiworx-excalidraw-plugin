@@ -270,7 +270,9 @@ export function verifyDocument(data) {
   //     re-tuned threshold). A different arrow grazing the same label is still
   //     a strike.
   for (const t of texts.filter((e) => !nonFinite.has(e.id))) {
-    for (const a of arrows.filter((a) => !nonFinite.has(a.id))) {
+    // a points-less arrow is already reported as degenerate; without a real
+    // polyline, outline() would fabricate a box and strike from nowhere
+    for (const a of arrows.filter((a) => !nonFinite.has(a.id) && Array.isArray(a.points) && a.points.length >= 2)) {
       // an arrow "related" to this text is itself, if the text is its own bound
       // label, or whatever it terminates at, if the text is that target's label
       const related = new Set([a.id, a.startBinding?.elementId, a.endBinding?.elementId]);

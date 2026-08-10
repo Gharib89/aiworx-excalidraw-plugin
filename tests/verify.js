@@ -431,6 +431,15 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
     doc([text("t4", 0, 0, 100, 20), { ...shape("a4", 0, 40, 100, 0), type: "arrow", points: [[0, 0], [100, 0]] }]),
   );
   check("free text clear of every arrow is no defect", clear.problems.length === 0, detail(clear));
+
+  // a points-less arrow has no polyline to strike with — it is degenerate,
+  // and only degenerate: no strike is fabricated from its box
+  const noPts = verifyDocument(doc([text("t5", 50, 50, 100, 20), { ...shape("a5", 30, 60, 140, 0), type: "arrow" }]));
+  check(
+    "an arrow without points is degenerate, never a strike",
+    !find(noPts, "text-struck-by-arrow") && find(noPts, "degenerate"),
+    detail(noPts),
+  );
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nverifyDocument holds at its export");

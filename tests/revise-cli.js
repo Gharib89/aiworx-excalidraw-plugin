@@ -157,6 +157,11 @@ function mangledCopy(dir) {
 // A bound label dragged off its arrow is re-centered onto the path by design
 // (CONTEXT.md, **Bound label**) — but it used to happen silently, so the run read
 // as a no-op and cost a full debug cycle. The report is the signal.
+//
+// The fixture's second arrow lists no boundElements entry for its label. restore
+// repairs that one-sided binding and re-centers the label all the same, so a
+// label is tracked by its own containerId: narrowing to arrows that already name
+// it back would re-centre this one in silence — the very bug being fixed.
 {
   const dir = mkdtempSync(join(tmpdir(), "revise-cli-recenter-"));
   const copy = join(dir, "bound-label-moved.excalidraw");

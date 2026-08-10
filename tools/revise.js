@@ -17,6 +17,7 @@
  * failing the gate — with nothing written in either case.
  */
 import { reviseDiagram } from "./author.js";
+import { REVISE_FLAGS } from "./cli-flags.js";
 import { NamedError, UsageError } from "./errors.js";
 
 const USAGE = "usage: revise.js [--no-svg] [--] <file.excalidraw>";
@@ -35,7 +36,9 @@ try {
       positional.push(a);
     } else if (a === "--") {
       literal = true;
-    } else if (a === "--no-svg") {
+    // `--no-svg` is the whole inventory, read from tools/cli-flags.js so the flag
+    // a band draws and the flag this parser takes cannot drift apart.
+    } else if (REVISE_FLAGS.has(a.slice(2))) {
       svg = false;
     } else {
       throw new UsageError("unknown flag", { where: a, next: USAGE });

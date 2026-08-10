@@ -16,6 +16,7 @@
  * flags; that is output selection, not verification.
  */
 import { readFileSync } from "node:fs";
+import { CHECK_FLAGS } from "./cli-flags.js";
 import { verifyDocument } from "./verify.js";
 
 const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw ...]";
@@ -30,7 +31,9 @@ let literal = false; // everything after -- is a path, even if it looks like a f
 for (const arg of process.argv.slice(2)) {
   if (literal || !arg.startsWith("-")) inputs.push(arg);
   else if (arg === "--") literal = true;
-  else if (arg === "--json") json = true;
+  // `--json` is the whole inventory, read from tools/cli-flags.js so the flag a
+  // band draws and the flag this parser takes cannot drift apart.
+  else if (CHECK_FLAGS.has(arg.slice(2))) json = true;
   else {
     console.error(`unknown flag ${arg}\n${USAGE}`);
     process.exit(2);

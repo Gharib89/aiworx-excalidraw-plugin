@@ -21,14 +21,12 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname } from "node:path";
 import { withExcalidraw } from "./browser.js";
+import { RENDER_BOOL_FLAGS, RENDER_VALUE_FLAGS } from "./cli-flags.js";
 import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
   "usage: render.js [--out DIR] [--scale N] [--no-frames] [--frame N] [--dark] " +
   "[--padding N] [--background COLOR] [--] <file.excalidraw>";
-
-const VALUE_FLAGS = new Set(["out", "scale", "frame", "padding", "background"]);
-const BOOL_FLAGS = new Set(["no-frames", "dark"]);
 
 function parseArgs(argv) {
   const opts = { _: [] };
@@ -48,9 +46,9 @@ function parseArgs(argv) {
     }
     if (!a.startsWith("--")) throw new UsageError("unknown flag", { where: a, next: USAGE });
     const name = a.slice(2);
-    if (BOOL_FLAGS.has(name)) {
+    if (RENDER_BOOL_FLAGS.has(name)) {
       opts[name] = true;
-    } else if (VALUE_FLAGS.has(name)) {
+    } else if (RENDER_VALUE_FLAGS.has(name)) {
       const v = argv[++i];
       if (v === undefined) {
         throw new UsageError("needs a value", { where: `--${name}`, next: USAGE });

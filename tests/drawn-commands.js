@@ -5,7 +5,8 @@
  * the string is baked into the committed `.excalidraw` and its SVG, so
  * correcting it means regenerating both. That is how the plugin tour went on
  * teaching `CLAUDE_PLUGIN_ROOT=<plugin> node gen-tour.js` for a release after
- * the shipped skill had moved on — a docs pass never reaches it. Three checks:
+ * the shipped skill had moved on — a docs pass never reaches it. Four checks,
+ * after one that proves the walk below found anything at all:
  *
  *   1. no drawn invocation prefixes `CLAUDE_PLUGIN_ROOT` — reference/authoring.md
  *      leads with the argument form because it survives a `Bash(node:*)`
@@ -15,6 +16,9 @@
  *   3. the committed SVGs do not prefix it either — one generator run writes
  *      both files, so an SVG holding a string its diagram dropped is the
  *      readable sign of a partial regenerate
+ *   4. every drawn `--flag` is one the CLI it follows accepts — flags are public
+ *      surface, so a rename is allowed in a minor release, and the drawn text is
+ *      never executed, so nothing else rejects the old name
  *
  * Every committed `.excalidraw` and `.svg` under `examples/` is walked, so the
  * next band this repo commits arrives under the guard with no edit here. The
@@ -25,6 +29,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FLAGS_BY_SCRIPT } from "../tools/cli-flags.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -108,6 +113,35 @@ const drawn = diagrams.flatMap((file) => drawnIn(file).map((text) => ({ file, te
   const prefixed = svgs.filter((f) => readFileSync(join(root, f), "utf8").includes("CLAUDE_PLUGIN_ROOT="));
   check("no committed SVG prefixes CLAUDE_PLUGIN_ROOT either",
     prefixed.length === 0, prefixed.join(", ") || `${svgs.length} SVG(s) clean`);
+}
+
+// ---- 4. every drawn flag belongs to the inventory of the CLI it follows ----
+{
+  // Flags are public surface, so a rename is allowed in a minor release — and a
+  // band drawing the old name would go on teaching a command that exits 2, with
+  // nothing red: drawn text is never executed, so the CLI's own unknown-flag
+  // rejection never fires on it. The inventories come from tools/cli-flags.js,
+  // the same sets the parsers enforce.
+  const anyFlag = new Set(Object.values(FLAGS_BY_SCRIPT).flatMap((s) => [...s]));
+  const unknown = [];
+  for (const { file, text } of drawn) {
+    // One pass in reading order, so each flag is judged against the script most
+    // recently named before it. A flag with no script ahead of it — the tour's
+    // "iterate with --frame N, --dark" caption — is held to the union of every
+    // inventory instead: a renamed flag belongs to none of them either way, and
+    // guessing an owner would blame the wrong CLI. A script this repo keeps no
+    // inventory for (a generator) hands the rest of the string to the union too.
+    let script = null;
+    for (const [token] of text.matchAll(/[\w-]+\.m?js|--[a-z][a-z\d-]*/g)) {
+      if (!token.startsWith("--")) {
+        script = FLAGS_BY_SCRIPT[token] ? token : null;
+      } else if (!(script ? FLAGS_BY_SCRIPT[script] : anyFlag).has(token.slice(2))) {
+        unknown.push(`${file}: ${token} after ${script ?? "no CLI"} (in "${text}")`);
+      }
+    }
+  }
+  check("every drawn flag belongs to the CLI it follows",
+    unknown.length === 0, unknown.join(" | ") || "all drawn flags are real");
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall checks passed");

@@ -71,7 +71,9 @@ publishing its code.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,
-or failing the gate — writing nothing in either case.
+or failing the gate — writing nothing in either case. A round-trip re-centers
+every bound arrow label onto its arrow, so a hand-moved one snaps back; the
+success output names the ones it moved, since that used to happen in silence.
 
 `render.js` follows the same two codes: 2 for a bad invocation, 1 for an input it
 cannot read, parse, or find any elements in. Both it and `revise.js` print every

@@ -537,6 +537,21 @@ place. A file that isn't a parseable Excalidraw document is rejected with a
 `DocumentError`; a revision that would fail the gate throws a `GateError`. Both
 exit 1 and write nothing; a bad invocation exits 2 with a `UsageError`.
 
+A pass that re-centered bound labels names them, after the artifacts:
+
+```
+docs/diagrams/thing.excalidraw  24 elements, 3 frames
+docs/diagrams/thing.svg
+re-centered 1 bound label (t-writes on a-writes)
+```
+
+Re-centering is by design: a bound label rides its arrow's path and the renderer
+masks the path behind it, so every pass puts a hand-moved one back. A label that
+must sit **off** the line is free text instead — clear the text's `containerId`
+and drop the `boundElements` entry naming it from the arrow. The report names
+both ids because the unbind edit needs both. Free text stays where you put it,
+and `text-struck-by-arrow` then keeps the line off it.
+
 Every error these tools throw reads **what / where / next** — composed as
 `where: what — next`, with *where* the file, the element id, or the call at
 fault, and *next* a single command or instruction. So the message alone is

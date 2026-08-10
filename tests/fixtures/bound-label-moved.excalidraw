@@ -1,0 +1,25 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw revise fixture — two bound labels dragged off their arrows; revise re-centers both onto the paths and names them. a-reads lists no boundElements entry, so restore repairs the one-sided binding and re-centers that label too",
+  "elements": [
+    { "id": "a-writes", "type": "arrow", "x": 0, "y": 0, "width": 160, "height": 0,
+      "points": [[0, 0], [160, 0]],
+      "boundElements": [{ "id": "t-writes", "type": "text" }] },
+    { "id": "t-writes", "type": "text", "x": 31, "y": -71, "width": 97, "height": 22,
+      "text": "writes to disk", "originalText": "writes to disk",
+      "fontSize": 16, "fontFamily": 6, "lineHeight": 1.35,
+      "textAlign": "center", "verticalAlign": "middle",
+      "containerId": "a-writes" },
+    { "id": "a-reads", "type": "arrow", "x": 0, "y": 200, "width": 160, "height": 0,
+      "points": [[0, 0], [160, 0]],
+      "boundElements": [] },
+    { "id": "t-reads", "type": "text", "x": 31, "y": 260, "width": 97, "height": 22,
+      "text": "reads it back", "originalText": "reads it back",
+      "fontSize": 16, "fontFamily": 6, "lineHeight": 1.35,
+      "textAlign": "center", "verticalAlign": "middle",
+      "containerId": "a-reads" }
+  ],
+  "appState": {},
+  "files": {}
+}

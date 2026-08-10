@@ -623,7 +623,7 @@ function writeTogether(pairs) {
  * failing write — leaves both files as they were instead of dropping a fresh
  * .excalidraw next to a stale or missing .svg.
  */
-async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
+async function gateAndWrite(ex, { out, elements, appState, files, svg, recentered = [] }) {
   const doc = { type: "excalidraw", version: 2, source: "aiworx-excalidraw", elements, appState, files };
   const { problems } = verifyDocument(doc);
   if (problems.length) {
@@ -640,8 +640,17 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg }) {
     ...(svgOut ? [[svgOut, rendered.svg]] : []),
   ]);
   const frames = elements.filter((e) => e.type === "frame");
-  console.log(`${out}  ${elements.length} elements, ${frames.length} frames${svgOut ? `\n${svgOut}` : ""}`);
-  return { elements, frames, out, svgOut };
+  const lines = [`${out}  ${elements.length} elements, ${frames.length} frames`];
+  if (svgOut) lines.push(svgOut);
+  // Part of the success report, not a warning — the file is written either way.
+  // Both ids, because unbinding a label needs both: clear the text's containerId
+  // and the arrow's boundElements entry.
+  if (recentered.length) {
+    lines.push(`re-centered ${recentered.length} bound label${recentered.length === 1 ? "" : "s"} ` +
+      `(${recentered.map((r) => `${r.id} on ${r.containerId}`).join(", ")})`);
+  }
+  console.log(lines.join("\n"));
+  return { elements, frames, out, svgOut, recentered };
 }
 
 const buildContext = (ex, files) => ({
@@ -736,6 +745,9 @@ export async function withAuthoring(fn) {
  * Round-trip a human-edited file back through the pipeline: restore refreshes
  * text metrics and repairs bindings, frame membership is re-inferred, and the
  * same gate runs before the file is rewritten in place.
+ *
+ * Bound labels restore re-centered onto their arrows come back in `.recentered`
+ * and are named in the success output; a pass that moved none stays quiet.
  */
 export async function reviseDiagram({ file, svg = true }) {
   let raw;
@@ -760,8 +772,29 @@ export async function reviseDiagram({ file, svg = true }) {
     });
   }
   return withExcalidraw(async (ex) => {
+    // Where every bound arrow label sat before the round-trip. restore re-centers
+    // one onto its arrow's path on every pass — house behaviour (CONTEXT.md,
+    // **Bound label**) — but silently: an author who dragged a label off the line
+    // got output identical to a no-op revise, the move undone with no signal.
+    // Reading the positions now is the only chance; restore has already moved
+    // them by the time it returns.
+    const arrows = new Set(
+      data.elements.filter((e) => e.type === "arrow" && !e.isDeleted).map((e) => e.id),
+    );
+    const labelsBefore = new Map(
+      data.elements
+        .filter((e) => e.type === "text" && !e.isDeleted && arrows.has(e.containerId))
+        .map((e) => [e.id, { x: e.x, y: e.y, containerId: e.containerId }]),
+    );
     const restored = await ex.restore(data);
     const elements = restored.elements.filter((e) => !e.isDeleted);
+    // Half a pixel: re-measuring the same label under the same font can shift it
+    // by a rounding error, and that is not a move anyone made.
+    const recentered = elements.flatMap((e) => {
+      const was = labelsBefore.get(e.id);
+      if (!was || Math.hypot(e.x - was.x, e.y - was.y) <= 0.5) return [];
+      return [{ id: e.id, containerId: was.containerId }];
+    });
     // A hand edit that moves an element out of its frame leaves a stale
     // frameId behind; clear membership the geometry no longer supports so
     // bindToFrames can re-infer it. Generated files never get here — the
@@ -789,6 +822,6 @@ export async function reviseDiagram({ file, svg = true }) {
       gridSize: 20,
       ...data.appState,
     };
-    return gateAndWrite(ex, { out: file, elements, appState, files, svg });
+    return gateAndWrite(ex, { out: file, elements, appState, files, svg, recentered });
   });
 }

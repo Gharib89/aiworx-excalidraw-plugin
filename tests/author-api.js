@@ -14,7 +14,8 @@
  *   6. the same round-trip on the committed example
  *   7. a failing SVG export leaves both files unwritten
  *   8. a failing write leaves the previous pair as it was
- *   9. a labelled arrow keeps its bound text through the gate and a revise
+ *   9. a labelled arrow keeps its bound text through the gate and a revise, and
+ *      a revise that re-centered the label reports it where a quiet one is quiet
  *  10. a session authors N diagrams over one browser launch, without drift
  *  11. a computed orthogonal route reaches the converter as an elbow, stays
  *      bound at both ends, and passes the gate
@@ -478,6 +479,29 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   check("revise keeps the label bound to its arrow",
     revisedLabel?.containerId === revised.elements.find((e) => e.type === "arrow").id,
     `container ${revisedLabel?.containerId}`);
+  // A revise that moved nothing says nothing: the report is a signal, not a
+  // running commentary on every bound label in the file.
+  check("a revise that re-centered nothing reports nothing",
+    Array.isArray(revised.recentered) && revised.recentered.length === 0,
+    JSON.stringify(revised.recentered));
+
+  // The snap-back this reports: restore re-centers a hand-moved bound label onto
+  // its arrow's path, by design (CONTEXT.md, Bound label). Silently, it read as
+  // a no-op revise — the move was undone with nothing written or printed.
+  const moved = JSON.parse(readFileSync(out, "utf8"));
+  const movedLabel = moved.elements.find((e) => e.type === "text");
+  const centred = { x: movedLabel.x, y: movedLabel.y };
+  movedLabel.y -= 60;
+  writeFileSync(out, JSON.stringify(moved, null, 2) + "\n");
+  const rerevised = await reviseDiagram({ file: out, svg: false });
+  check("revise names the bound label it re-centered",
+    rerevised.recentered?.length === 1 && rerevised.recentered[0].id === movedLabel.id
+      && rerevised.recentered[0].containerId === arrow.id,
+    JSON.stringify(rerevised.recentered));
+  const snapped = rerevised.elements.find((e) => e.type === "text");
+  check("the re-centered label is back on its arrow",
+    snapped.x === centred.x && snapped.y === centred.y,
+    `${snapped.x},${snapped.y} vs ${centred.x},${centred.y}`);
 }
 
 // ---- 10. one browser session authors many diagrams ----

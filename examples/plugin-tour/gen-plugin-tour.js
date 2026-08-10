@@ -331,7 +331,7 @@ await withAuthoring(async (author) => {
         const filterCap = await text("dark = invert(93%) hue-rotate(180deg) — one CSS filter over the light colours",
           { fontSize: 13, fontFamily: CODE, color: grey.stroke });
         const verdict = await text(
-          `"${trap.name}" clears 4.5:1 in light (${trap.light.toFixed(1)}) and drops to ${trap.dark.toFixed(1)} dark — gate it with check.js --dark`,
+          `"${trap.name}" clears 4.5:1 in light (${trap.light.toFixed(1)}) and drops to ${trap.dark.toFixed(1)} dark — check.js scores both themes, so the gate catches it`,
           { fontSize: 13, color: grey.stroke });
         const title = await text("dark is a filter, and it does not preserve contrast", { fontSize: 22 });
         const g = column([title, chartGroup, filterCap, verdict], { gap: [36, 44, 10] });
@@ -364,8 +364,8 @@ await withAuthoring(async (author) => {
         const steps = [
           ["node gen-plugin-tour.js <plugin>",
            "the generator is the source of truth — withAuthoring measures, gates and writes the .excalidraw and its SVG"],
-          ["node tools/check.js tour.excalidraw --json --dark",
-           "re-prove any file: exit 0 clean, 1 defects, 2 unreadable; --dark re-scores contrast on the dark export"],
+          ["node tools/check.js tour.excalidraw --json",
+           "re-prove any file: exit 0 clean, 1 defects, 2 unreadable; contrast is scored against both themes every run"],
           ["node tools/render.js tour.excalidraw --out /tmp/tour",
            "SVG plus one PNG per frame in reading order; iterate with --frame N, --dark, --padding, --background"],
           ["node tools/revise.js tour.excalidraw",

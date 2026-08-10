@@ -66,7 +66,7 @@ warning level.
 | `free-text-overlap` | live | [text, text] | — | two unbound texts' outlines overlap |
 | `arrow-crossing` | live | [arrow, shape] | — | an arrow's polyline passes through a solid shape it is not bound to |
 | `arrow-buried` | live | [arrow, target] | `depth` | an arrowhead or tail lands too far inside its target to read |
-| `text-struck-by-arrow` | live | [text, arrow] | `clearance` | an arrow's polyline passes within 6px of a text that is not its own bound label |
+| `text-struck-by-arrow` | live | [text, arrow] | `clearance`, `needs` | an arrow's polyline passes within 6px of a text that is not its own bound label |
 | `stray` | live | [element] | — | an element sits more than 1000px from anything else — off-canvas, not merely outside a frame |
 | `unparseable-color` | live | [element] or (empty) | `field`, `value` | a colour field is neither a hex value, `transparent`, nor empty |
 | `text-over-image` | live | [text, image] | — | text sits over an image, whose pixels are a ground no contrast ratio can measure |

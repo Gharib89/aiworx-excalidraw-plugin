@@ -340,8 +340,8 @@ for (const c of CASES) {
     JSON.stringify(buried));
 
   const struck = find(jsonFile("text-struck-by-arrow"), "text-struck-by-arrow");
-  check("text-struck-by-arrow carries clearance and names text then arrow",
-    struck?.clearance === 0 && struck.elements.join() === "t1,a1",
+  check("text-struck-by-arrow carries clearance and needs, and names text then arrow",
+    struck?.clearance === 0 && struck.needs === 6 && struck.elements.join() === "t1,a1",
     JSON.stringify(struck));
 
   const struckLabel = find(jsonFile("bound-label-other-arrow"), "text-struck-by-arrow");

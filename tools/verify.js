@@ -261,12 +261,20 @@ export function verifyDocument(data) {
   }
 
   // 11. a text struck through by an arrow it isn't the label of reads as
-  //     crossed out rather than pointed at. A bound label sitting on its own
-  //     container arrow is exempt — that is how a labelled edge renders — but
-  //     a different arrow grazing the same label is still a strike, and text
-  //     bound to a shape container gets no exemption at all.
+  //     crossed out rather than pointed at. Two pairings are exempt: a bound
+  //     label sitting on its own container arrow — that is how a labelled edge
+  //     renders — and an arrow bound to the text's own shape container, which
+  //     terminates at the container's border and so can never truly strike
+  //     through it (the label padding, BOUND_TEXT_PADDING = 5, sits just under
+  //     the clearance floor, which is why this is an exemption and not a
+  //     re-tuned threshold). A different arrow grazing the same label is still
+  //     a strike.
   for (const t of texts.filter((e) => !nonFinite.has(e.id))) {
-    for (const a of arrows.filter((a) => a.id !== t.containerId && !nonFinite.has(a.id))) {
+    for (const a of arrows.filter((a) => !nonFinite.has(a.id))) {
+      // an arrow "related" to this text is itself, if the text is its own bound
+      // label, or whatever it terminates at, if the text is that target's label
+      const related = new Set([a.id, a.startBinding?.elementId, a.endBinding?.elementId]);
+      if (t.containerId && related.has(t.containerId)) continue;
       const pts = outline(a);
       let least = Infinity;
       for (let i = 0; i + 1 < pts.length; i++) least = Math.min(least, segmentGap(t, pts[i], pts[i + 1]));
@@ -277,7 +285,7 @@ export function verifyDocument(data) {
           "text-struck-by-arrow",
           `arrow ${a.id} strikes through text ${t.id} "${preview(t.text)}" (${px}px clearance, needs ${TEXT_ARROW_CLEARANCE}px)`,
           [t.id, a.id],
-          { clearance: px },
+          { clearance: px, needs: TEXT_ARROW_CLEARANCE },
         );
       }
     }
@@ -459,8 +467,11 @@ const FRAME_EDGE_INSET = 4;
 
 /**
  * Minimum clearance a text's outline must keep from an arrow it isn't the
- * bound label of. Below this the arrow reads as striking through the words
- * rather than passing near them.
+ * bound label of. Below this the line visually touches glyph ascenders and
+ * descenders and reads as a strikethrough rather than a line passing near the
+ * words. Set just above BOUND_TEXT_PADDING (5) — the padded label rule (11)
+ * exempts an arrow bound to the text's own container rather than shrinking
+ * this floor to fit under it.
  */
 const TEXT_ARROW_CLEARANCE = 6;
 

@@ -20,10 +20,11 @@
  * call.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, appendFileSync, readFileSync, rmSync, symlinkSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, cpSync, writeFileSync, appendFileSync, readFileSync, rmSync, symlinkSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { FONT_OUTPUT_DIR } from "../tools/fonts.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 /**
@@ -54,10 +55,14 @@ function makeCopy({ deps = true } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pipeline-errors-"));
   mkdirSync(join(dir, "tools"));
   mkdirSync(join(dir, "dist"));
-  for (const f of ["tools/browser.js", "tools/errors.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "package.json", "package-lock.json"]) {
+  for (const f of ["tools/browser.js", "tools/errors.js", "tools/page.js", "tools/bundle.js", "tools/fingerprint.js", "tools/fonts.js", "package.json", "package-lock.json"]) {
     copyFileSync(join(root, f), join(dir, f));
   }
   for (const f of ["dist/excalidraw-page.js", "dist/index.html"]) copyFileSync(join(root, f), join(dir, f));
+  // The loader resolves EXCALIDRAW_ASSET_PATH from its own location, so the
+  // copy needs its own fonts — without them the probes that do reach a real
+  // launch fall back to fetching from esm.sh.
+  cpSync(join(root, FONT_OUTPUT_DIR), join(dir, FONT_OUTPUT_DIR), { recursive: true });
   // the copy resolves playwright-core through the real install. "junction" is the
   // one directory link Windows creates without elevation; ignored on POSIX.
   if (deps) symlinkSync(join(root, "node_modules"), join(dir, "node_modules"), "junction");

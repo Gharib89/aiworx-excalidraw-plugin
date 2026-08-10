@@ -161,7 +161,18 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
   assertFreshBundle();
   const browser = await launchChrome({
     headless: true,
-    args: ["--no-sandbox", "--disable-gpu", "--font-render-hinting=none"],
+    // --allow-file-access-from-files: the loader is a file: document, so its
+    // origin is opaque and Chrome CORS-blocks it from fetching the vendored
+    // fonts sitting beside it — the fetch Excalidraw makes before it can inline
+    // them. Without the flag every family silently falls back to esm.sh. The
+    // widened access is bounded: this browser only ever opens dist/index.html
+    // and never navigates to remote content.
+    args: [
+      "--no-sandbox",
+      "--disable-gpu",
+      "--font-render-hinting=none",
+      "--allow-file-access-from-files",
+    ],
   });
   try {
     const context = await browser.newContext({ deviceScaleFactor: scale });

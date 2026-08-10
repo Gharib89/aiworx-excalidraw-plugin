@@ -126,8 +126,8 @@ hold (assert at phase 2, announced like the class; when unsure, it's *not* small
    doesn't launch Chrome) fully proves it; no need for the smoke suite or a
    render.
 3. **Single-concern** — no new dependency, no bundle-input change
-   (`tools/page.js`, `tools/bundle.js`, lockfile dep moves), no new logic branch
-   beyond the fix itself.
+   (`tools/page.js`, `tools/bundle.js`, `tools/fonts.js`, lockfile dep moves),
+   no new logic branch beyond the fix itself.
 
 Behavior change is allowed — a bugfix *is* one. Small means narrow + locally
 provable + invisible to the public surface, not zero-behavior. Small → read
@@ -200,7 +200,8 @@ scoped — **stop and report** with a split proposal instead of pushing through 
 ambiguity rail applies mid-run too).
 
 **Bundle discipline:** if the change touches a bundle input (`tools/page.js`,
-`tools/bundle.js`, or lockfile-resolved versions of the bundled deps), run
+`tools/bundle.js`, `tools/fonts.js`, or lockfile-resolved versions of the
+bundled deps), run
 `npm run bundle` and **commit the rebuilt `dist/`** in the same change —
 `browser.js` refuses a stale fingerprint, so forgetting turns every later
 browser call red.

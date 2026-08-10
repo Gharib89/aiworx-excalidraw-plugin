@@ -20,7 +20,14 @@ export const FINGERPRINT_MARKER = "//# aiworxBundleFingerprint=";
 /** Hash of everything that shapes the bundle: page source, bundler config, resolved dep versions. */
 export function expectedFingerprint() {
   const hash = createHash("sha256");
-  for (const f of ["tools/page.js", "tools/bundle.js"]) {
+  // tools/fonts.js is in here because it decides which font families dist/
+  // carries — dropping one leaves a dist/ that still works online and fails
+  // offline, which is exactly the staleness this stamp exists to refuse. The
+  // font *bytes* are deliberately not hashed: they are copied verbatim from
+  // @excalidraw/excalidraw, whose resolved version is already below, so they
+  // can only change with a version move. Hand-edited font files pass, for the
+  // same reason a hand-edited bundle does.
+  for (const f of ["tools/page.js", "tools/bundle.js", "tools/fonts.js"]) {
     hash.update(readFileSync(join(root, f))).update("\0");
   }
   // Resolved versions from the lockfile, not package.json ranges: a floating

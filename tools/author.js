@@ -391,8 +391,10 @@ function validateSkeleton(built) {
     // so a missing list surfaces as a bare TypeError from inside the page
     if (el.type === "frame" && !Array.isArray(el.children)) {
       throw new SkeletonError(
+        // the type, not the value: serialising a BigInt or a circular object
+        // would throw and replace this error with the TypeError it exists to prevent
         `(frame ${JSON.stringify(el.id ?? el.name ?? "unnamed")}) has no children array, got `
-        + (el.children === undefined ? "nothing" : JSON.stringify(el.children)),
+        + (el.children === undefined ? "nothing" : typeof el.children),
         {
           where: `skeleton[${i}]`,
           next: 'List the ids the frame contains: children: ["card-a", "card-b"].'

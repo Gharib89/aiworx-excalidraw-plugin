@@ -131,6 +131,7 @@ await withExcalidraw(async (ex) => {
       { type: "frame", id: "fr", name: "panel", children: "a" }],
   }));
   check("a frame whose children is not an array is a SkeletonError", r.ok, r.detail);
+  check("a frame whose children is not an array writes nothing", !existsSync(out));
 }
 
 // ---- 3. the gate runs in-process: a defective build writes nothing ----

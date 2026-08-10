@@ -7,12 +7,14 @@
  * teaching `CLAUDE_PLUGIN_ROOT=<plugin> node gen-tour.js` for a release after
  * the shipped skill had moved on — a docs pass never reaches it. Three checks:
  *
- *   1. no drawn invocation carries an environment prefix — reference/authoring.md
+ *   1. no drawn invocation prefixes `CLAUDE_PLUGIN_ROOT` — reference/authoring.md
  *      leads with the argument form because it survives a `Bash(node:*)`
- *      allowlist, which an env-prefixed command line does not
+ *      allowlist, which an env-prefixed command line does not. That one variable
+ *      stands in for the form: it is the only environment a generator here reads
  *   2. every script a drawn command names exists on disk
- *   3. the committed SVG carries the same correction as its diagram — one
- *      generator run writes both, so they can only diverge by a partial one
+ *   3. the committed SVG does not prefix it either — one generator run writes
+ *      both files, so the SVG holding a string the diagram dropped is the
+ *      readable sign of a partial regenerate
  *
  * Only the plugin tour draws commands; `examples/example.excalidraw` draws none.
  */
@@ -35,13 +37,14 @@ const drawn = JSON.parse(readFileSync(join(root, DIAGRAM), "utf8"))
   .elements.filter((e) => e.type === "text")
   .map((e) => e.text ?? "");
 
-// ---- 1. no drawn invocation carries an environment prefix ----
+// ---- 1. no drawn invocation prefixes CLAUDE_PLUGIN_ROOT ----
 {
   // The guard is the variable, not one spelling of a command line: nothing has a
   // reason to *draw* the name, and any `NAME=<value> node` shape would be fooled
-  // by a quoted value containing a space.
+  // by a quoted value containing a space. Named for the variable rather than for
+  // the env-prefix form, so a failure says what was actually found.
   const prefixed = drawn.filter((t) => t.includes("CLAUDE_PLUGIN_ROOT="));
-  check("no drawn invocation carries an environment prefix",
+  check("no drawn invocation prefixes CLAUDE_PLUGIN_ROOT",
     prefixed.length === 0, prefixed.join(" | ") || `${drawn.length} strings clean`);
 }
 
@@ -65,12 +68,14 @@ const drawn = JSON.parse(readFileSync(join(root, DIAGRAM), "utf8"))
     missing.length === 0, missing.join(" | ") || "all drawn scripts resolve");
 }
 
-// ---- 3. the SVG was regenerated with its diagram ----
+// ---- 3. the committed SVG does not prefix it either ----
 {
   // The SVG is what a README or a PR preview shows, so a half-finished
-  // regenerate keeps publishing the string the diagram no longer holds.
+  // regenerate keeps publishing the string the diagram no longer holds. Checking
+  // the one variable, not the whole export: the two files agreeing in full is
+  // the generator's job, and re-deriving the SVG here would need a browser.
   const svg = readFileSync(join(root, SVG), "utf8");
-  check("the committed SVG carries no environment prefix either",
+  check("the committed SVG does not prefix CLAUDE_PLUGIN_ROOT either",
     !svg.includes("CLAUDE_PLUGIN_ROOT="), SVG);
 }
 

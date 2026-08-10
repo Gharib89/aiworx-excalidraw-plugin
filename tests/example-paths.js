@@ -13,6 +13,8 @@
  *   3. no ESM `import` specifier anywhere under tests/ or tools/ is built from a
  *      raw filesystem path — the other side of the same boundary, which fails
  *      on Windows with ERR_UNSUPPORTED_ESM_URL_SCHEME
+ *   4. the invocations a committed example *draws* are the ones its docs lead
+ *      with — the argument form, naming a generator that exists
  */
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
@@ -163,6 +165,39 @@ const check = (name, cond, detail) => {
   }
   check("every runtime import specifier goes through pathToFileURL",
     offenders.length === 0, offenders.join(" | ") || "no raw-path specifiers");
+}
+
+// ---- 4. a committed example draws the invocation its docs lead with ----
+{
+  // Section 1 pins that both invocation forms keep working; this pins which one a
+  // reader is shown. A drawn command is copied verbatim, so an env-prefixed one
+  // teaches the line a `Bash(node:*)` allowlist denies, and a generator filename
+  // that is not on disk teaches a command that cannot run. Both shipped in the
+  // plugin tour's frame 9 and survived a docs pass, because the string is baked
+  // into the committed diagram — reachable only by regenerating it.
+  const artifacts = ["examples/plugin-tour/plugin-tour.excalidraw"];
+  for (const f of artifacts) {
+    const doc = JSON.parse(readFileSync(join(root, f), "utf8"));
+    const drawn = (doc.elements ?? []).filter((e) => e.type === "text").map((e) => e.text ?? "");
+
+    const prefixed = drawn.filter((t) => /CLAUDE_PLUGIN_ROOT=\S*\s+node\b/.test(t));
+    check(`no env-prefixed invocation drawn in ${f}`,
+      prefixed.length === 0, prefixed.join(" | ") || `${drawn.length} strings clean`);
+
+    // A drawn relative path means one of two roots: the checkout (`tools/…`, as
+    // the other three steps of that frame use) or the example's own directory
+    // (its generator, run from there). Resolvable against neither is a typo.
+    const missing = [];
+    for (const t of drawn) {
+      for (const [, rel] of t.matchAll(/\bnode\s+(\S+\.js)\b/g)) {
+        if (!existsSync(join(root, rel)) && !existsSync(join(root, dirname(f), rel))) {
+          missing.push(`${rel} (in "${t}")`);
+        }
+      }
+    }
+    check(`every generator drawn in ${f} exists`,
+      missing.length === 0, missing.join(" | ") || "all drawn scripts resolve");
+  }
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall checks passed");

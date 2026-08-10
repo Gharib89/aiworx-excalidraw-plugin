@@ -8,7 +8,8 @@
  *      DocumentError, so nothing is ever half-revised in silence
  *   2. one happy path — a hand-edited copy of the committed example fails the
  *      gate, the CLI revises it in place so the gate passes again, and the SVG
- *      is rewritten beside it unless --no-svg says otherwise
+ *      is rewritten beside it unless --no-svg says otherwise, and a pass that
+ *      re-centered bound labels names them where a quiet pass says nothing
  *
  * Exits non-zero on any mismatch.
  */
@@ -148,6 +149,29 @@ function mangledCopy(dir) {
   const after = gate(copy);
   check("the revised file passes the gate", after.status === 0,
     (after.stdout + after.stderr).trim().split("\n").pop());
+  // the example binds no arrow labels, so the re-center report has nothing to say
+  check("a revise that re-centered nothing prints no report",
+    !/re-centered/.test(r.stdout), r.stdout.trim().split("\n").join(" | "));
+}
+
+// A bound label dragged off its arrow is re-centered onto the path by design
+// (CONTEXT.md, **Bound label**) — but it used to happen silently, so the run read
+// as a no-op and cost a full debug cycle. The report is the signal.
+{
+  const dir = mkdtempSync(join(tmpdir(), "revise-cli-recenter-"));
+  const copy = join(dir, "bound-label-moved.excalidraw");
+  copyFileSync(join(root, "tests/fixtures/bound-label-moved.excalidraw"), copy);
+  const r = revise(copy, "--no-svg");
+  check("a moved bound label revises cleanly", r.status === 0, firstErrorLine(r));
+  // both label and arrow id, because unbinding a label needs both
+  check("revise reports the labels it re-centered",
+    /re-centered 2 bound labels \(t-writes on a-writes, t-reads on a-reads\)/.test(r.stdout),
+    r.stdout.trim().split("\n").join(" | "));
+  // the report is part of the success output, not a warning: the file is written
+  const labels = JSON.parse(readFileSync(copy, "utf8")).elements.filter((e) => e.type === "text");
+  check("the re-centered labels are written back on their arrows",
+    labels.length === 2 && labels.every((t) => t.containerId && Math.abs(t.y - (t.id === "t-writes" ? -71 : 260)) > 0.5),
+    labels.map((t) => `${t.id} y ${t.y} on ${t.containerId}`).join(", "));
 }
 
 {

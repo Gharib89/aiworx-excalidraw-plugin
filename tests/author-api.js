@@ -219,12 +219,18 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
     process.chdir(before);
   }
   const written = join(cwd, "elsewhere/band.excalidraw");
+  const writtenSvg = join(cwd, "elsewhere/band.svg");
   check("a relative out: reports the absolute path it wrote",
     lines[0]?.startsWith(`${written}  `), lines.join(" | "));
-  check("the .svg line is absolute too",
-    lines[1] === join(cwd, "elsewhere/band.svg"), lines.join(" | "));
-  check("the returned paths are absolute",
-    isAbsolute(result.out) && isAbsolute(result.svgOut), `${result.out}, ${result.svgOut}`);
+  check("the .svg line is absolute too", lines[1] === writtenSvg, lines.join(" | "));
+  // absolute and the file that was actually written — an absolute path alone
+  // could still name somewhere else
+  check("the returned paths name the files it wrote",
+    isAbsolute(result.out) && result.out === written &&
+      isAbsolute(result.svgOut) && result.svgOut === writtenSvg,
+    `${result.out}, ${result.svgOut}`);
+  check("both written files exist where they were reported",
+    existsSync(written) && existsSync(writtenSvg), `${written}, ${writtenSvg}`);
 }
 
 // a computed orthogonal route survives the real converter and the real gate:

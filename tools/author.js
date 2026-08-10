@@ -632,9 +632,10 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
       { problems, where: out, next: "Fix the defects, then re-run." },
     );
   }
-  // Every reported path is resolved: a relative `out:` resolves against the
-  // process cwd, so a generator run from another directory writes there instead
-  // — and echoing the path as given made the two runs report the same line.
+  // Every path the success report names is resolved: a relative `out:` resolves
+  // against the process cwd, so a generator run from another directory writes
+  // there instead — and echoing the path as given made the two runs report the
+  // same line. The gate refusal above still names the path as given.
   const outPath = resolve(out);
   const svgOut = svg ? outPath.replace(/\.excalidraw$/, "") + ".svg" : null;
   const rendered = svgOut ? await ex.exportSvg({ elements, appState, files }) : null;

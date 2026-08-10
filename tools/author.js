@@ -387,6 +387,21 @@ function validateSkeleton(built) {
         where: `skeleton[${i}]`, next: `Use one of: ${[...KNOWN].join(", ")}.`,
       });
     }
+    // the converter iterates a frame's children to size it and stamp frameId,
+    // so a missing list surfaces as a bare TypeError from inside the page
+    if (el.type === "frame" && !Array.isArray(el.children)) {
+      throw new SkeletonError(
+        // the type, not the value: serialising a BigInt or a circular object
+        // would throw and replace this error with the TypeError it exists to prevent
+        `(frame ${JSON.stringify(el.id ?? el.name ?? "unnamed")}) has no children array, got `
+        + (el.children === undefined ? "nothing" : typeof el.children),
+        {
+          where: `skeleton[${i}]`,
+          next: 'List the ids the frame contains: children: ["card-a", "card-b"].'
+            + " An empty array is legal for a frame you position and size yourself.",
+        },
+      );
+    }
     // ids are preserved through the convert, where a collision makes the
     // converter silently drop the second element (console.error only)
     if (el.id != null) {

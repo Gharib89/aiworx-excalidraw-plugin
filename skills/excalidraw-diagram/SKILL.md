@@ -52,6 +52,18 @@ pixel offsets), real assets (`image` embeds bytes in the files dictionary;
 `spliceLibraryItem` inserts a community `.excalidrawlib` item with fresh ids),
 and the generator shape for a band — compose, place, then bind, in that order.
 
+Four options in there carry most of the leverage, and a session that misses them
+rebuilds by hand what already exists:
+
+- `arrowBetween(a, b, { route: "orthogonal" })` computes an elbow's points for
+  you — the app's elbow router never runs in the converter.
+- `standoff` is the gap an arrow keeps from both shapes it spans.
+- `label: { text, strokeColor: palette.ink }` gives an edge label ink of its own.
+  A label inherits the arrow's `strokeColor` by default, so a role-coloured
+  arrow fails step 4's contrast rule through its own label.
+- A frame lists its `children` by id and then sizes itself around them. One
+  without that list is a `SkeletonError` at the door.
+
 Done when the `.excalidraw` file exists and every card, column and frame size
 traces to a measurement or an explicit constant — with no character-width factors.
 

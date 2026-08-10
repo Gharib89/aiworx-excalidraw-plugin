@@ -71,7 +71,10 @@ traces straight back to code. What the converter would silently mangle is a
 `SkeletonError` at the door instead: a reused id, an arrow carrying
 `startBinding`/`endBinding`/`fixedPoint` (bind with `start: { id }` /
 `end: { id }`), an arrow whose `start`/`end` is an inline id-less shape the
-converter cannot bind. Arrows bound to images and frames do work: the converter
+converter cannot bind, and a frame with no `children` array — the one case the
+converter crashes on rather than mangles, so the door names the frame instead.
+An empty `children: []` is legal: it says the frame carries its own geometry.
+Arrows bound to images and frames do work: the converter
 alone crashes on those targets, so the pipeline lifts the bindings out and
 stitches them back onto the converted elements.
 

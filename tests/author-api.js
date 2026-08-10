@@ -106,6 +106,32 @@ await withExcalidraw(async (ex) => {
   check("unknown element type is a SkeletonError", r.ok && /widget/.test(r.detail), r.detail);
   check("unknown element type writes nothing", !existsSync(out));
 }
+// a frame without children crashed the converter with a bare TypeError, after a
+// browser launch: the skeleton door names the frame instead
+{
+  const out = join(outDir, "childless-frame.excalidraw");
+  const r = await rejectsWith("SkeletonError", authorDiagram({
+    out,
+    build: async () => [{ type: "rectangle", id: "a", x: 0, y: 0, width: 10, height: 10 },
+      { type: "frame", id: "fr", name: "panel" }],
+  }));
+  check("a frame without children is a SkeletonError naming the frame",
+    r.ok && /fr/.test(r.detail), r.detail);
+  // error-messages.js walks the sources for this bar; here it is on the error
+  // the author actually catches, from the public call
+  check("the refusal states what, where and next",
+    Boolean(r.error?.what && r.error?.where && r.error?.next), r.message);
+  check("a frame without children writes nothing", !existsSync(out));
+}
+{
+  const out = join(outDir, "frame-children-string.excalidraw");
+  const r = await rejectsWith("SkeletonError", authorDiagram({
+    out,
+    build: async () => [{ type: "rectangle", id: "a", x: 0, y: 0, width: 10, height: 10 },
+      { type: "frame", id: "fr", name: "panel", children: "a" }],
+  }));
+  check("a frame whose children is not an array is a SkeletonError", r.ok, r.detail);
+}
 
 // ---- 3. the gate runs in-process: a defective build writes nothing ----
 {

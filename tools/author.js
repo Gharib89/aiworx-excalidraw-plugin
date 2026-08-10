@@ -635,16 +635,16 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
   // Every reported path is resolved: a relative `out:` resolves against the
   // process cwd, so a generator run from another directory writes there instead
   // — and echoing the path as given made the two runs report the same line.
-  const file = resolve(out);
-  const svgOut = svg ? file.replace(/\.excalidraw$/, "") + ".svg" : null;
+  const outPath = resolve(out);
+  const svgOut = svg ? outPath.replace(/\.excalidraw$/, "") + ".svg" : null;
   const rendered = svgOut ? await ex.exportSvg({ elements, appState, files }) : null;
-  mkdirSync(dirname(file), { recursive: true });
+  mkdirSync(dirname(outPath), { recursive: true });
   writeTogether([
-    [file, JSON.stringify(doc, null, 2) + "\n"],
+    [outPath, JSON.stringify(doc, null, 2) + "\n"],
     ...(svgOut ? [[svgOut, rendered.svg]] : []),
   ]);
   const frames = elements.filter((e) => e.type === "frame");
-  const lines = [`${file}  ${elements.length} elements, ${frames.length} frames`];
+  const lines = [`${outPath}  ${elements.length} elements, ${frames.length} frames`];
   if (svgOut) lines.push(svgOut);
   // Part of the success report, not a warning — the file is written either way.
   // Both ids, because unbinding a label needs both: clear the text's containerId
@@ -654,7 +654,7 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
       `(${recentered.map((r) => `${r.id} on ${r.containerId}`).join(", ")})`);
   }
   console.log(lines.join("\n"));
-  return { elements, frames, out: file, svgOut, recentered };
+  return { elements, frames, out: outPath, svgOut, recentered };
 }
 
 const buildContext = (ex, files) => ({

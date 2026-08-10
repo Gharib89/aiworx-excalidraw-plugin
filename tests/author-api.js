@@ -209,7 +209,7 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   try {
     process.chdir(outDir);
     cwd = process.cwd();
-    console.log = (...args) => lines.push(args.join(" "));
+    console.log = (...args) => lines.push(...args.join(" ").split("\n"));
     result = await authorDiagram({
       out: "elsewhere/band.excalidraw",
       build: () => [{ type: "rectangle", id: "only", x: 0, y: 0, width: 100, height: 60 }],
@@ -219,11 +219,10 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
     process.chdir(before);
   }
   const written = join(cwd, "elsewhere/band.excalidraw");
-  const reported = lines.join("\n").split("\n");
   check("a relative out: reports the absolute path it wrote",
-    reported[0]?.startsWith(`${written}  `), reported.join(" | "));
+    lines[0]?.startsWith(`${written}  `), lines.join(" | "));
   check("the .svg line is absolute too",
-    reported[1] === join(cwd, "elsewhere/band.svg"), reported.join(" | "));
+    lines[1] === join(cwd, "elsewhere/band.svg"), lines.join(" | "));
   check("the returned paths are absolute",
     isAbsolute(result.out) && isAbsolute(result.svgOut), `${result.out}, ${result.svgOut}`);
 }

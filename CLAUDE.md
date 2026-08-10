@@ -42,6 +42,7 @@ Every user-visible change ships its docs in the **same** change:
 - **README.md** — capability, flag, or install changes.
 - **`skills/excalidraw-diagram/`** — the shipped skill (SKILL.md + reference/). Update it when tool behavior, gate rules / problem codes, CLI flags, or the authoring workflow change. It is **self-contained**: it ships to plugin users who don't have the repo, so inline what a reader without a checkout needs and keep every link inside `skills/`.
 - **`CONTEXT.md`** — the ubiquitous language. Renaming a term there updates every consumer in the same change; the file states which they are.
+- **`examples/`** — a band **draws** commands on canvas, so correcting one means regenerating the artifact rather than editing a file. A command or flag change lands in every band that draws it: grep the generators for it, then re-run each one whose text moved. `tests/drawn-commands.js` walks every committed band and holds its drawn flags to the CLIs' real inventories (`tools/cli-flags.js`) — a band left behind goes red in `test:fast`.
 - **History** lives in Conventional-Commit squash subjects; this repo keeps no CHANGELOG.
 
 The documents **written for an agent** are the shipped skill, this file, `CONTEXT.md` and `docs/agents/`. Edit those through the `writing-for-agents` skill, which carries the levers. README and code comments are prose for humans and take an ordinary edit.

@@ -644,6 +644,50 @@ const throwsLayoutError = (fn) => {
     `${endY(arrow1)} vs ${endY(arrow2)}`);
 }
 
+// ---- a fan is geometry the gate accepts: heads clear, nothing crossed ----
+// The criterion behind the helper is that its output passes verification, so
+// score it on the gate's own measurements rather than trusting the arithmetic:
+// `shapeDepth` is what `arrow-buried` reads, `segmentLengthInsideShape` what
+// `arrow-crossing` does, at the same thresholds.
+{
+  const offences = [];
+  let fans = 0;
+  for (const spread of [0, 0.3, 0.6, 1])
+    for (const gap of [40, 160])
+      for (const n of [1, 2, 3, 5])
+        for (const route of [undefined, "orthogonal"]) {
+          const src = { type: "rectangle", id: "src", x: 0, y: 0, width: 100, height: 60 * n };
+          const targets = Array.from({ length: n }, (_, i) => ({
+            type: "rectangle", id: `t${i}`, x: 100 + gap + 200, y: i * (60 + gap), width: 120, height: 60,
+          }));
+          const arrows = fanOut(src, targets, { standoff: 10, spread, route });
+          resolveArrows(arrows);
+          fans++;
+          const where = `n=${n} spread=${spread} gap=${gap} ${route ?? "straight"}`;
+          const heads = [];
+          arrows.forEach((arrow, i) => {
+            const pts = arrow.points.map(([px, py]) => [arrow.x + px, arrow.y + py]);
+            heads.push(pts.at(-1).join(","));
+            for (let s = 0; s + 1 < pts.length; s++) {
+              const [p, q] = [pts[s], pts[s + 1]];
+              for (const shape of [src, targets[i]]) {
+                if (shapeDepth(shape, p) > 0.5 || shapeDepth(shape, q) > 0.5) {
+                  offences.push(`${where}: arrow ${i} seg${s} has a vertex inside ${shape.id}`);
+                }
+                if (segmentLengthInsideShape(shape, p, q) > 2) {
+                  offences.push(`${where}: arrow ${i} seg${s} crosses ${shape.id}`);
+                }
+              }
+            }
+          });
+          // spread 0 sends every landing to its own target's edge middle, and
+          // distinct targets keep those apart — piling needs one shared target
+          if (new Set(heads).size !== n) offences.push(`${where}: ${n - new Set(heads).size} head(s) piled`);
+        }
+  check("every fan clears both its shapes and lands its heads apart",
+    fans === 64 && offences.length === 0, `${fans} fans, ${offences[0] ?? "no offences"}`);
+}
+
 // ---- flatten: mixed elements and groups, depth-first ----
 {
   const t = { type: "text", width: 10, height: 10 };

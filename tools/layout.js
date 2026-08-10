@@ -249,6 +249,25 @@ function elbow([sx, sy], [ex, ey], horizontal) {
 }
 
 /**
+ * The midpoint of two ranges' shared span, or `null` where they miss each other
+ * entirely — the coordinate an arrow runs level through when both its shapes
+ * reach across it.
+ */
+const overlapCentre = (a1, a2, b1, b2) => {
+  const lo = Math.max(a1, b1);
+  const hi = Math.min(a2, b2);
+  return lo < hi ? (lo + hi) / 2 : null;
+};
+
+/**
+ * A **facing edge** read at `fraction` — `0` its low-coordinate end, `1` its
+ * high one — falling back to the coordinate the arrow would have taken on its
+ * own. One definition, so the horizontal and vertical branches cannot drift.
+ */
+const along = (fraction, lo, hi, fallback) =>
+  fraction === undefined ? fallback : lo + fraction * (hi - lo);
+
+/**
  * A rejected value, rendered for its own message. JSON reads best and is what the
  * rest of this module shows, but it throws on a bigint and drops `undefined` —
  * and an error about a bad value must not fail on the value.
@@ -409,20 +428,16 @@ function resolveArrow(arrow) {
   // the wider separation picks the axis, and it is the one `usable` vouched for
   const horizontal = dxGap >= dyGap;
   if (horizontal) {
-    const o1 = Math.max(A.y1, B.y1);
-    const o2 = Math.min(A.y2, B.y2);
-    const overlap = o1 < o2 ? (o1 + o2) / 2 : null;
-    const sy = originAt !== undefined ? A.y1 + originAt * (A.y2 - A.y1) : overlap ?? A.cy;
-    const ey = landAt !== undefined ? B.y1 + landAt * (B.y2 - B.y1) : overlap ?? B.cy;
+    const centre = overlapCentre(A.y1, A.y2, B.y1, B.y2);
+    const sy = along(originAt, A.y1, A.y2, centre ?? A.cy);
+    const ey = along(landAt, B.y1, B.y2, centre ?? B.cy);
     const leftToRight = B.x1 >= A.x2;
     start = [leftToRight ? A.x2 + standoff : A.x1 - standoff, sy];
     end = [leftToRight ? B.x1 - standoff : B.x2 + standoff, ey];
   } else {
-    const o1 = Math.max(A.x1, B.x1);
-    const o2 = Math.min(A.x2, B.x2);
-    const overlap = o1 < o2 ? (o1 + o2) / 2 : null;
-    const sx = originAt !== undefined ? A.x1 + originAt * (A.x2 - A.x1) : overlap ?? A.cx;
-    const ex = landAt !== undefined ? B.x1 + landAt * (B.x2 - B.x1) : overlap ?? B.cx;
+    const centre = overlapCentre(A.x1, A.x2, B.x1, B.x2);
+    const sx = along(originAt, A.x1, A.x2, centre ?? A.cx);
+    const ex = along(landAt, B.x1, B.x2, centre ?? B.cx);
     const topToBottom = B.y1 >= A.y2;
     start = [sx, topToBottom ? A.y2 + standoff : A.y1 - standoff];
     end = [ex, topToBottom ? B.y1 - standoff : B.y2 + standoff];
@@ -464,7 +479,7 @@ export function resolveArrows(elements) {
  * united on the source's facing-edge middle and landings spread evenly across
  * the band centred on it. Written arrow by arrow, `arrowBetween`'s
  * overlap-midpoint pick scatters those origins across the source edge — each
- * pair is measured on its own, so the fan reads as unrelated stubs rather than
+ * pair is measured on its own, so the fan-out reads as unrelated stubs rather than
  * one argument.
  *
  * Arrow `i`'s `landAt`: `n === 1 ? 0.5 : 0.5 + spread * (i / (n - 1) - 0.5)`.
@@ -474,19 +489,20 @@ export function resolveArrows(elements) {
  *
  * Origins unite only while every target sits off the *same* source edge: one
  * straddling the source picks a different facing edge and legitimately gets a
- * different origin there too.
- *
- * `landAt`/`originAt` supplied in `opts` win over the computed ones — the same
- * ownership rule `roundness` follows.
+ * different origin there too. An `originAt` or `landAt` of your own in `opts`
+ * lands last and holds, the same ownership rule `roundness` follows.
  */
 export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
+  // named for the source, because two fans in one build otherwise refuse in
+  // byte-identical words — the same reason `arrowBetween` names its own edge
+  const from = () => `fan from ${bindId(source) ?? source?.type}`;
   if (!Array.isArray(targets) || targets.length === 0) {
-    throw new LayoutError(`targets must be a non-empty array, got ${shown(targets)}`, {
+    throw new LayoutError(`targets must be a non-empty array, got ${shown(targets)} (${from()})`, {
       where: "fanOut", next: "Pass at least one target shape.",
     });
   }
   if (!Number.isFinite(spread) || spread < 0 || spread > 1) {
-    throw new LayoutError(`spread must be a finite number in [0, 1], got ${shown(spread)}`, {
+    throw new LayoutError(`spread must be a finite number in [0, 1], got ${shown(spread)} (${from()})`, {
       where: "fanOut", next: "Pass a fraction in [0, 1] for spread, or omit it for the 0.6 default.",
     });
   }

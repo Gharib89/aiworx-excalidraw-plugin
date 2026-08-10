@@ -270,15 +270,16 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   keeps the behaviour above. Two arrows into one box read as two arrows once
   their landings differ — `landAt: 0.28` and `landAt: 0.72` separate the heads
   that a single anchor piles on one point.
-- `fanOut` writes a **fan** — one source, one arrow per target — in a single
-  call, so the fractions come out computed rather than hand-accumulated. Every
-  arrow leaves the middle of the source's facing edge, and the landings spread
-  evenly across a band centred on each target's own facing edge. `spread` sets
-  that band's width as a fraction of the edge and defaults to `0.6`, which puts
-  three landings at `0.2 / 0.5 / 0.8`; `spread: 0` sends them all to the middle.
-  Every other option rides through to `arrowBetween` untouched — `standoff`,
-  `label`, style, and `route: "orthogonal"`, whose arrows share one jog line and
-  read as a bus:
+- `fanOut` writes a **fan-out** — one source, one arrow per target, the pattern
+  catalogue's shape for one-to-many — in a single call, so the fractions come out
+  computed rather than hand-accumulated. Every arrow leaves the middle of the
+  source's facing edge, and the landings spread evenly across a band centred on
+  each target's own facing edge. `spread` sets that band's width as a fraction of
+  the edge and defaults to `0.6`, which puts three landings at `0.2 / 0.5 / 0.8`;
+  `spread: 0` sends them all to the middle. Every other option rides through to
+  `arrowBetween` untouched — `standoff`, `label`, style, and
+  `route: "orthogonal"`, which jogs each arrow at the middle of its own gap, so
+  targets standing level with each other share one jog line and read as a bus:
 
   ```js
   return [band, ...fanOut(spec, [t1, t2, t3], { standoff: 10, route: "orthogonal" })];
@@ -287,7 +288,7 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   Spread the returned array into what you return: `flatten` unrolls groups, and
   an array of arrows is neither a group nor an element. The origins unite while
   every target sits off the **same** source edge — a target straddling the source
-  picks its own facing edge and leaves from there, so keep a fan's targets to one
+  picks its own facing edge and leaves from there, so keep a fan-out's targets to one
   side, or pass `landAt` per arrow through `arrowBetween` where they cannot be.
 - Options are checked where you wrote them: an unknown `route`, `route` with
   `via`, `via` that is not `[[x, y], …]` of finite numbers, a label with no text,

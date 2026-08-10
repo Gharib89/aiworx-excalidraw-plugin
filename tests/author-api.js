@@ -8,7 +8,9 @@
  *   2. empty or malformed skeletons, unknown element types and a frame with no
  *      children list are rejected with a named error and nothing is written
  *   3. the geometry gate runs in-process before the file is written
- *   4. the output directory is created
+ *   4. the output directory is created, and every path the success line reports
+ *      is absolute — a relative `out:` run from another cwd names where it
+ *      really landed
  *   5. reviseDiagram round-trips a hand-edited file: the mangled file fails
  *      the gate, the revised file passes it
  *   6. the same round-trip on the committed example
@@ -24,7 +26,7 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
   writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { withExcalidraw } from "../tools/browser.js";
 import { authorDiagram, reviseDiagram, makeWrap, PROSE } from "../tools/author.js";
@@ -191,6 +193,39 @@ const bandOut = join(outDir, "nested/dir/band.excalidraw");
   const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), bandOut], { encoding: "utf8" });
   check("the helper-built band passes the CLI gate", gate.status === 0,
     (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
+// a relative `out:` resolves against the process cwd, so a generator run from
+// somewhere else writes somewhere else. Echoing the path as given made the two
+// reports identical; the resolved path puts the trap in the output itself.
+{
+  const before = process.cwd();
+  const lines = [];
+  const log = console.log;
+  // mkdtemp hands back a path that may be a symlink (/var on macOS); cwd inside
+  // is the resolved one, and that is what the report must match
+  let cwd;
+  let result;
+  try {
+    process.chdir(outDir);
+    cwd = process.cwd();
+    console.log = (...args) => lines.push(args.join(" "));
+    result = await authorDiagram({
+      out: "elsewhere/band.excalidraw",
+      build: () => [{ type: "rectangle", id: "only", x: 0, y: 0, width: 100, height: 60 }],
+    });
+  } finally {
+    console.log = log;
+    process.chdir(before);
+  }
+  const written = join(cwd, "elsewhere/band.excalidraw");
+  const reported = lines.join("\n").split("\n");
+  check("a relative out: reports the absolute path it wrote",
+    reported[0]?.startsWith(`${written}  `), reported.join(" | "));
+  check("the .svg line is absolute too",
+    reported[1] === join(cwd, "elsewhere/band.svg"), reported.join(" | "));
+  check("the returned paths are absolute",
+    isAbsolute(result.out) && isAbsolute(result.svgOut), `${result.out}, ${result.svgOut}`);
 }
 
 // a computed orthogonal route survives the real converter and the real gate:

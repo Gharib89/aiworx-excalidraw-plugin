@@ -17,7 +17,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { NamedError, UsageError } from "../tools/errors.js";
+import { NamedError, UsageError, loadDependency } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, DocumentError, AssetError, LibraryError,
 } from "../tools/author.js";
@@ -82,6 +82,37 @@ const nameDispatch = sources
   .filter(({ line }) => /\.name\s*===\s*["'][A-Za-z]*Error["']/.test(line));
 check("no error-name dispatch left in tools/", nameDispatch.length === 0,
   nameDispatch.map(({ file, n }) => `${file}:${n}`).join(", "));
+
+// ---- 3. loadDependency turns an absent package into the command that fixes it ----
+// Both deferred runtime dependencies (playwright-core for rendering, elkjs for
+// graph()) come through this one loader, so its contract is pinned once here.
+// tests/pipeline-errors.js proves the driver's end in a real uninstalled copy.
+{
+  const missing = async () => {
+    try {
+      await loadDependency("no-such-package-in-this-repo", "the probe needs a package that is not there");
+      return null;
+    } catch (err) {
+      return err;
+    }
+  };
+  const err = await missing();
+  check("loadDependency raises MissingDependencyError for an absent package",
+    err instanceof MissingDependencyError, err?.name ?? "nothing thrown");
+  check("it names the package as where, and the install command as next",
+    err?.where === "no-such-package-in-this-repo" && err?.next === "Run: npm install --omit=dev",
+    `${err?.where} / ${err?.next}`);
+  check("it says which capability the caller just lost",
+    /the probe needs a package that is not there/.test(err?.what ?? ""), err?.what);
+  check("the raw loader error does not reach the message",
+    !/ERR_MODULE_NOT_FOUND/.test(err?.message ?? ""), err?.message);
+
+  // a package that exists resolves to its module, so the guard cannot be a
+  // blanket catch that swallows a broken install as a missing one
+  const real = await loadDependency("node:path", "the probe needs a package that is there");
+  check("loadDependency hands back the module when the package is there",
+    typeof real.join === "function");
+}
 
 // page.js is minified into the page bundle; the minifier renames classes, so its
 // FontIntegrityError must keep its string-literal name and stay off the base.

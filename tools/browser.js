@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { expectedFingerprint, stampedFingerprint } from "./fingerprint.js";
-import { NamedError } from "./errors.js";
+import { NamedError, MissingDependencyError, loadDependency } from "./errors.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BUNDLE = join(root, "dist/excalidraw-page.js");
@@ -26,30 +26,16 @@ export class BundleLoadError extends NamedError {}
 export class PageError extends NamedError {}
 /** Nothing in the search order produced a running browser. */
 export class ChromeLaunchError extends NamedError {}
-/** A runtime dependency is not installed — the checkout was never `npm install`ed. */
-export class MissingDependencyError extends NamedError {}
-
 /**
- * playwright-core is loaded on first use, not at import time. A static import
- * would make an uninstalled checkout die with the loader's bare
- * ERR_MODULE_NOT_FOUND before any of this file runs — an error that names an
- * internal specifier and no remedy. Deferring it puts the failure inside a
- * catch that can name the one command that fixes it.
+ * A runtime dependency is not installed — the checkout was never `npm install`ed.
+ * Defined in errors.js because tools/layout.js raises it for the graph engine
+ * too, and must not import this module to do so.
  */
-async function loadChromium() {
-  try {
-    return (await import("playwright-core")).chromium;
-  } catch (err) {
-    // The package itself, not something missing inside it: a broken install is a
-    // different fault and `npm install --omit=dev` is not its remedy.
-    if (err?.code === "ERR_MODULE_NOT_FOUND" && err.message.includes("Cannot find package 'playwright-core'")) {
-      throw new MissingDependencyError("is not installed — this checkout has no runtime dependencies yet", {
-        where: "playwright-core", next: "Run: npm install --omit=dev",
-      });
-    }
-    throw err;
-  }
-}
+export { MissingDependencyError };
+
+/** The browser driver, loaded on first use — see `loadDependency` for why. */
+const loadChromium = async () =>
+  (await loadDependency("playwright-core", "rendering needs the browser driver")).chromium;
 
 export const CHROME_CANDIDATES = [
   "/usr/bin/google-chrome",

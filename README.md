@@ -15,12 +15,13 @@ caught by looking at the picture rather than guessed at from JSON.
 Then, once per installation:
 
 ```bash
-npm install --omit=dev   # playwright-core only; the render bundle is committed
+npm install --omit=dev   # playwright-core and elkjs; the render bundle is committed
 ```
 
-Skip it and the first render or revise says so by name — `MissingDependencyError`
-carries the command above rather than a bare module-resolution error. `check.js`
-needs no dependencies at all.
+Both load on first use, so skipping this says so by name at the first render or
+revise (playwright-core) and at the first `graph` layout (elkjs) —
+`MissingDependencyError` carries the command above rather than a bare
+module-resolution error. `check.js` needs no dependencies at all.
 
 Rendering uses your **system Chrome** (no browser download) and finds it for you
 on macOS, Windows and Linux. Set `CHROME_PATH` to point at a specific executable
@@ -127,7 +128,7 @@ directory — verification never touches tracked files.
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, images, library splicing, diagram-level finish register, in-process gate, one-session batches, revise round-trip
-  layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap, fans that spread their landings (anchored on geometry.js bounds)
+  layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap, fans that spread their landings, graphs laid out in layers by ELK (anchored on geometry.js bounds)
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
   geometry.js       one bounds definition shared by the gate, the frame binder and arrow anchoring

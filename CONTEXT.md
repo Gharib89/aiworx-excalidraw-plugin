@@ -89,6 +89,13 @@ one; the spread is a band centred on each landing edge, never hand-accumulated
 offsets. The shape the skill's pattern catalogue names for one-to-many.
 _Avoid_: fan (unqualified), spray, splay, one-to-many arrows
 
+**Graph**:
+Nodes and the edges between them, laid out by an engine rather than by hand —
+what `graph` takes and what ELK's `layered` algorithm arranges into layers. A
+*chart* is the other thing entirely: measured data drawn to scale, where the
+author owns every coordinate. Say graph only where edges decide the placement.
+_Avoid_: diagram (unqualified), network, chart
+
 **Bound label**:
 Text bound to an arrow — its `containerId` names the arrow, and `arrowBetween`'s
 `label:` option writes one. The house form for on-arrow text: the renderer masks

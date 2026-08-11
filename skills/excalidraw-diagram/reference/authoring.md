@@ -542,8 +542,7 @@ of its own (no width/height, no `viewBox` — give both dimensions for those). T
 gate independently rejects any image whose bytes are missing from the files
 dictionary.
 
-Community library items — cloud icons, stick figures, UI kits from
-[libraries.excalidraw.com](https://libraries.excalidraw.com) — splice in
+Community library items — cloud icons, stick figures, UI kits — splice in
 programmatically (also exported from `tools/author.js` for use outside `build`):
 
 ```js
@@ -558,9 +557,48 @@ placed twice without collision; bindings and `boundElements` that point outside
 the item are dropped rather than left dangling for the gate to reject. The
 helper accepts v1 and v2 `.excalidrawlib` files and throws a `LibraryError`
 naming what's wrong (unparseable file, no such item, an item holding nothing but
-deleted elements). Items containing text
-still face the gate: fonts outside the house pair and low-contrast text fail,
-by design.
+deleted elements).
+
+### Finding a library to splice
+
+`tools/library.js` searches the community index and downloads one file; the
+splice above stays the only way an item enters a diagram. Two calls, in order:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/tools/library.js" aws --json   # search: name, item names, description
+node "${CLAUDE_PLUGIN_ROOT}/tools/library.js" --download childishgirl/aws-architecture-icons.excalidrawlib
+```
+
+The search matches case-insensitively and ranks a name match above an item-name
+match above a description match. Each hit carries the `source` handle
+`--download` takes, plus `name`, `description`, `itemCount` (`null` where the
+index states none) and `updated`. `--download` prints the resolved absolute path
+of the cached `.excalidrawlib` — hand that path straight to
+`spliceLibraryItem`.
+
+Both the index and every download are cached for a week under
+`$XDG_CACHE_HOME/aiworx-excalidraw/libraries/`, so a second search needs no
+network. `--refresh` re-fetches, in either mode. `--stale` belongs to a search
+alone — it accepts a week-old index when the network cannot refresh it, which
+otherwise refuses rather than searching month-old data in silence. A query
+matching nothing exits 0 — an answer, not a failure.
+
+**Retype or drop a spliced item's own text.** Real community items label
+themselves in Excalidraw's own faces, outside the house pair, so the gate refuses
+the diagram with `foreign-font` — measured across a popular 249-item AWS set,
+every single item. Keep the pictogram and drop the label:
+
+```js
+const HOUSE = new Set([PROSE, CODE]);
+const icon = spliceLibraryItem(path, { item: "Kinesis" });
+const kept = icon.children.filter((e) => !(e.type === "text" && !HOUSE.has(e.fontFamily)));
+const clean = { ...icon, children: kept, ids: kept.map((e) => e.id) };
+```
+
+Label it yourself instead, with measured house-pair text beside the icon — that
+is what step 3 measures for. Low-contrast spliced text fails the same way, and a
+spliced item carries its author's finish as its own properties (see
+[The finish register](#the-finish-register)).
 
 ## Why measurement happens in a browser
 

@@ -57,7 +57,7 @@ gated like any other.
 
 ```bash
 npm test                          # everything: npm run test:fast, then npm run test:browser
-npm run test:fast                 # ~12s, no Chrome: layout + wrap + gate fixtures + dark theme + palette
+npm run test:fast                 # ~12s, no Chrome: layout + wrap + gate fixtures + dark theme + library index + palette
 npm run test:browser              # the rest: failure paths, render/revise CLIs, author API, assets, browser smoke
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/ (bundle + loader page) from node_modules
@@ -65,6 +65,8 @@ node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing e
 node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
 node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
+node tools/library.js aws         # search the community icon libraries; --json for the machine-readable form
+node tools/library.js --download childishgirl/aws-architecture-icons.excalidrawlib   # prints the cached path
 ```
 
 `check.js` takes any number of files: each is reported, and the exit code is the
@@ -88,7 +90,30 @@ cannot read, parse, or find any elements in. Both it and `revise.js` print every
 refusal as `ErrorName: message` — never a stack trace, whatever fails beneath
 them (a stale bundle, no Chrome, an uninstalled checkout).
 
-All three CLIs share one argument vocabulary. Any argument starting with `-` that
+`library.js` is discovery in front of the authoring API's `spliceLibraryItem`,
+which stays the only way an item enters a diagram. A search matches the query,
+case-insensitively, against a library's name, its item names and its description —
+the published index carries no tags — and ranks a name match above the rest. Each
+hit prints its `source` handle, which is what `--download` takes; `--download`
+prints the resolved absolute path of the cached `.excalidrawlib`, and that path is
+what the splice reads.
+
+The index is cached for a week under `$XDG_CACHE_HOME/aiworx-excalidraw/libraries/`
+(`EXCALIDRAW_LIBRARY_CACHE` overrides the location outright), and so is every
+library downloaded, so authoring stays offline after the first fetch — the same
+no-CDN discipline the vendored fonts follow. `--refresh` re-fetches in either
+mode. `--stale` belongs to a search alone — it accepts an index older than a week
+when the network cannot refresh it, which otherwise refuses rather than serving
+month-old data in silence; passing it with `--download`, which reads no index, is
+refused rather than ignored. A search that matches nothing is an answer, not a
+failure, and exits 0.
+
+Note that real community libraries label their items in Excalidraw's own faces,
+which are outside the house pair, so a diagram that splices one is refused by the
+gate with `foreign-font` until the library's own text is dropped or retyped. The
+shipped skill documents the workflow; the underlying fix is tracked separately.
+
+All four CLIs share one argument vocabulary. Any argument starting with `-` that
 is not a known flag is rejected as a typo (exit 2, naming the argument) rather
 than read as a file name — `-dark` is not `--dark`. Without that guard a mistyped
 flag becomes a bogus file path, or, when a real file is named alongside it, is
@@ -145,6 +170,8 @@ tools/
   browser.js        headless-Chromium driver around page.js; Chrome loads the bundle off disk via dist/index.html
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs
   revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place
+  library.js        find and download a community icon library, CLI face of library-index.js
+  library-index.js  the libraries.excalidraw.com index: fetch, week-long disk cache, search by name/item/description, download
   smoke.js          browser smoke suite proving measurement, conversion, export and raster survival
   palette.js        derives brand/palette.json and verifies every contrast claim
   bundle.js         builds the committed dist/ bundle, its loader page and its vendored fonts, stamped with a source fingerprint

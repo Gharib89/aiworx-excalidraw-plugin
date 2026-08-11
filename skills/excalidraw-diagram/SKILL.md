@@ -98,9 +98,11 @@ Done when it exits 0.
 node "${CLAUDE_PLUGIN_ROOT}/tools/render.js" path/to/diagram.excalidraw --out /tmp/dg
 ```
 
-This writes the SVG plus one PNG per frame, numbered in reading order. **Read
-every frame PNG**, one at a time. JSON hides overlap, clipping and crowding;
-the picture shows them.
+This writes the SVG plus one PNG per frame, numbered in reading order, and
+prints the **resolved absolute path** of each — a relative `--out` resolves
+against the process cwd, so read the paths it printed rather than rebuilding
+them. **Read every frame PNG**, one at a time. JSON hides overlap, clipping and
+crowding; the picture shows them.
 
 When iterating on one frame, re-render just it instead of the whole band:
 `--frame 3`. Other knobs: `--dark` (dark-theme export), `--padding N`,

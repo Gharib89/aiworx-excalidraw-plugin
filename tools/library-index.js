@@ -17,7 +17,7 @@
  *
  * CLI face: tools/library.js.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { NamedError } from "./errors.js";
@@ -70,6 +70,9 @@ const httpTransport = {
   },
 };
 
+/** An index entry usable enough to search and to download from. */
+const isUsableEntry = (e) => Boolean(e) && typeof e === "object" && typeof e.source === "string";
+
 /** The cached index and its stamp, or null when nothing is cached yet. */
 function readCachedIndex(dir) {
   let raw;
@@ -81,7 +84,9 @@ function readCachedIndex(dir) {
   try {
     const held = JSON.parse(raw);
     if (!Array.isArray(held?.entries) || typeof held.fetchedAt !== "number") return null;
-    return held;
+    // Filtered on the way out as well as in: a cache file can be hand-edited, and
+    // the search must never meet an entry it would crash on.
+    return { ...held, entries: held.entries.filter(isUsableEntry) };
   } catch {
     // A half-written or hand-edited cache is treated as absent rather than
     // fatal: the remedy is a re-fetch, which the caller is already able to do.
@@ -142,8 +147,19 @@ export async function loadIndex({
       where: "the library index", next: "Retry; if it persists the published index changed shape, so report it upstream",
     });
   }
-  writeCachedIndex(cacheDir, entries, now);
-  return { entries, from: "network", fetchedAt: now };
+  // The index is remote data, so an entry is checked before it is kept: one
+  // `null` or one missing `source` reaching the search would surface as a raw
+  // TypeError, which states neither what failed nor what to do about it. A few
+  // unusable entries are dropped rather than failing the other 230; all of them
+  // unusable means the published shape moved, which is worth refusing over.
+  const usable = entries.filter(isUsableEntry);
+  if (entries.length > 0 && usable.length === 0) {
+    throw new LibraryIndexError(`no entry in the index has a source (${entries.length} seen)`, {
+      where: "the library index", next: "Retry; if it persists the published index changed shape, so report it upstream",
+    });
+  }
+  writeCachedIndex(cacheDir, usable, now);
+  return { entries: usable, from: "network", fetchedAt: now };
 }
 
 /**
@@ -153,6 +169,30 @@ export async function loadIndex({
  * path — a crafted entry saying `../../…` must not write outside the cache.
  */
 const SOURCE_PATTERN = /^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\/[A-Za-z0-9](?:[A-Za-z0-9._-]*)\.excalidrawlib$/;
+
+/**
+ * Why `text` is not a library the splice could use, or `null` when it is.
+ *
+ * The bar is `spliceLibraryItem`'s own (tools/author.js): the v2 `libraryItems`
+ * array or the v1 `library` array, holding at least one item. Checked here so a
+ * download that is really an error page — or a file left half-written — is
+ * refused at the moment it arrives, where the cause is still visible, rather than
+ * surfacing as a LibraryError from inside a later splice.
+ */
+function libraryDefect(text) {
+  let held;
+  try {
+    held = JSON.parse(text);
+  } catch (err) {
+    return err.message;
+  }
+  if (held?.type !== "excalidrawlib") return `type is ${JSON.stringify(held?.type)}`;
+  const items = Array.isArray(held.libraryItems) ? held.libraryItems
+    : Array.isArray(held.library) ? held.library : null;
+  if (!items) return "it holds neither a libraryItems nor a library array";
+  if (items.length === 0) return "it holds no library items";
+  return null;
+}
 
 /**
  * Download the library named by an index entry's `source` and return the
@@ -173,8 +213,10 @@ export async function downloadLibrary(source, {
   const path = resolve(join(cacheDir, source));
   if (!refresh) {
     try {
-      readFileSync(path);
-      return path;
+      // Held to the same bar as a fresh download: a cached file that cannot be
+      // spliced is treated as absent and re-fetched, so a truncated one heals
+      // instead of failing every splice from here on.
+      if (libraryDefect(readFileSync(path, "utf8")) === null) return path;
     } catch {
       // Not cached yet — fall through to the download.
     }
@@ -188,18 +230,19 @@ export async function downloadLibrary(source, {
       where: source, next: "Check the network, then retry; a search result older than the index may have been withdrawn",
     });
   }
-  // Parsed before it is kept: a cache holding an error page as a `.excalidrawlib`
-  // would fail later inside the splice, where the cause is no longer visible.
-  try {
-    const held = JSON.parse(text);
-    if (held?.type !== "excalidrawlib") throw new Error(`type is ${JSON.stringify(held?.type)}`);
-  } catch (err) {
-    throw new LibraryIndexError(`what was downloaded is not a library file — ${err.message}`, {
+  const defect = libraryDefect(text);
+  if (defect !== null) {
+    throw new LibraryIndexError(`what was downloaded is not a library the splice can use — ${defect}`, {
       where: source, next: "Retry with --refresh; if it persists the published library is broken, so report it upstream",
     });
   }
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, text);
+  // Written aside and renamed into place, because the cached path above trusts
+  // whatever it finds: a write interrupted midway would otherwise leave a partial
+  // file that every later call accepts. Rename within one directory is atomic.
+  const pending = `${path}.pending-${process.pid}`;
+  writeFileSync(pending, text);
+  renameSync(pending, path);
   return path;
 }
 

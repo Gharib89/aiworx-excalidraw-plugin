@@ -64,6 +64,12 @@ try {
       // The value is a separate argument, as in render.js: `--download=x` would
       // be a second spelling of the same flag for no gain.
       if (i + 1 >= argv.length) throw new UsageError("needs a value", { where: a, next: USAGE });
+      // And it will not swallow the next flag, exactly as render.js's value flags
+      // do not: naming the token keeps a bare "needs a value" from reading as a
+      // lie when one was given.
+      if (argv[i + 1].startsWith("-")) {
+        throw new UsageError(`needs a value, got ${argv[i + 1]}`, { where: a, next: USAGE });
+      }
       download = argv[++i];
     } else {
       throw new UsageError("unknown flag", { where: a, next: USAGE });

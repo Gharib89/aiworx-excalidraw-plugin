@@ -50,7 +50,7 @@ skeleton format, the measurement API, the layout helpers
 (`stack`/`column`/`row`/`box`/`arrowBetween`/`fanOut`/`graph` — no
 hand-accumulated pixel offsets), mermaid ingestion (`fromMermaid` turns a
 flowchart source into nodes and edges `graph` lays out), real assets (`image` embeds bytes in the files dictionary;
-`tools/library.js` finds and downloads a community `.excalidrawlib` and
+the `library.js` CLI finds and downloads a community `.excalidrawlib` and
 `spliceLibraryItem` inserts an item from it with fresh ids — drop the item's own
 label, which fails the house pair),
 and the generator shape for a band — compose, place, then bind, in that order.

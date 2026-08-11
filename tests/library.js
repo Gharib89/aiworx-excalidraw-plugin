@@ -17,7 +17,9 @@ import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { searchIndex, loadIndex, downloadLibrary, cacheRoot, INDEX_TTL_MS } from "../tools/library-index.js";
+import {
+  searchIndex, loadIndex, downloadLibrary, cacheRoot, INDEX_TTL_MS, INDEX_URL, LIBRARY_URL_BASE,
+} from "../tools/library-index.js";
 import { spliceLibraryItem } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -121,7 +123,6 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
 
 // ---- 4. the index is fetched once, then served from the cache ----
 {
-  const { INDEX_URL } = await import("../tools/library-index.js");
   const dir = cacheDir();
   const net = transportOf({ [INDEX_URL]: INDEX_TEXT });
 
@@ -144,9 +145,40 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
     again.calls.join(", "));
 }
 
+// ---- 4b. the index is remote data, so an unusable entry never reaches a search ----
+{
+  // One null or one source-less entry reaching searchIndex would surface as a raw
+  // TypeError, stating neither what failed nor what to do — so they are dropped
+  // on the way in, and the other entries still work.
+  const dirty = [null, "a string", { name: "no source here" }, ...INDEX];
+  const dir = cacheDir();
+  const loaded = await loadIndex({ cacheDir: dir, transport: transportOf({ [INDEX_URL]: JSON.stringify(dirty) }) });
+  check("unusable entries are dropped from a fetched index",
+    loaded.entries.length === INDEX.length, String(loaded.entries.length));
+  check("the surviving entries still search", searchIndex(loaded.entries, "aws").length === 2);
+
+  // Cached the same way, so a hand-edited cache file cannot crash a later search.
+  writeFileSync(join(dir, "index.json"), JSON.stringify({ fetchedAt: Date.now(), entries: dirty }));
+  const reread = await loadIndex({ cacheDir: dir, transport: transportOf({}) });
+  check("unusable entries are dropped from a cached index too",
+    reread.from === "cache" && reread.entries.length === INDEX.length,
+    `${reread.from}/${reread.entries.length}`);
+
+  // Every entry unusable is not a dirty index, it is a moved shape — worth refusing.
+  const allBad = await throwsWith("LibraryIndexError", () => loadIndex({
+    cacheDir: cacheDir(), transport: transportOf({ [INDEX_URL]: JSON.stringify([null, 1, {}]) }),
+  }));
+  check("an index where no entry has a source refuses", allBad.ok, allBad.detail);
+  check("and says so rather than reporting an empty index",
+    /no entry in the index has a source/.test(allBad.message), allBad.message);
+
+  // An index that is genuinely empty is not malformed — nothing matches, no refusal.
+  const empty = await loadIndex({ cacheDir: cacheDir(), transport: transportOf({ [INDEX_URL]: "[]" }) });
+  check("a genuinely empty index is not an error", empty.entries.length === 0);
+}
+
 // ---- 5. staleness: past the TTL the cache is re-checked, and refuses honestly ----
 {
-  const { INDEX_URL } = await import("../tools/library-index.js");
   const dir = cacheDir();
   const now = 1_700_000_000_000;
   await loadIndex({ cacheDir: dir, transport: transportOf({ [INDEX_URL]: INDEX_TEXT }), now });
@@ -180,7 +212,6 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
 
 // ---- 6. a download lands at an absolute path the splice takes unchanged ----
 {
-  const { LIBRARY_URL_BASE } = await import("../tools/library-index.js");
   const source = "erin/stick.excalidrawlib";
   // The real committed library, so what the splice is handed here is what a real
   // download hands it — not a fixture shaped to suit this suite.
@@ -207,6 +238,36 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
   const missing = await throwsWith("LibraryIndexError", () =>
     downloadLibrary("nobody/absent.excalidrawlib", { cacheDir: cacheDir(), transport: transportOf({}) }));
   check("a library that cannot be downloaded refuses", missing.ok, missing.detail);
+
+  // What arrives is held to spliceLibraryItem's own bar, so an error page or an
+  // item-less file is refused here, where the cause is still visible, instead of
+  // becoming a LibraryError from inside a later splice.
+  for (const [label, body] of [
+    ["an HTML error page", "<!doctype html><h1>404</h1>"],
+    ["a document of the wrong type", JSON.stringify({ type: "excalidraw", elements: [] })],
+    ["a library holding no items", JSON.stringify({ type: "excalidrawlib", version: 2, libraryItems: [] })],
+  ]) {
+    const url = LIBRARY_URL_BASE + "zoe/bad.excalidrawlib";
+    const dir3 = cacheDir();
+    const r = await throwsWith("LibraryIndexError", () =>
+      downloadLibrary("zoe/bad.excalidrawlib", { cacheDir: dir3, transport: transportOf({ [url]: body }) }));
+    check(`${label} is refused rather than cached`, r.ok, r.detail);
+    check(`${label} leaves nothing behind in the cache`,
+      !existsSync(join(dir3, "zoe/bad.excalidrawlib")));
+  }
+
+  // A cached file that cannot be spliced — a write cut short — is treated as
+  // absent and re-fetched, rather than failing every splice from then on.
+  {
+    const dir4 = cacheDir();
+    mkdirSync(join(dir4, "erin"), { recursive: true });
+    writeFileSync(join(dir4, "erin/stick.excalidrawlib"), body.slice(0, 40));
+    const healed = await downloadLibrary(source, {
+      cacheDir: dir4, transport: transportOf({ [LIBRARY_URL_BASE + source]: body }),
+    });
+    check("a truncated cached library is re-fetched rather than trusted",
+      readFileSync(healed, "utf8") === body);
+  }
 
   // `source` comes from a remote document and is pasted into a path, so it is
   // validated rather than trusted: a crafted entry must not write outside the cache.
@@ -275,6 +336,12 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
   check("--download with no value asks for one rather than reading it as unknown",
     noValue.code === 2 && /needs a value/.test(noValue.err) && !/unknown flag/.test(noValue.err),
     `${noValue.code} ${noValue.err.trim()}`);
+  // It will not swallow the next flag as its handle, exactly as render.js's value
+  // flags do not — that would turn a usage mistake (2) into a refusal (1).
+  const swallowed = cli("--download", "--refresh");
+  check("--download will not take the next flag as its handle",
+    swallowed.code === 2 && /needs a value, got --refresh/.test(swallowed.err),
+    `${swallowed.code} ${swallowed.err.trim()}`);
   const both = cli("--download", "erin/stick.excalidrawlib", "aws");
   check("a query alongside --download exits 2 rather than ignoring half of it",
     both.code === 2 && /not a search query/.test(both.err), `${both.code} ${both.err.trim()}`);

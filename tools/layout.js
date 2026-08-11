@@ -593,9 +593,11 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
     });
   }
   const wired = edges.map((edge, i) => {
-    if (!Array.isArray(edge) || edge.length < 2) {
+    // exactly two or three: a fourth entry is something the author meant to be
+    // read, and accepting it would drop it without a word
+    if (!Array.isArray(edge) || edge.length < 2 || edge.length > 3) {
       throw new LayoutError(`edge ${i} must be [source, target] or [source, target, opts], got ${shown(edge)}`, {
-        where: "graph", next: "Give the edge both of its endpoints.",
+        where: "graph", next: "Give the edge both of its endpoints, and its options in one third entry.",
       });
     }
     const [source, target, opts = {}] = edge;

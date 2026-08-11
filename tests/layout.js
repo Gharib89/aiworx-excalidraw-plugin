@@ -821,6 +821,10 @@ const rejectsLayoutError = async (fn) => {
   check("graph refuses an edge missing an endpoint",
     await rejectsLayoutError(() => graph([a, b], [[a]])) &&
       await rejectsLayoutError(() => graph([a, b], [a, b])));
+  // a fourth entry is something the author wrote to be read, so it refuses
+  // rather than dropping it silently
+  check("graph refuses an edge carrying more than its options",
+    await rejectsLayoutError(() => graph([a, b], [[a, b, { label: "x" }, { label: "y" }]])));
   check("graph refuses a direction it cannot lay out",
     await rejectsLayoutError(() => graph([a, b], [], { direction: "up" })));
   check("graph refuses spacings that are not pixel counts",

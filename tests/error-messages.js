@@ -33,6 +33,7 @@ import {
 } from "../tools/browser.js";
 import { LayoutError, stack, column, box, arrowBetween } from "../tools/layout.js";
 import { MermaidError, makeFromMermaid } from "../tools/mermaid.js";
+import { LibraryIndexError, downloadLibrary } from "../tools/library-index.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const toolsDir = join(root, "tools");
@@ -131,7 +132,7 @@ const CLASSES = [
   NamedError, UsageError, DocumentError,
   SkeletonError, GateError, WrapError, AssetError, LibraryError,
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
-  LayoutError, MermaidError,
+  LayoutError, MermaidError, LibraryIndexError,
 ];
 
 for (const Cls of CLASSES) {
@@ -185,6 +186,10 @@ await thrown("arrowBetween an unbindable group",
 // real refusal is checkable without a browser; the rest live in tests/mermaid.js.
 await thrown("fromMermaid with no source", () => makeFromMermaid(null)(""), MermaidError);
 await thrown("splice from a missing library", () => spliceLibraryItem(join(root, "no-such.excalidrawlib")), LibraryError);
+// A malformed handle is refused before any transport is touched, so this one
+// index refusal is checkable offline; the rest live in tests/library.js.
+await thrown("download with a handle that is not a library source",
+  () => downloadLibrary("../../etc/passwd"), LibraryIndexError);
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nevery error clears the bar");
 process.exit(fail.length ? 1 : 0);

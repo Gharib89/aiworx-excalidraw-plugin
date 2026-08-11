@@ -1,0 +1,60 @@
+[
+  {
+    "name": "AWS Architecture Icons",
+    "description": "Official AWS service and resource icons for cloud architecture diagrams.",
+    "authors": [{ "name": "Alice Cloud", "url": "https://example.invalid/alice" }],
+    "source": "alice/aws.excalidrawlib",
+    "preview": "alice/aws.png",
+    "created": "2022-01-04",
+    "updated": "2024-06-11",
+    "version": 3,
+    "id": "aaaaaaaaaaa",
+    "itemNames": ["EC2", "S3 Bucket", "Lambda", "RDS"]
+  },
+  {
+    "name": "Robots",
+    "description": "Collection of robots in different moods.",
+    "authors": [{ "name": "Bob Bot", "url": "https://example.invalid/bob" }],
+    "source": "bob/robots.excalidrawlib",
+    "preview": "bob/robots.png",
+    "created": "2021-03-23",
+    "updated": "2021-03-23",
+    "version": 1,
+    "id": "bbbbbbbbbbb",
+    "itemNames": ["Happy robot", "Sad robot"]
+  },
+  {
+    "name": "Kubernetes",
+    "description": "Pods, services and controllers — the aws-free way to draw a cluster.",
+    "authors": [{ "name": "Carol Kube", "url": "https://example.invalid/carol" }],
+    "source": "carol/k8s.excalidrawlib",
+    "preview": "carol/k8s.png",
+    "created": "2023-02-01",
+    "updated": "2023-09-30",
+    "version": 2,
+    "itemNames": ["Pod", "Service", "Ingress"]
+  },
+  {
+    "name": "Hand-drawn Arrows",
+    "description": "Sketchy arrows and connectors.",
+    "authors": [{ "name": "Dave Draw", "url": "https://example.invalid/dave" }],
+    "source": "dave/arrows.excalidrawlib",
+    "preview": "dave/arrows.png",
+    "created": "2020-11-02",
+    "updated": "2020-11-02",
+    "version": 1,
+    "id": "ddddddddddd"
+  },
+  {
+    "name": "Stick Figures",
+    "description": "People for user-journey pictures.",
+    "authors": [{ "name": "Erin Ink", "url": "https://example.invalid/erin" }],
+    "source": "erin/stick.excalidrawlib",
+    "preview": "erin/stick.png",
+    "created": "2024-04-04",
+    "updated": "2024-04-04",
+    "version": 1,
+    "id": "eeeeeeeeeee",
+    "itemNames": ["Stick figure", "Crowd"]
+  }
+]

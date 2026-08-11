@@ -19,7 +19,7 @@
  * a row — so frame numbers match the review order, not element-array accidents.
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { basename, join, dirname, extname } from "node:path";
+import { basename, join, dirname, extname, resolve } from "node:path";
 import { withExcalidraw } from "./browser.js";
 import { RENDER_BOOL_FLAGS, RENDER_VALUE_FLAGS } from "./cli-flags.js";
 import { NamedError, UsageError, DocumentError } from "./errors.js";
@@ -107,7 +107,13 @@ try {
   const input = opts._[0];
   if (!input) throw new UsageError("no input file given", { where: "input", next: USAGE });
 
-  const outDir = opts.out ?? dirname(input);
+  // Resolved once, so every path a success line reports is absolute: a relative
+  // --out (and the default, the input file's directory) resolves against the
+  // process cwd, so a run from a scratchpad writes there — and echoing the path
+  // as given made the two runs report the same line. The refusal below still
+  // names the directory as given.
+  const outGiven = opts.out ?? dirname(input);
+  const outDir = resolve(outGiven);
   const scale = numeric("scale", opts.scale, { min: 0.1 }) ?? 2;
   const padding = numeric("padding", opts.padding, { min: 0 });
   const frameNo = numeric("frame", opts.frame, { min: 1, integer: true });
@@ -156,7 +162,7 @@ try {
     mkdirSync(outDir, { recursive: true });
   } catch (err) {
     throw new UsageError(`cannot create output directory — ${err.message}`, {
-      where: outDir, next: "Point --out at a writable directory path.",
+      where: outGiven, next: "Point --out at a writable directory path.",
     });
   }
 

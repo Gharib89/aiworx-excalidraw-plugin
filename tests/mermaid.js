@@ -134,6 +134,13 @@ await withAuthoring(async (author) => {
       .map((e) => e.text).sort();
     check("edge labels land on the arrows", arrowLabels.join(",") === "claimed,parked",
       arrowLabels.join(","));
+    // a diamond or ellipse holds its label in the box inscribed in it, so a node
+    // sized like a rectangle wraps "wontfix" to "wontfi" + "x"
+    const nodeLabels = doc.elements
+      .filter((e) => e.type === "text" && ["A", "B", "C", "D", "E"].includes(e.containerId))
+      .map((e) => e.text).sort();
+    check("labels are not re-wrapped inside the shape that holds them",
+      nodeLabels.join("|") === "merged|ready?|triage|wontfix|working", nodeLabels.join("|"));
     check("the layout engine placed the nodes apart",
       new Set(elements.filter((e) => e.type !== "text" && e.type !== "arrow").map((e) => e.y)).size > 1);
     check("the decision restyle survived the round trip",

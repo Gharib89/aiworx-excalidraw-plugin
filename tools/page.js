@@ -308,6 +308,15 @@ const MERMAID_SHAPE = {
 };
 
 /**
+ * How much wider than its text a shape must be for the text to fit *inside* it.
+ * A label sits in the box inscribed in its container, which for a rhombus is
+ * half the width and for an ellipse is 1/√2 of it — so a diamond sized like a
+ * rectangle wraps its label to a sliver, mid-word. Sizing up front is what keeps
+ * "wontfix" one word.
+ */
+const INSCRIBED = { diamond: 2, ellipse: Math.SQRT2 };
+
+/**
  * Mermaid flowchart source, parsed into nodes and edges the house can build
  * from. Mermaid's own positions, colours and text metrics are dropped: this
  * returns the graph, and `graph()` lays it out over house-measured shapes.
@@ -354,15 +363,18 @@ async function mermaidGraph({ source, fontSize, fontFamily, padding }) {
   const shapes = vertices.map((v) => MERMAID_SHAPE[v.type] ?? "rectangle");
   // one conversion, only to read back the sizes the converter settles on
   const sized = convertToExcalidrawElements(
-    vertices.map((v, i) => ({
-      type: shapes[i],
-      id: `m${i}`,
-      x: 0,
-      y: 0,
-      width: Math.ceil(measured[i].width) + 2 * padding,
-      height: Math.ceil(measured[i].height) + 2 * padding,
-      label: { text: texts[i], fontSize, fontFamily },
-    })),
+    vertices.map((v, i) => {
+      const room = INSCRIBED[shapes[i]] ?? 1;
+      return {
+        type: shapes[i],
+        id: `m${i}`,
+        x: 0,
+        y: 0,
+        width: Math.ceil((measured[i].width + 2 * padding) * room),
+        height: Math.ceil((measured[i].height + 2 * padding) * room),
+        label: { text: texts[i], fontSize, fontFamily },
+      };
+    }),
   ).filter((e) => e.type !== "text");
 
   return {

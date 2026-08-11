@@ -511,6 +511,13 @@ return [g, ...arrows];
   using `subgraph` blocks (`graph` is flat-only — flatten the source, or draw one
   panel per subgraph), unparseable mermaid (the message carries the parser's own
   line), and a flowchart with no nodes.
+- **A loop in the source is the edge to watch.** An edge back to an earlier node
+  skips layers once the engine has ranked the graph, so it passes the nodes in
+  between and the gate refuses it with `arrow-crossing` — the same failure, and
+  the same `via` escape, as any hand-written graph edge ([Laying out a
+  graph](#laying-out-a-graph)). Edges are plain arrays, so amend the one edge:
+  `const e = edges.find(([s, t]) => s.id === "F" && t.id === "C");`
+  `e[2] = { ...e[2], via: [...] };` — spread what is there, so the label survives.
 - The parse runs in the browser session, so `fromMermaid` is `async` and belongs
   inside `build` like `measure`.
 

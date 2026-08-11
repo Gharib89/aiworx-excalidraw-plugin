@@ -8,6 +8,7 @@
 | many inputs become one | funnel — arrows converging, narrowing to the result |
 | a fixed order of steps | timeline — a line with dots, labels beside each dot |
 | a hierarchy | tree — trunk and branch lines, free text at the nodes |
+| states and the transitions between them, or what depends on what | graph — nodes in layers the edges decide, laid out by `graph` instead of by hand |
 | a loop that repeats until done | cycle — the last arrow returning to the first element |
 | two things that differ | side by side, same size, one visual difference carrying the point |
 | a threshold or cutoff | a scale with the cutoff drawn on it and items placed either side |

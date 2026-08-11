@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { expectedFingerprint, stampedFingerprint } from "./fingerprint.js";
-import { NamedError } from "./errors.js";
+import { NamedError, MissingDependencyError } from "./errors.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BUNDLE = join(root, "dist/excalidraw-page.js");
@@ -26,8 +26,12 @@ export class BundleLoadError extends NamedError {}
 export class PageError extends NamedError {}
 /** Nothing in the search order produced a running browser. */
 export class ChromeLaunchError extends NamedError {}
-/** A runtime dependency is not installed — the checkout was never `npm install`ed. */
-export class MissingDependencyError extends NamedError {}
+/**
+ * A runtime dependency is not installed — the checkout was never `npm install`ed.
+ * Defined in errors.js because tools/layout.js raises it for the graph engine
+ * too, and must not import this module to do so.
+ */
+export { MissingDependencyError };
 
 /**
  * playwright-core is loaded on first use, not at import time. A static import

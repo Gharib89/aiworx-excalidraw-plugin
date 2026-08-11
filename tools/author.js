@@ -8,7 +8,7 @@
  *
  *   await authorDiagram({
  *     out: "docs/diagrams/thing.excalidraw",
- *     build: async ({ measure, wrap, palette, PROSE, CODE, stack, row, column, box, arrowBetween, fanOut, flatten }) =>
+ *     build: async ({ measure, wrap, palette, PROSE, CODE, stack, row, column, box, arrowBetween, fanOut, graph, flatten }) =>
  *       [ ...skeleton or layout groups ],
  *   });
  *
@@ -26,7 +26,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN } from "./verify.js";
-import { stack, row, column, box, arrowBetween, fanOut, flatten, resolveArrows } from "./layout.js";
+import { stack, row, column, box, arrowBetween, fanOut, graph, flatten, resolveArrows } from "./layout.js";
 import { NamedError, DocumentError } from "./errors.js";
 
 /** The input file is not a parseable Excalidraw document. Defined in errors.js. */
@@ -670,6 +670,7 @@ const buildContext = (ex, files) => ({
   box,
   arrowBetween,
   fanOut,
+  graph,
   flatten,
   image: makeImage(ex, files),
   spliceLibraryItem,

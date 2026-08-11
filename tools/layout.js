@@ -16,7 +16,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NamedError } from "./errors.js";
+import { NamedError, MissingDependencyError } from "./errors.js";
 import { bounds } from "./geometry.js";
 
 const palette = JSON.parse(
@@ -515,14 +515,28 @@ export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
 }
 
 /**
- * ELK's engine, built on first use. Constructing one costs ~100ms — a toll every
- * `check`/`render` run would otherwise pay to import a module it never lays a
- * graph out with.
+ * ELK's engine, built on first use. Constructing one costs ~100ms, and the
+ * import is deferred for the same reason browser.js defers playwright-core: a
+ * static one would make every `check` run load a graph engine it never uses, and
+ * would fail an uninstalled checkout with the loader's bare ERR_MODULE_NOT_FOUND
+ * instead of the one command that fixes it.
  */
 let engine;
 async function elkEngine() {
   if (!engine) {
-    const { default: ELK } = await import("elkjs");
+    let ELK;
+    try {
+      ({ default: ELK } = await import("elkjs"));
+    } catch (err) {
+      // the package itself, not something missing inside it — a broken install
+      // is a different fault and `npm install --omit=dev` is not its remedy
+      if (err?.code === "ERR_MODULE_NOT_FOUND" && err.message.includes("Cannot find package 'elkjs'")) {
+        throw new MissingDependencyError("is not installed — graph() needs the layout engine", {
+          where: "elkjs", next: "Run: npm install --omit=dev",
+        });
+      }
+      throw err;
+    }
     engine = new ELK();
   }
   return engine;

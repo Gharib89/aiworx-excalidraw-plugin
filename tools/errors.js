@@ -49,3 +49,12 @@ export class UsageError extends NamedError {}
  * Re-exported from tools/author.js, which is where the API documents it.
  */
 export class DocumentError extends NamedError {}
+
+/**
+ * A runtime dependency the checkout never installed. It lives here rather than
+ * beside either raiser because both the browser driver (playwright-core) and the
+ * graph engine (elkjs) reach it, and layout.js must not import the browser
+ * driver for one class. Re-exported from tools/browser.js, which is where the
+ * install story is documented.
+ */
+export class MissingDependencyError extends NamedError {}

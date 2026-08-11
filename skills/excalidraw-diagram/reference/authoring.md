@@ -19,6 +19,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
+| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge | [Laying out a graph](#laying-out-a-graph) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
 | `spliceLibraryItem` | `spliceLibraryItem(path, { item, at })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |
@@ -400,6 +401,70 @@ any text it does not label, unless the arrow is bound to the text's container
 drawing is legal (labels sit on shapes all the time) and only the render shows
 it. So wrap to the distance to the *next drawn thing* — a mock, an icon, a
 swatch — not to the card's inner width, and confirm it in the frame render.
+
+## Laying out a graph
+
+A **graph** is nodes and the edges between them — a state machine, a dependency
+map — where the edges, not the author, should decide who sits where. `graph`
+hands the nodes to ELK's `layered` engine, which sorts them into layers and
+orders each layer to keep the edges short, and gives back the same two things
+every other helper does: a group that places like any element, and deferred
+arrows.
+
+```js
+const nodes = labels.map((text, i) => box(
+  { type: "text", text, fontSize: 18, fontFamily: PROSE, ...measured[i] },
+  { id: `s${i}`, padding: 16, strokeColor: p.roles.local.stroke,
+    backgroundColor: p.roles.local.fill },
+));
+const [triage, ready, working, human, wontfix] = nodes;
+
+const { g, arrows } = await graph(nodes, [
+  [triage, ready, { label: "triaged" }],   // per-edge options ride to arrowBetween
+  [triage, wontfix],
+  [ready, working, { label: "claimed" }],
+  [working, human, { label: "PR open" }],
+], { direction: "down", gap: 48, layerGap: 70, strokeColor: p.grey.stroke });
+
+return [g, ...arrows];                     // g places like any group; spread the arrows
+```
+
+- Nodes arrive **already measured** — `graph` sizes nothing. Build each one the
+  way you build any shape (a `box` around measured text is the usual node), and
+  the engine reads the widths and heights you settled.
+- Edges are `[source, target]` or `[source, target, arrowOpts]`, and they name
+  the node **objects**, not ids. Options in the third slot merge over the shared
+  arrow options in the call, so one call styles every arrow and a single edge
+  overrides what it needs.
+- `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
+  left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
+  layers themselves. These four are the whole option surface: the algorithm is
+  always `layered`, and raw ELK options do not pass through.
+- `g` obeys the **last mover** like any group, so compose it into a band and the
+  nodes move with it; the arrows are deferred, so they still resolve against the
+  final positions. Node positions come back on whole pixels, which is what makes
+  a regenerated artifact byte-identical.
+- **The house draws the edges, not the engine.** ELK's own routing is discarded
+  and every edge becomes a bound `arrowBetween`, which is why labels, standoff,
+  arrowheads and gate checking work exactly as they do for a hand-written arrow.
+  The trade is that an arrow takes the direct path even where the engine would
+  have routed around something, and two shapes give the two failures worth
+  knowing:
+  - an edge **skipping** layers passes the nodes in between, so the gate refuses
+    it with `arrow-crossing`. Write that one edge's path with `via`.
+  - a **two-way pair** puts both arrows on the same line, so one strikes the
+    other's label (`text-struck-by-arrow`). Give the return leg its own
+    `originAt` / `landAt`, or label only one direction.
+
+  Both are the gate doing its job — run the build, read the code it names, and
+  fix that edge rather than the layout.
+- Refusals are `LayoutError` from the call: an empty `nodes` array, an edge whose
+  source or target is not in `nodes`, an edge missing an endpoint, a `direction`
+  other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap`,
+  and a node with no measured size. `graph` is `async`, so its refusal reaches
+  your `await`.
+- Flat graphs only — nested (compound) children are out of scope, as are the
+  engine's other algorithms.
 
 ## Real assets: images and library items
 

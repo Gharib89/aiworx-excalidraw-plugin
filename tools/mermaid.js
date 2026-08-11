@@ -26,11 +26,33 @@ const FONT_SIZE = 20;
 const FONT_FAMILY = palette.fontFamily.prose;
 const PADDING = 20;
 
+/**
+ * The house shape for each mermaid vertex kind. Coarse on purpose: the house
+ * vocabulary is step / decision / start-end, so a decision becomes a diamond, a
+ * round-ended vertex becomes an ellipse, and everything else is a step.
+ */
+const SHAPES = {
+  diamond: "diamond",
+  circle: "ellipse",
+  doublecircle: "ellipse",
+  stadium: "ellipse",
+  default: "rectangle",
+};
+
+/**
+ * How much wider than its text a shape must be for the text to fit *inside* it.
+ * A label sits in the box inscribed in its container, which for a rhombus is
+ * half the width and for an ellipse is 1/√2 of it — so a diamond sized like a
+ * rectangle wraps its label to a sliver, mid-word. Sizing up front is what keeps
+ * "wontfix" one word.
+ */
+const ROOM = { diamond: 2, ellipse: Math.SQRT2 };
+
 /** The named diagram kinds the converter's parser can return besides a flowchart. */
 const KIND_NAMES = {
   sequence: "a sequence diagram",
   class: "a class diagram",
-  er: "an entity-relationship diagram",
+  erd: "an entity-relationship diagram",
   state: "a state diagram",
   // the parser's fallback for everything it cannot read as a graph — a picture
   // of the diagram, which says nothing about what the source actually was
@@ -73,6 +95,7 @@ export const makeFromMermaid = (ex) => async (source) => {
   }
   const parsed = await ex.mermaidGraph({
     source, fontSize: FONT_SIZE, fontFamily: FONT_FAMILY, padding: PADDING,
+    shapes: SHAPES, room: ROOM,
   });
   if (!parsed.ok) {
     const { what, fix } = refusals[parsed.reason](parsed.detail);
@@ -95,10 +118,18 @@ export const makeFromMermaid = (ex) => async (source) => {
     label: { text: node.text, fontSize: FONT_SIZE, fontFamily: FONT_FAMILY, strokeColor: palette.ink },
   }));
   const byId = new Map(nodes.map((node) => [node.id, node]));
-  const edges = parsed.edges.map((edge) => [
-    byId.get(edge.source),
-    byId.get(edge.target),
-    ...(edge.label ? [{ label: edge.label }] : []),
-  ]);
+  const edges = parsed.edges.map((edge) => {
+    // an endpoint the parse never gave a vertex for would reach graph() as
+    // undefined and be refused there, naming graph rather than the source
+    for (const end of [edge.source, edge.target]) {
+      if (byId.has(end)) continue;
+      throw new MermaidError(
+        `the mermaid source links ${edge.source} to ${edge.target}, and declares no node "${end}"`, {
+        where: "fromMermaid", next: `Declare "${end}" in the source, or drop the edge naming it.`,
+      });
+    }
+    return [byId.get(edge.source), byId.get(edge.target),
+      ...(edge.label ? [{ label: edge.label }] : [])];
+  });
   return { nodes, edges };
 };

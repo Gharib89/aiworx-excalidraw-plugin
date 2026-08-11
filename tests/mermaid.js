@@ -109,13 +109,15 @@ await withAuthoring(async (author) => {
   // ---- 4. the whole path: mermaid in, gated document out ----
   {
     const out = join(outDir, "flow.excalidraw");
+    let decisionStroke;
     const { elements } = await author({
       out, svg: false,
       build: async ({ fromMermaid, graph, palette }) => {
+        decisionStroke = palette.roles.decision.stroke;
         const { nodes, edges } = await fromMermaid(FLOW);
         for (const node of nodes) {
           if (node.type !== "diamond") continue;
-          node.strokeColor = palette.roles.decision.stroke;
+          node.strokeColor = decisionStroke;
           node.backgroundColor = palette.roles.decision.fill;
         }
         const { g, arrows } = await graph(nodes, edges, { direction: "down", gap: 60, layerGap: 80 });
@@ -144,7 +146,7 @@ await withAuthoring(async (author) => {
     check("the layout engine placed the nodes apart",
       new Set(elements.filter((e) => e.type !== "text" && e.type !== "arrow").map((e) => e.y)).size > 1);
     check("the decision restyle survived the round trip",
-      doc.elements.find((e) => e.type === "diamond")?.strokeColor === "#A17E00");
+      doc.elements.find((e) => e.type === "diamond")?.strokeColor === decisionStroke);
   }
 
   // ---- 5. refusals ----

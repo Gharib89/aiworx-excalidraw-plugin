@@ -22,7 +22,7 @@ A **new suite must be wired into `test:fast` or `test:browser`** — `tests/test
 
 ## Bundle discipline
 
-Touching a **bundle input** — `tools/page.js`, `tools/bundle.js`, `tools/fonts.js`, or a lockfile-resolved version of `@excalidraw/excalidraw` / `react` / `react-dom` / `esbuild` (that's exactly what `tools/fingerprint.js` hashes) — requires `npm run bundle` and committing the rebuilt `dist/` **in the same change**; otherwise the stamped fingerprint mismatches and every browser call refuses to run. `dist/` ships three things — the bundle, `dist/index.html` (the loader page Chrome navigates to, which also points Excalidraw at the local fonts), and `dist/fonts/` (the woff2 files `tools/fonts.js` names, vendored so measuring and rendering reach no CDN) — and `.gitignore` un-ignores them **by name**, so any new `dist/` path needs its own un-ignore line or it is silently left uncommitted.
+Touching a **bundle input** — `tools/page.js`, `tools/bundle.js`, `tools/fonts.js`, or a lockfile-resolved version of `@excalidraw/excalidraw` / `@excalidraw/mermaid-to-excalidraw` / `react` / `react-dom` / `esbuild` (that's exactly what `tools/fingerprint.js` hashes) — requires `npm run bundle` and committing the rebuilt `dist/` **in the same change**; otherwise the stamped fingerprint mismatches and every browser call refuses to run. `dist/` ships three things — the bundle, `dist/index.html` (the loader page Chrome navigates to, which also points Excalidraw at the local fonts), and `dist/fonts/` (the woff2 files `tools/fonts.js` names, vendored so measuring and rendering reach no CDN) — and `.gitignore` un-ignores them **by name**, so any new `dist/` path needs its own un-ignore line or it is silently left uncommitted.
 
 ## Branch & worktree discipline
 

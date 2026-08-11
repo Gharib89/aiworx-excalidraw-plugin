@@ -296,27 +296,6 @@ async function exportSvg({ elements, appState, files, exportingFrame, exportPadd
 }
 
 /**
- * The house shape for each mermaid vertex kind. Coarse on purpose: the house
- * vocabulary is step / decision / start-end, so a decision becomes a diamond, a
- * round-ended vertex becomes an ellipse, and everything else is a step.
- */
-const MERMAID_SHAPE = {
-  diamond: "diamond",
-  circle: "ellipse",
-  doublecircle: "ellipse",
-  stadium: "ellipse",
-};
-
-/**
- * How much wider than its text a shape must be for the text to fit *inside* it.
- * A label sits in the box inscribed in its container, which for a rhombus is
- * half the width and for an ellipse is 1/√2 of it — so a diamond sized like a
- * rectangle wraps its label to a sliver, mid-word. Sizing up front is what keeps
- * "wontfix" one word.
- */
-const INSCRIBED = { diamond: 2, ellipse: Math.SQRT2 };
-
-/**
  * Mermaid flowchart source, parsed into nodes and edges the house can build
  * from. Mermaid's own positions, colours and text metrics are dropped: this
  * returns the graph, and `graph()` lays it out over house-measured shapes.
@@ -330,8 +309,14 @@ const INSCRIBED = { diamond: 2, ellipse: Math.SQRT2 };
  * A refusal comes back as `{ ok: false, reason, detail }` rather than a throw:
  * the Node side owns the house message, and a page-side throw would arrive as a
  * PageError naming the bridge instead of the source.
+ *
+ * The house vocabulary arrives as arguments — `shapes` mapping mermaid's vertex
+ * kinds onto house shapes (plus a `default`), `room` how much wider than its
+ * text each shape must be for the label to fit inside it. This file is a bundle
+ * input, so a table living here would cost a rebundle to edit; tools/mermaid.js
+ * owns both.
  */
-async function mermaidGraph({ source, fontSize, fontFamily, padding }) {
+async function mermaidGraph({ source, fontSize, fontFamily, padding, shapes: vocabulary, room }) {
   // Read off the source, not off the parse tree: with mermaid 11 the converter's
   // flowchart parser throws on any subgraph and falls back to a picture of the
   // diagram, so by the time it returns, the grouping is gone and the source
@@ -360,18 +345,18 @@ async function mermaidGraph({ source, fontSize, fontFamily, padding }) {
   const lines = (text) => String(text ?? "").replace(/<br\s*\/?>/gi, "\n");
   const texts = vertices.map((v) => lines(v.text));
   const measured = await measureText(texts.map((text) => ({ text, fontSize, fontFamily })));
-  const shapes = vertices.map((v) => MERMAID_SHAPE[v.type] ?? "rectangle");
+  const shapes = vertices.map((v) => vocabulary[v.type] ?? vocabulary.default);
   // one conversion, only to read back the sizes the converter settles on
   const sized = convertToExcalidrawElements(
     vertices.map((v, i) => {
-      const room = INSCRIBED[shapes[i]] ?? 1;
+      const fit = room[shapes[i]] ?? 1;
       return {
         type: shapes[i],
         id: `m${i}`,
         x: 0,
         y: 0,
-        width: Math.ceil((measured[i].width + 2 * padding) * room),
-        height: Math.ceil((measured[i].height + 2 * padding) * room),
+        width: Math.ceil((measured[i].width + 2 * padding) * fit),
+        height: Math.ceil((measured[i].height + 2 * padding) * fit),
         label: { text: texts[i], fontSize, fontFamily },
       };
     }),

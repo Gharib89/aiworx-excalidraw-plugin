@@ -101,10 +101,12 @@ what the splice reads.
 The index is cached for a week under `$XDG_CACHE_HOME/aiworx-excalidraw/libraries/`
 (`EXCALIDRAW_LIBRARY_CACHE` overrides the location outright), and so is every
 library downloaded, so authoring stays offline after the first fetch — the same
-no-CDN discipline the vendored fonts follow. `--refresh` re-fetches; `--stale`
-accepts a cache older than a week when the network cannot refresh it, which
-otherwise refuses rather than serving month-old data in silence. A search that
-matches nothing is an answer, not a failure, and exits 0.
+no-CDN discipline the vendored fonts follow. `--refresh` re-fetches in either
+mode. `--stale` belongs to a search alone — it accepts an index older than a week
+when the network cannot refresh it, which otherwise refuses rather than serving
+month-old data in silence; passing it with `--download`, which reads no index, is
+refused rather than ignored. A search that matches nothing is an answer, not a
+failure, and exits 0.
 
 Note that real community libraries label their items in Excalidraw's own faces,
 which are outside the house pair, so a diagram that splices one is refused by the

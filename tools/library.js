@@ -6,7 +6,7 @@
  *
  * Usage:
  *   node tools/library.js [--json] [--refresh] [--stale] [--] <query>
- *   node tools/library.js --download <author/name.excalidrawlib> [--json] [--refresh] [--stale]
+ *   node tools/library.js --download <author/name.excalidrawlib> [--json] [--refresh]
  *
  * A search matches the query, case-insensitively, against a library's name, its
  * item names and its description — the index carries no tags — and prints the
@@ -30,10 +30,10 @@ import { UsageError, NamedError } from "./errors.js";
 import { loadIndex, searchIndex, downloadLibrary } from "./library-index.js";
 
 const USAGE = "usage: library.js [--json] [--refresh] [--stale] [--] <query>\n" +
-  "       library.js --download <author/name.excalidrawlib> [--json] [--refresh] [--stale]";
+  "       library.js --download <author/name.excalidrawlib> [--json] [--refresh]";
 
-/** One hit, human form: the handle first, because that is what the next call takes. */
-function line(hit) {
+/** One hit's block, handle first, because that is what the next call takes. */
+function hitBlock(hit) {
   const count = hit.itemCount === null ? "item count unknown" : `${hit.itemCount} items`;
   const by = hit.authors.length ? ` by ${hit.authors.join(", ")}` : "";
   return `  ${hit.source}\n    ${hit.name} — ${count}${by}, updated ${hit.updated ?? "unknown"}\n` +
@@ -80,6 +80,14 @@ try {
   if (download === null && words.length === 0) {
     throw new UsageError("no search query given", { where: "query", next: USAGE });
   }
+  // A download reads no index, so --stale has nothing to accept. Refused rather
+  // than ignored: a flag that silently does nothing is the failure this CLI's
+  // argument handling exists to prevent.
+  if (download !== null && stale) {
+    throw new UsageError("--stale applies to a search, not a download", {
+      where: "--stale", next: "Drop --stale; --refresh is what forces a download again",
+    });
+  }
 
   if (download !== null) {
     const path = await downloadLibrary(download, { refresh });
@@ -95,8 +103,8 @@ try {
       console.log(`no library matches ${JSON.stringify(query)} — ${entries.length} libraries searched (index from ${from})`);
     } else {
       console.log(`${matches.length} of ${entries.length} libraries match ${JSON.stringify(query)} (index from ${from}):`);
-      matches.forEach((hit) => process.stdout.write(line(hit)));
-      console.log(`Next: node tools/library.js --download ${matches[0].source}`);
+      matches.forEach((hit) => process.stdout.write(hitBlock(hit)));
+      console.log(`Pass a source above to --download to fetch it.`);
     }
   }
 } catch (err) {

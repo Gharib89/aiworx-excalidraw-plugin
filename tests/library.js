@@ -94,6 +94,13 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
   const noId = searchIndex(INDEX, "kubernetes")[0];
   check("an entry without an id still has a source handle",
     noId?.id === null && noId?.source === "carol/k8s.excalidrawlib", JSON.stringify(noId));
+
+  // The CLI prints hits straight into `--json`, so a hit's fields *are* the
+  // published contract — the rank that orders them must not ride along.
+  const FIELDS = ["source", "name", "description", "itemCount", "authors", "updated", "version", "id"];
+  check("a hit publishes exactly the documented fields",
+    JSON.stringify(Object.keys(hit).sort()) === JSON.stringify([...FIELDS].sort()),
+    Object.keys(hit).join(", "));
 }
 
 // ---- 3. the cache location is the documented one ----
@@ -271,6 +278,18 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
   const both = cli("--download", "erin/stick.excalidrawlib", "aws");
   check("a query alongside --download exits 2 rather than ignoring half of it",
     both.code === 2 && /not a search query/.test(both.err), `${both.code} ${both.err.trim()}`);
+  // A download reads no index, so --stale would do nothing. Refused rather than
+  // ignored — silently dropping a flag is what this CLI's parsing exists to stop.
+  const staleDownload = cli("--download", "erin/stick.excalidrawlib", "--stale");
+  check("--stale alongside --download is refused rather than ignored",
+    staleDownload.code === 2 && /--stale applies to a search/.test(staleDownload.err),
+    `${staleDownload.code} ${staleDownload.err.trim()}`);
+
+  // No runtime output may name a repo-relative script path: the skill ships to
+  // plugin users with no checkout, for whom `node tools/…` does not resolve.
+  check("the search output points at no repo-relative command",
+    !/node\s+tools\//.test(search.out), search.out);
+
   const dashed = cli("--", "-aws");
   check("-- makes the next argument query text", dashed.code === 0 && /no library matches "-aws"/.test(dashed.out),
     `${dashed.code} ${dashed.out.trim()}`);

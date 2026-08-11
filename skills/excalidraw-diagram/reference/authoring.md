@@ -565,8 +565,8 @@ deleted elements).
 splice above stays the only way an item enters a diagram. Two calls, in order:
 
 ```bash
-node tools/library.js aws --json    # search: name, item names, description
-node tools/library.js --download childishgirl/aws-architecture-icons.excalidrawlib
+node "${CLAUDE_PLUGIN_ROOT}/tools/library.js" aws --json   # search: name, item names, description
+node "${CLAUDE_PLUGIN_ROOT}/tools/library.js" --download childishgirl/aws-architecture-icons.excalidrawlib
 ```
 
 The search matches case-insensitively and ranks a name match above an item-name
@@ -578,10 +578,10 @@ of the cached `.excalidrawlib` — hand that path straight to
 
 Both the index and every download are cached for a week under
 `$XDG_CACHE_HOME/aiworx-excalidraw/libraries/`, so a second search needs no
-network. `--refresh` re-fetches. `--stale` accepts a week-old cache when the
-network cannot refresh it, which otherwise refuses rather than searching
-month-old data in silence. A query matching nothing exits 0 — an answer, not a
-failure.
+network. `--refresh` re-fetches, in either mode. `--stale` belongs to a search
+alone — it accepts a week-old index when the network cannot refresh it, which
+otherwise refuses rather than searching month-old data in silence. A query
+matching nothing exits 0 — an answer, not a failure.
 
 **Retype or drop a spliced item's own text.** Real community items label
 themselves in Excalidraw's own faces, outside the house pair, so the gate refuses

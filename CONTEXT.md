@@ -120,14 +120,15 @@ Inserting a library item into a diagram with freshly regenerated ids so repeated
 _Avoid_: import, paste
 
 **Library index**:
-The catalogue of community `.excalidrawlib` files published behind
+The published list of community `.excalidrawlib` files behind
 libraries.excalidraw.com — one JSON array, one entry per library. `source`
 (`<author>/<name>.excalidrawlib`) is the handle: it is the only field every entry
 carries and it is the path the file downloads from, so `id` and `itemNames`, which
 many entries omit, are reported but never required. The index states no tags,
 which is why a search reads the name, the item names and the description.
 `tools/library.js` searches it and downloads one file; the splice stays the only
-insertion path. _Avoid_: registry, catalogue, repository
+insertion path.
+_Avoid_: registry, catalogue, repository
 
 **Library cache**:
 Where a fetched index and every downloaded library live on disk —

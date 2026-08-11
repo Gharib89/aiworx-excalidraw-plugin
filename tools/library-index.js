@@ -34,7 +34,6 @@ export const LIBRARY_URL_BASE = "https://libraries.excalidraw.com/libraries/";
  */
 export const INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-
 /**
  * The index, a downloadable library, or the cache behind them is unusable. A
  * distinct class from author.js's LibraryError, which is about the *contents* of
@@ -121,12 +120,12 @@ export async function loadIndex({
       if (stale) return { entries: cached.entries, from: "cache", fetchedAt: cached.fetchedAt };
       const age = Math.round((now - cached.fetchedAt) / 86_400_000);
       throw new LibraryIndexError(`the cached index is ${age} days old and it cannot be refreshed — ${err.message}`, {
-        where: INDEX_URL,
+        where: "the library index",
         next: "Reconnect, or pass --stale to search the cached index anyway",
       });
     }
     throw new LibraryIndexError(`the index was never cached and cannot be fetched — ${err.message}`, {
-      where: INDEX_URL, next: "Connect to the network once; every later search reads the cache",
+      where: "the library index", next: "Connect to the network once; every later search reads the cache",
     });
   }
 
@@ -135,12 +134,12 @@ export async function loadIndex({
     entries = JSON.parse(text);
   } catch (err) {
     throw new LibraryIndexError(`the index is not valid JSON — ${err.message}`, {
-      where: INDEX_URL, next: "Retry; if it persists the published index is broken, so report it upstream",
+      where: "the library index", next: "Retry; if it persists the published index is broken, so report it upstream",
     });
   }
   if (!Array.isArray(entries)) {
     throw new LibraryIndexError(`the index is not an array of libraries (got ${typeof entries})`, {
-      where: INDEX_URL, next: "Retry; if it persists the published index changed shape, so report it upstream",
+      where: "the library index", next: "Retry; if it persists the published index changed shape, so report it upstream",
     });
   }
   writeCachedIndex(cacheDir, entries, now);
@@ -227,7 +226,7 @@ export function searchIndex(entries, query) {
   const needle = String(query ?? "").trim().toLowerCase();
   if (needle === "") {
     throw new LibraryIndexError("empty search query", {
-      where: "query", next: "Name what to search for, e.g. library.js aws",
+      where: "query", next: "Name what to search for — a vendor, a product, or an icon name",
     });
   }
   const has = (text) => typeof text === "string" && text.toLowerCase().includes(needle);
@@ -239,16 +238,22 @@ export function searchIndex(entries, query) {
           : has(e.description) ? DESCRIPTION_RANK : 0;
       return {
         rank,
-        source: e.source,
-        name: e.name ?? null,
-        description: e.description ?? null,
-        itemCount: itemNames ? itemNames.length : null,
-        authors: Array.isArray(e.authors) ? e.authors.map((a) => a?.name).filter(Boolean) : [],
-        updated: e.updated ?? null,
-        version: e.version ?? null,
-        id: e.id ?? null,
+        hit: {
+          source: e.source,
+          name: e.name ?? null,
+          description: e.description ?? null,
+          itemCount: itemNames ? itemNames.length : null,
+          authors: Array.isArray(e.authors) ? e.authors.map((a) => a?.name).filter(Boolean) : [],
+          updated: e.updated ?? null,
+          version: e.version ?? null,
+          id: e.id ?? null,
+        },
       };
     })
-    .filter((h) => h.rank > 0)
-    .sort((a, b) => b.rank - a.rank || String(a.name).localeCompare(String(b.name)));
+    .filter((r) => r.rank > 0)
+    .sort((a, b) => b.rank - a.rank || String(a.hit.name).localeCompare(String(b.hit.name)))
+    // The rank orders the results and then stops existing: the CLI prints hits
+    // straight into `--json`, so a field kept here would become public surface
+    // this module never documented.
+    .map((r) => r.hit);
 }

@@ -20,6 +20,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
 | `graph` | `await graph(nodes, edges, { direction, gap, layerGap, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge | [Laying out a graph](#laying-out-a-graph) |
+| `fromMermaid` | `await fromMermaid(source)` | `{ nodes, edges }` built from a mermaid flowchart, in the shape `graph` takes | [Ingesting mermaid](#ingesting-mermaid) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
 | `spliceLibraryItem` | `spliceLibraryItem(path, { item, at })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |
@@ -465,6 +466,60 @@ return [g, ...arrows];                     // g places like any group; spread th
   your `await`.
 - Flat graphs only — nested (compound) children are out of scope, as are the
   engine's other algorithms.
+
+## Ingesting mermaid
+
+A mermaid flowchart is a graph someone already wrote down. `fromMermaid` reads
+it with the official converter's parser and gives back exactly what `graph`
+takes — house-built nodes and `[source, target, { label }]` edges — so the
+mermaid is a **skeleton front-end** and everything downstream is the normal
+pipeline.
+
+```js
+const { nodes, edges } = await fromMermaid(`
+  flowchart TD
+    A[needs triage] --> B{ready?}
+    B -- claimed --> C((working))
+    B -- parked --> D([wontfix])
+`);
+for (const node of nodes) {                      // restyle by role, then lay out
+  if (node.type !== "diamond") continue;
+  node.strokeColor = p.roles.decision.stroke;
+  node.backgroundColor = p.roles.decision.fill;
+}
+const { g, arrows } = await graph(nodes, edges, { direction: "down", gap: 48 });
+return [g, ...arrows];
+```
+
+- **The parse is kept; the layout is dropped.** The converter positions with
+  mermaid's own text metrics, which is the guessing this pipeline exists to
+  replace, so its coordinates, its arrow routes and its colours never reach the
+  document. `graph` places the nodes and the house draws the arrows.
+- **Nodes come back neutral and measured** — house grey, ink labels, sized for
+  the label they will hold, all at the origin. Restyling by palette role is the
+  step between the two calls; mermaid `classDef` colours are ignored rather than
+  guessed at.
+- **Node ids are the mermaid ids** (`A`, `B`, …), so an edge, a frame's
+  `children` list or a `register` entry can name a node the source named. They
+  share the document's id space — give hand-built elements in the same diagram
+  ids of their own.
+- **The shape vocabulary is coarse:** a mermaid decision becomes a `diamond`, a
+  circle or stadium becomes an `ellipse`, everything else becomes a `rectangle`.
+  A `<br/>` in a label becomes a line break.
+- **Flowcharts only.** Refusals are `MermaidError` from the call, each naming
+  what it refused: any other diagram type (sequence, class, state, ER), a source
+  using `subgraph` blocks (`graph` is flat-only — flatten the source, or draw one
+  panel per subgraph), unparseable mermaid (the message carries the parser's own
+  line), and a flowchart with no nodes.
+- **A loop in the source is the edge to watch.** An edge back to an earlier node
+  skips layers once the engine has ranked the graph, so it passes the nodes in
+  between and the gate refuses it with `arrow-crossing` — the same failure, and
+  the same `via` escape, as any hand-written graph edge ([Laying out a
+  graph](#laying-out-a-graph)). Edges are plain arrays, so amend the one edge:
+  `const e = edges.find(([s, t]) => s.id === "F" && t.id === "C");`
+  `e[2] = { ...e[2], via: [...] };` — spread what is there, so the label survives.
+- The parse runs in the browser session, so `fromMermaid` is `async` and belongs
+  inside `build` like `measure`.
 
 ## Real assets: images and library items
 

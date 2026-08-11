@@ -32,6 +32,7 @@ import {
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
 } from "../tools/browser.js";
 import { LayoutError, stack, column, box, arrowBetween } from "../tools/layout.js";
+import { MermaidError, makeFromMermaid } from "../tools/mermaid.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const toolsDir = join(root, "tools");
@@ -130,7 +131,7 @@ const CLASSES = [
   NamedError, UsageError, DocumentError,
   SkeletonError, GateError, WrapError, AssetError, LibraryError,
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
-  LayoutError,
+  LayoutError, MermaidError,
 ];
 
 for (const Cls of CLASSES) {
@@ -180,6 +181,9 @@ await thrown("stack with an unknown direction", () => stack([rect("a")], { direc
 await thrown("box with a non-numeric angle", () => box(rect("a"), { angle: "sideways" }), LayoutError);
 await thrown("arrowBetween an unbindable group",
   () => arrowBetween(column([rect("a")]), rect("b")), LayoutError);
+// fromMermaid refuses an empty source before it reaches the page, so this one
+// real refusal is checkable without a browser; the rest live in tests/mermaid.js.
+await thrown("fromMermaid with no source", () => makeFromMermaid(null)(""), MermaidError);
 await thrown("splice from a missing library", () => spliceLibraryItem(join(root, "no-such.excalidrawlib")), LibraryError);
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nevery error clears the bar");

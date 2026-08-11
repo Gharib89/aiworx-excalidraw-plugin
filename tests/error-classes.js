@@ -27,6 +27,7 @@ import {
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
 } from "../tools/browser.js";
 import { LayoutError } from "../tools/layout.js";
+import { MermaidError } from "../tools/mermaid.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const toolsDir = join(root, "tools");
@@ -47,7 +48,7 @@ const DERIVED = [
   UsageError,
   SkeletonError, GateError, WrapError, DocumentError, AssetError, LibraryError,
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
-  LayoutError,
+  LayoutError, MermaidError,
 ];
 
 for (const Cls of DERIVED) {

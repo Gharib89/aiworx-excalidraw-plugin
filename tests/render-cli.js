@@ -2,19 +2,24 @@
 /**
  * Contract suite for the render CLI (tools/render.js).
  *
- * Two halves:
+ * Four parts:
  *   1. argument validation — every invalid invocation exits 2 with a named
  *      UsageError, so a typo can never silently degrade output
  *   2. rendering knobs — dark mode, export padding, background override,
  *      single-frame-by-number, and reading-order PNG numbering, proven
  *      against real browser renders
+ *   3. --scale is applied exactly once — the SVG stays at natural size and the
+ *      raster alone carries the scale
+ *   4. every path a success line reports is absolute and names the file that
+ *      was written — a relative `--out` run from another cwd says where it
+ *      really landed
  *
  * Exits non-zero on any mismatch.
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, copyFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdtempSync, copyFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -222,6 +227,62 @@ if (d.status === 0 && e.status === 0) {
   const w2 = pngWidth(join(outD, "render-order-frame01.png"));
   check("--scale 2 PNG is 2× the --scale 1 PNG, not 4×",
     Math.abs(w2 - 2 * w1) <= 2, `scale1 ${w1}px, scale2 ${w2}px`);
+}
+
+// ---- 4. every reported path is absolute and names the file written ----
+//
+// A relative `--out` — and the default, which is the input file's directory —
+// resolves against the process cwd, so a run from a scratchpad drops its files
+// there while printing a line identical to the run from the repo root. All
+// three success lines (whole-canvas SVG, per-frame PNG, frameless PNG) must
+// name the resolved path. The scratch cwd is realpath'd: mkdtemp can hand back
+// a symlink (/var on macOS) and the child resolves against the real one.
+{
+  const cwd = realpathSync(mkdtempSync(join(tmpdir(), "render-cli-abs-")));
+  copyFileSync(orderFixture, join(cwd, "band.excalidraw"));
+  // no frames, so the frameless whole-canvas PNG line gets exercised too
+  writeFileSync(join(cwd, "plain.excalidraw"), JSON.stringify({
+    type: "excalidraw",
+    version: 2,
+    elements: [{ id: "only", type: "rectangle", x: 0, y: 0, width: 120, height: 80 }],
+    appState: { viewBackgroundColor: "#ffffff" },
+  }));
+
+  const at = (...args) =>
+    spawnSync(process.execPath, [renderJs, ...args], { encoding: "utf8", cwd });
+  // every success line is `<path>  <detail>`; the path is the leading field
+  const reported = (stdout) =>
+    stdout.trim().split("\n").filter(Boolean).map((l) => l.split("  ")[0]);
+
+  const rel = at("band.excalidraw", "--out", "rel-out", "--scale", "1");
+  check("relative --out render exits 0", rel.status === 0, rel.stderr.trim());
+  const relPaths = reported(rel.stdout);
+  check("relative --out reports the whole-canvas SVG and one line per frame",
+    relPaths.length === 4, relPaths.join(", "));
+  check("every relative --out path is absolute",
+    relPaths.length > 0 && relPaths.every((p) => isAbsolute(p)), relPaths.join(", "));
+  // absolute alone could still name somewhere else — the reported path must be
+  // the file this run wrote, under the cwd it ran from
+  check("every relative --out path names a file under the run's cwd",
+    relPaths.every((p) => p.startsWith(join(cwd, "rel-out") + sep) && existsSync(p)),
+    relPaths.join(", "));
+
+  const def = at("plain.excalidraw", "--scale", "1");
+  check("default --out render exits 0", def.status === 0, def.stderr.trim());
+  const defPaths = reported(def.stdout);
+  check("the default --out reports the absolute SVG and frameless PNG it wrote",
+    defPaths.length === 2 &&
+      defPaths[0] === join(cwd, "plain.svg") && defPaths[1] === join(cwd, "plain.png") &&
+      defPaths.every((p) => existsSync(p)),
+    `${defPaths.join(", ")} | ${def.stdout.trim()}`);
+
+  const absDir = realpathSync(mkdtempSync(join(tmpdir(), "render-cli-abs-out-")));
+  const abs = at("band.excalidraw", "--out", absDir, "--no-frames", "--scale", "1");
+  check("absolute --out render exits 0", abs.status === 0, abs.stderr.trim());
+  const absPaths = reported(abs.stdout);
+  check("an absolute --out reports the absolute path it wrote",
+    absPaths.length === 1 && absPaths[0] === join(absDir, "band.svg") && existsSync(absPaths[0]),
+    absPaths.join(", "));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nrender CLI behaves");

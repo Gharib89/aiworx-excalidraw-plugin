@@ -9,8 +9,12 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  column, row, stack, box, arrowBetween as deferArrow, fanOut, resolveArrows, flatten, LayoutError,
+  column, row, stack, box, arrowBetween as deferArrow, fanOut, graph, resolveArrows, flatten, LayoutError,
 } from "../tools/layout.js";
+
+// a measured shape, the only kind graph() lays out — sized as a build would
+// have sized it, so the engine sees the widths the gate will later check
+const node = (id) => ({ type: "rectangle", id, width: 120, height: 50 });
 
 // arrowBetween returns a deferred arrow — the pipeline resolves its geometry once
 // every mover has run. The geometry claims below are claims about the resolved
@@ -39,6 +43,16 @@ const near = (a, b, tol = 1e-9) => Math.abs(a - b) <= tol;
 const throwsLayoutError = (fn) => {
   try {
     fn();
+    return false;
+  } catch (err) {
+    return err.name === "LayoutError";
+  }
+};
+// graph() is async, so its refusals arrive as rejections — the same LayoutError,
+// reaching an author's `await` rather than their call
+const rejectsLayoutError = async (fn) => {
+  try {
+    await fn();
     return false;
   } catch (err) {
     return err.name === "LayoutError";
@@ -686,6 +700,134 @@ const throwsLayoutError = (fn) => {
         }
   check("every fan clears both its shapes and lands its heads apart",
     fans === 64 && offences.length === 0, `${fans} fans, ${offences[0] ?? "no offences"}`);
+}
+
+// ---- graph: ELK lays the nodes out in layers, the house still draws the edges ----
+{
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { g, arrows } = await graph([a, b, c], [[a, b], [a, c]]);
+
+  check("graph returns a placeable layout group over the nodes it was given",
+    g.kind === "layout-group" && g.children.length === 3 &&
+      g.children[0] === a && g.children[1] === b && g.children[2] === c);
+  // the source of a two-edge fan is one layer above both its targets, and the
+  // targets share that layer — the arrangement no hand placement was asked for
+  check("graph layers the source above the targets it points at",
+    a.y + a.height <= b.y && b.y === c.y);
+  check("graph spreads one layer across the cross axis", b.x !== c.x);
+  // a group that starts anywhere else would carry ELK's own root padding into
+  // every panel that composes it
+  check("graph hands back a group at the origin, its nodes flush against it",
+    g.x === 0 && g.y === 0 &&
+      Math.min(a.x, b.x, c.x) === 0 && Math.min(a.y, b.y, c.y) === 0);
+  check("graph sizes the group to the nodes it placed",
+    g.width === Math.max(a.x + a.width, b.x + b.width, c.x + c.width) &&
+      g.height === Math.max(a.y + a.height, b.y + b.height, c.y + c.height));
+  check("graph returns one deferred arrow per edge, bound to its endpoints",
+    arrows.length === 2 &&
+      arrows.every((ar) => ar.type === "arrow" && ar.width === undefined) &&
+      arrows[0].start.id === "a" && arrows[0].end.id === "b" &&
+      arrows[1].start.id === "a" && arrows[1].end.id === "c");
+}
+
+// ---- graph: direction transposes the flow, gap and layerGap space the two axes ----
+{
+  const lay = async (opts) => {
+    const [a, b, c] = ["a", "b", "c"].map(node);
+    await graph([a, b, c], [[a, b], [a, c]], opts);
+    return { a, b, c };
+  };
+
+  const down = await lay({});
+  const right = await lay({ direction: "right" });
+  // the same graph read along the other axis: the layer that ran across now runs
+  // down, and the source that sat above now sits beside
+  check('graph direction: "right" transposes the flow',
+    right.a.x + right.a.width <= right.b.x && right.b.x === right.c.x && right.b.y !== right.c.y &&
+      down.a.y + down.a.height <= down.b.y);
+
+  // each spacing moves its own axis and leaves the other alone — the claim that
+  // makes them two options rather than one
+  const wider = await lay({ gap: 140 });
+  check("graph gap widens the space within a layer by exactly its increase",
+    wider.c.x - (wider.b.x + wider.b.width) - (down.c.x - (down.b.x + down.b.width)) === 100 &&
+      wider.b.y - (wider.a.y + wider.a.height) === down.b.y - (down.a.y + down.a.height));
+
+  const taller = await lay({ layerGap: 160 });
+  check("graph layerGap deepens the space between layers by exactly its increase",
+    taller.b.y - (taller.a.y + taller.a.height) - (down.b.y - (down.a.y + down.a.height)) === 100 &&
+      taller.c.x - (taller.b.x + taller.b.width) === down.c.x - (down.b.x + down.b.width));
+}
+
+// ---- graph: the group obeys the outermost mover, and its arrows follow ----
+{
+  const [a, b] = ["a", "b"].map(node);
+  const { g, arrows } = await graph([a, b], [[a, b]], { standoff: 10 });
+  const heading = { type: "text", id: "heading", width: 60, height: 20 };
+  // the band-level mover runs after graph(), exactly as it would over a stack —
+  // if the group did not carry its children, the arrow would resolve on the old
+  // coordinates and be left behind
+  column([heading, g], { x: 500, y: 300, gap: 30 });
+  check("a graph group moves its nodes when a later layout call places it",
+    a.x >= 500 && a.y >= 350 && g.x === 500);
+  const [arrow] = resolveArrows(arrows);
+  check("a graph arrow resolves against the moved nodes",
+    arrow.y === a.y + a.height + 10 && arrow.y + arrow.height === b.y - 10);
+}
+
+// ---- graph: whole pixels, repeatable, and no trace of the engine ----
+{
+  const geometry = async () => {
+    const [a, b, c, d] = ["a", "b", "c", "d"].map(node);
+    // "right" is the direction that made ELK produce a fractional y before the
+    // rounding — the case a byte-stable artifact depends on
+    const { g, arrows } = await graph([a, b, c, d], [[a, b], [a, c], [b, d], [c, d]], { direction: "right" });
+    return JSON.stringify(flatten([g, ...resolveArrows(arrows)]));
+  };
+  const first = await geometry();
+  check("two graph runs on the same input produce identical geometry", first === await geometry());
+  check("graph places every node on a whole pixel",
+    JSON.parse(first).every((el) => Number.isInteger(el.x) && Number.isInteger(el.y)));
+  // ELK stamps `$H` on every object it is handed; a house element that reached
+  // the engine would carry it into the written document
+  check("no ELK artifact reaches the elements graph hands back", !first.includes("$H"));
+}
+
+// ---- graph: per-edge options override the defaults shared by every arrow ----
+{
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { arrows } = await graph(
+    [a, b, c],
+    [[a, b, { label: "yes" }], [a, c]],
+    { standoff: 20, strokeWidth: 3 },
+  );
+  check("graph merges per-edge options over the shared arrow defaults",
+    arrows[0].label.text === "yes" && arrows[0].strokeWidth === 3 &&
+      arrows[1].label === undefined && arrows[1].strokeWidth === 3);
+  const [yes] = resolveArrows([arrows[0]]);
+  check("a shared arrow default reaches the resolved geometry",
+    yes.y === a.y + a.height + 20);
+}
+
+// ---- graph: refusals, in the house voice ----
+{
+  const [a, b] = ["a", "b"].map(node);
+  const stranger = node("stranger");
+  check("graph needs a non-empty node list",
+    await rejectsLayoutError(() => graph([])) && await rejectsLayoutError(() => graph(null)));
+  check("graph refuses an edge naming a shape outside the node list",
+    await rejectsLayoutError(() => graph([a, b], [[a, stranger]])) &&
+      await rejectsLayoutError(() => graph([a, b], [[stranger, b]])));
+  check("graph refuses an edge missing an endpoint",
+    await rejectsLayoutError(() => graph([a, b], [[a]])) &&
+      await rejectsLayoutError(() => graph([a, b], [a, b])));
+  check("graph refuses a direction it cannot lay out",
+    await rejectsLayoutError(() => graph([a, b], [], { direction: "up" })));
+  check("graph refuses spacings that are not pixel counts",
+    await rejectsLayoutError(() => graph([a, b], [], { gap: NaN })) &&
+      await rejectsLayoutError(() => graph([a, b], [], { layerGap: -10 })));
+  check("graph refuses a node it cannot measure",
+    await rejectsLayoutError(() => graph([{ type: "rectangle", id: "unmeasured" }])));
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

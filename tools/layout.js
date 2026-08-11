@@ -513,3 +513,133 @@ export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
     ...opts,
   }));
 }
+
+/**
+ * ELK's engine, built on first use. Constructing one costs ~100ms — a toll every
+ * `check`/`render` run would otherwise pay to import a module it never lays a
+ * graph out with.
+ */
+let engine;
+async function elkEngine() {
+  if (!engine) {
+    const { default: ELK } = await import("elkjs");
+    engine = new ELK();
+  }
+  return engine;
+}
+
+const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
+
+/**
+ * A graph — nodes and the edges between them — laid out by ELK's `layered`
+ * algorithm instead of by hand. The nodes arrive already measured, ELK decides
+ * which layer each one sits in and where along it, and the result composes like
+ * any other group: `{ g, arrows }`, `g` a placed layout group over the same node
+ * objects, `arrows` one deferred `arrowBetween` per edge.
+ *
+ * Edges are `[source, target]` or `[source, target, arrowOpts]` — the node
+ * objects themselves, not ids. Per-edge options merge over the shared arrow
+ * defaults left in `opts`, so `graph(nodes, edges, { standoff: 14 })` styles
+ * every arrow and a third entry overrides one.
+ *
+ * **The house draws the edges, not ELK.** ELK's own routing sections are
+ * discarded and every edge becomes a bound `arrowBetween`, which is what keeps
+ * labels, standoff, arrowheads and gate checking working exactly as they do for
+ * a hand-written arrow. The cost is that a dense graph can route an arrow across
+ * a node ELK would have gone around: the gate's `arrow-crossing` refusal is the
+ * detector, and `via` waypoints on that one edge are the way out.
+ *
+ * Positions are rounded to whole pixels, so the same input regenerates the same
+ * artifact byte for byte. ELK is deterministic on its own; the rounding closes
+ * the float-formatting gap between Node versions.
+ *
+ * `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
+ * left to right. `gap` spaces nodes within a layer, `layerGap` spaces the layers
+ * themselves. Flat graphs only, and `layered` only; nested children and the
+ * other ELK algorithms are out of scope by design.
+ */
+export async function graph(nodes, edges = [], { direction = "down", gap = 40, layerGap = 60, ...arrowDefaults } = {}) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    throw new LayoutError(`nodes must be a non-empty array, got ${shown(nodes)}`, {
+      where: "graph", next: "Pass at least one measured shape as a node.",
+    });
+  }
+  if (!Object.hasOwn(ELK_DIRECTION, direction)) {
+    throw new LayoutError(`direction must be "down" or "right", got ${shown(direction)}`, {
+      where: "graph", next: 'Pass "down" or "right" for direction.',
+    });
+  }
+  for (const [name, value] of [["gap", gap], ["layerGap", layerGap]]) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new LayoutError(`${name} must be a finite number of pixels, got ${shown(value)}`, {
+        where: "graph", next: `Pass a non-negative number for ${name}, or omit it for the default.`,
+      });
+    }
+  }
+  if (!Array.isArray(edges)) {
+    throw new LayoutError(`edges must be an array of [source, target] pairs, got ${shown(edges)}`, {
+      where: "graph", next: "Pass edges: [[a, b], [b, c]], or omit them for nodes alone.",
+    });
+  }
+
+  // identity, not id: the caller hands over the same objects it built, and an
+  // edge naming a shape from a different panel is the mistake worth catching
+  const index = new Map(nodes.map((node, i) => [node, i]));
+  const named = edges.map((edge, i) => {
+    if (!Array.isArray(edge) || edge.length < 2) {
+      throw new LayoutError(`edge ${i} must be [source, target] or [source, target, opts], got ${shown(edge)}`, {
+        where: "graph", next: "Give the edge both of its endpoints.",
+      });
+    }
+    const [source, target, opts = {}] = edge;
+    for (const [side, node] of [["source", source], ["target", target]]) {
+      if (!index.has(node)) {
+        throw new LayoutError(
+          `edge ${i}'s ${side} ${bindId(node) ?? shown(node?.type)} is not one of the ${nodes.length} nodes`,
+          { where: "graph", next: "Pass the node object itself, and list every endpoint in nodes." },
+        );
+      }
+    }
+    return { source, target, opts };
+  });
+
+  // ELK decorates every object it is handed with an internal `$H` and writes the
+  // results back onto it, so it is fed a plain graph built here and never a
+  // house element — the positions are copied back out by index.
+  const laid = await (await elkEngine()).layout({
+    id: "root",
+    layoutOptions: {
+      "elk.algorithm": "layered",
+      "elk.direction": ELK_DIRECTION[direction],
+      "elk.spacing.nodeNode": gap,
+      "elk.layered.spacing.nodeNodeBetweenLayers": layerGap,
+    },
+    children: nodes.map((node, i) => ({ id: `n${i}`, ...extent(node) })),
+    edges: named.map(({ source, target }, i) => ({
+      id: `e${i}`,
+      sources: [`n${index.get(source)}`],
+      targets: [`n${index.get(target)}`],
+    })),
+  });
+
+  // ELK pads its root, so the placed nodes are pulled back flush against the
+  // origin: a group carrying that padding would space every panel that composed
+  // it by an amount its author never wrote.
+  const placed = laid.children.map((child) => ({ x: Math.round(child.x), y: Math.round(child.y) }));
+  const originX = Math.min(...placed.map((p) => p.x));
+  const originY = Math.min(...placed.map((p) => p.y));
+  nodes.forEach((node, i) => place(node, placed[i].x - originX, placed[i].y - originY));
+
+  const sizes = nodes.map(extent);
+  return {
+    g: {
+      kind: "layout-group",
+      x: 0,
+      y: 0,
+      width: Math.max(...nodes.map((node, i) => node.x + sizes[i].width)),
+      height: Math.max(...nodes.map((node, i) => node.y + sizes[i].height)),
+      children: nodes,
+    },
+    arrows: named.map(({ source, target, opts }) => arrowBetween(source, target, { ...arrowDefaults, ...opts })),
+  };
+}

@@ -58,3 +58,30 @@ export class DocumentError extends NamedError {}
  * install story is documented.
  */
 export class MissingDependencyError extends NamedError {}
+
+/**
+ * Import a runtime dependency on first use, turning "the package is not there"
+ * into the one command that fixes it.
+ *
+ * The deferral is the point: a static import would make an uninstalled checkout
+ * die with the loader's bare ERR_MODULE_NOT_FOUND — an error naming an internal
+ * specifier and no remedy — before any of the calling module runs.
+ *
+ * `needed` says what the caller wanted it *for*, because the remedy is the same
+ * command for every dependency and only that clause tells the reader which
+ * capability they just lost.
+ */
+export async function loadDependency(specifier, needed) {
+  try {
+    return await import(specifier);
+  } catch (err) {
+    // The package itself, not something missing inside it: a broken install is a
+    // different fault and `npm install --omit=dev` is not its remedy.
+    if (err?.code === "ERR_MODULE_NOT_FOUND" && err.message.includes(`Cannot find package '${specifier}'`)) {
+      throw new MissingDependencyError(`is not installed — ${needed}`, {
+        where: specifier, next: "Run: npm install --omit=dev",
+      });
+    }
+    throw err;
+  }
+}

@@ -828,6 +828,10 @@ const rejectsLayoutError = async (fn) => {
       await rejectsLayoutError(() => graph([a, b], [], { layerGap: -10 })));
   check("graph refuses a node it cannot measure",
     await rejectsLayoutError(() => graph([{ type: "rectangle", id: "unmeasured" }])));
+  // the same shape twice would collapse in the identity index, laying out a node
+  // no edge could name rather than refusing
+  check("graph refuses the same shape listed as two nodes",
+    await rejectsLayoutError(() => graph([a, b, a], [[a, b]])));
 }
 
 // ---- flatten: mixed elements and groups, depth-first ----

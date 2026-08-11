@@ -249,10 +249,13 @@ const probe = (dir, env) =>
 }
 
 // ---- 5. a checkout that was never installed names the install step ----
-// The runtime dependency is playwright-core and nothing else, so the first thing
-// a fresh clone hits is its absence. A bare ERR_MODULE_NOT_FOUND names an
-// internal specifier and no remedy; this is the one failure whose fix is a
-// single documented command, so the error has to carry it.
+// Every runtime dependency is loaded on first use, so a fresh clone meets its
+// absence at the first render (playwright-core) or the first graph (elkjs). A
+// bare ERR_MODULE_NOT_FOUND names an internal specifier and no remedy; these are
+// the failures whose fix is a single documented command, so each error carries
+// it. Both go through `loadDependency`, whose own contract is pinned in
+// tests/error-classes.js; this proves the driver's end of it, in a real process
+// with no node_modules at all.
 {
   const dir = makeCopy({ deps: false });
   const r = probe(dir);

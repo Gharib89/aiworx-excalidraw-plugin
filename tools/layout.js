@@ -16,7 +16,7 @@
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { NamedError, MissingDependencyError } from "./errors.js";
+import { NamedError, loadDependency } from "./errors.js";
 import { bounds } from "./geometry.js";
 
 const palette = JSON.parse(
@@ -516,27 +516,13 @@ export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
 
 /**
  * ELK's engine, built on first use. Constructing one costs ~100ms, and the
- * import is deferred for the same reason browser.js defers playwright-core: a
- * static one would make every `check` run load a graph engine it never uses, and
- * would fail an uninstalled checkout with the loader's bare ERR_MODULE_NOT_FOUND
- * instead of the one command that fixes it.
+ * import is deferred for the reason `loadDependency` explains — so a `check` run
+ * never loads a graph engine it has no graph for.
  */
 let engine;
 async function elkEngine() {
   if (!engine) {
-    let ELK;
-    try {
-      ({ default: ELK } = await import("elkjs"));
-    } catch (err) {
-      // the package itself, not something missing inside it — a broken install
-      // is a different fault and `npm install --omit=dev` is not its remedy
-      if (err?.code === "ERR_MODULE_NOT_FOUND" && err.message.includes("Cannot find package 'elkjs'")) {
-        throw new MissingDependencyError("is not installed — graph() needs the layout engine", {
-          where: "elkjs", next: "Run: npm install --omit=dev",
-        });
-      }
-      throw err;
-    }
+    const { default: ELK } = await loadDependency("elkjs", "graph() needs the layout engine");
     engine = new ELK();
   }
   return engine;
@@ -599,7 +585,14 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
   // identity, not id: the caller hands over the same objects it built, and an
   // edge naming a shape from a different panel is the mistake worth catching
   const index = new Map(nodes.map((node, i) => [node, i]));
-  const named = edges.map((edge, i) => {
+  // one shape cannot stand in two places, and the map above would silently keep
+  // only its last slot — so the engine would lay out a node no edge could reach
+  if (index.size !== nodes.length) {
+    throw new LayoutError(`nodes lists ${nodes.length} entries but only ${index.size} distinct shapes`, {
+      where: "graph", next: "Build a separate shape per node, and list each one once.",
+    });
+  }
+  const wired = edges.map((edge, i) => {
     if (!Array.isArray(edge) || edge.length < 2) {
       throw new LayoutError(`edge ${i} must be [source, target] or [source, target, opts], got ${shown(edge)}`, {
         where: "graph", next: "Give the edge both of its endpoints.",
@@ -617,9 +610,13 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
     return { source, target, opts };
   });
 
+  // measured once: `place` moves a node without resizing it, so these hold for
+  // the group's own extent below
+  const sizes = nodes.map(extent);
+
   // ELK decorates every object it is handed with an internal `$H` and writes the
   // results back onto it, so it is fed a plain graph built here and never a
-  // house element — the positions are copied back out by index.
+  // house element.
   const laid = await (await elkEngine()).layout({
     id: "root",
     layoutOptions: {
@@ -628,23 +625,27 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       "elk.spacing.nodeNode": gap,
       "elk.layered.spacing.nodeNodeBetweenLayers": layerGap,
     },
-    children: nodes.map((node, i) => ({ id: `n${i}`, ...extent(node) })),
-    edges: named.map(({ source, target }, i) => ({
+    children: sizes.map((size, i) => ({ id: `n${i}`, ...size })),
+    edges: wired.map(({ source, target }, i) => ({
       id: `e${i}`,
       sources: [`n${index.get(source)}`],
       targets: [`n${index.get(target)}`],
     })),
   });
 
-  // ELK pads its root, so the placed nodes are pulled back flush against the
-  // origin: a group carrying that padding would space every panel that composed
-  // it by an amount its author never wrote.
+  // `laid.children[i]` is `nodes[i]`: ELK lays out in place and hands back the
+  // very array it was given, so the order it was built in is the order it
+  // returns in. Read by index rather than by the `n${i}` ids, which exist for
+  // the edges to name.
+  //
+  // ELK also pads its root, so the placed nodes are pulled back flush against
+  // the origin: a group carrying that padding would space every panel that
+  // composed it by an amount its author never wrote.
   const placed = laid.children.map((child) => ({ x: Math.round(child.x), y: Math.round(child.y) }));
   const originX = Math.min(...placed.map((p) => p.x));
   const originY = Math.min(...placed.map((p) => p.y));
   nodes.forEach((node, i) => place(node, placed[i].x - originX, placed[i].y - originY));
 
-  const sizes = nodes.map(extent);
   return {
     g: {
       kind: "layout-group",
@@ -654,6 +655,6 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       height: Math.max(...nodes.map((node, i) => node.y + sizes[i].height)),
       children: nodes,
     },
-    arrows: named.map(({ source, target, opts }) => arrowBetween(source, target, { ...arrowDefaults, ...opts })),
+    arrows: wired.map(({ source, target, opts }) => arrowBetween(source, target, { ...arrowDefaults, ...opts })),
   };
 }

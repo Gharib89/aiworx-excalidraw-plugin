@@ -18,9 +18,10 @@ Then, once per installation:
 npm install --omit=dev   # playwright-core and elkjs; the render bundle is committed
 ```
 
-Skip it and the first render or revise says so by name — `MissingDependencyError`
-carries the command above rather than a bare module-resolution error. `check.js`
-needs no dependencies at all.
+Both load on first use, so skipping this says so by name at the first render or
+revise (playwright-core) and at the first `graph` layout (elkjs) —
+`MissingDependencyError` carries the command above rather than a bare
+module-resolution error. `check.js` needs no dependencies at all.
 
 Rendering uses your **system Chrome** (no browser download) and finds it for you
 on macOS, Windows and Linux. Set `CHROME_PATH` to point at a specific executable

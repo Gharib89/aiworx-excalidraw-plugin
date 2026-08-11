@@ -54,10 +54,18 @@ export function cacheRoot(env = process.env) {
   return join(base, "aiworx-excalidraw", "libraries");
 }
 
+/**
+ * How long a request is given before it counts as unreachable. Node's fetch has
+ * no default timeout, and a host that accepts the connection then stalls would
+ * otherwise hang the CLI with no output — the refusals below are only reachable
+ * if the request is bounded.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
 /** The default transport: Node's own fetch, so no dependency is added for it. */
 const httpTransport = {
   fetchText: async (url) => {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     return await res.text();
   },

@@ -2,13 +2,15 @@
 /**
  * Contract suite for the render CLI (tools/render.js).
  *
- * Three parts:
+ * Four parts:
  *   1. argument validation — every invalid invocation exits 2 with a named
  *      UsageError, so a typo can never silently degrade output
  *   2. rendering knobs — dark mode, export padding, background override,
  *      single-frame-by-number, and reading-order PNG numbering, proven
  *      against real browser renders
- *   3. every path a success line reports is absolute and names the file that
+ *   3. --scale is applied exactly once — the SVG stays at natural size and the
+ *      raster alone carries the scale
+ *   4. every path a success line reports is absolute and names the file that
  *      was written — a relative `--out` run from another cwd says where it
  *      really landed
  *

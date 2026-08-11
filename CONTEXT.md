@@ -119,6 +119,25 @@ _Avoid_: arrow label (unqualified), floating label
 Inserting a library item into a diagram with freshly regenerated ids so repeated insertions never collide.
 _Avoid_: import, paste
 
+**Library index**:
+The catalogue of community `.excalidrawlib` files published behind
+libraries.excalidraw.com — one JSON array, one entry per library. `source`
+(`<author>/<name>.excalidrawlib`) is the handle: it is the only field every entry
+carries and it is the path the file downloads from, so `id` and `itemNames`, which
+many entries omit, are reported but never required. The index states no tags,
+which is why a search reads the name, the item names and the description.
+`tools/library.js` searches it and downloads one file; the splice stays the only
+insertion path. _Avoid_: registry, catalogue, repository
+
+**Library cache**:
+Where a fetched index and every downloaded library live on disk —
+`$XDG_CACHE_HOME/aiworx-excalidraw/libraries/`, or whatever
+`EXCALIDRAW_LIBRARY_CACHE` names. Outside the checkout by definition: a user's
+downloads are not the repo's, and verification never dirties a tracked file. A
+week old is fresh; past that a search refreshes it, and refuses rather than
+serving aged data when the network cannot.
+_Avoid_: store, local copy
+
 **Orthogonal route**:
 An arrow path made only of axis-aligned segments, computed by the authoring call
 (`route: "orthogonal"`) rather than hand-written as waypoints. It owns the gap

@@ -11,6 +11,11 @@ import {
   exportToSvg,
   restore,
 } from "@excalidraw/excalidraw";
+// The parse tree, not the conversion: parseMermaid renders the source with
+// mermaid and hands back nodes and edges, which is all fromMermaid wants. The
+// package's entry point only exports the whole-diagram converter, whose layout
+// this pipeline discards — so the parser is imported by its own path.
+import { parseMermaid } from "@excalidraw/mermaid-to-excalidraw/dist/parseMermaid.js";
 
 /**
  * Excalidraw registers its bundled fonts with document.fonts lazily, on export.
@@ -290,6 +295,93 @@ async function exportSvg({ elements, appState, files, exportingFrame, exportPadd
   };
 }
 
+/**
+ * The house shape for each mermaid vertex kind. Coarse on purpose: the house
+ * vocabulary is step / decision / start-end, so a decision becomes a diamond, a
+ * round-ended vertex becomes an ellipse, and everything else is a step.
+ */
+const MERMAID_SHAPE = {
+  diamond: "diamond",
+  circle: "ellipse",
+  doublecircle: "ellipse",
+  stadium: "ellipse",
+};
+
+/**
+ * Mermaid flowchart source, parsed into nodes and edges the house can build
+ * from. Mermaid's own positions, colours and text metrics are dropped: this
+ * returns the graph, and `graph()` lays it out over house-measured shapes.
+ *
+ * The sizes come back from a throwaway conversion rather than from the measured
+ * text alone, because a labelled container is not simply text plus padding — the
+ * converter grows a diamond to twice its bound text's height and an ellipse by
+ * its own factor. Feeding those numbers back in is a fixed point, so the shape
+ * the layout engine places is the shape the document ends up with.
+ *
+ * A refusal comes back as `{ ok: false, reason, detail }` rather than a throw:
+ * the Node side owns the house message, and a page-side throw would arrive as a
+ * PageError naming the bridge instead of the source.
+ */
+async function mermaidGraph({ source, fontSize, fontFamily, padding }) {
+  // Read off the source, not off the parse tree: with mermaid 11 the converter's
+  // flowchart parser throws on any subgraph and falls back to a picture of the
+  // diagram, so by the time it returns, the grouping is gone and the source
+  // looks like a diagram type it never was. The parse-tree check below still
+  // stands for the day that upstream lookup is fixed.
+  if (/^[ \t]*subgraph\b/im.test(source)) {
+    return { ok: false, reason: "subgraph", detail: "" };
+  }
+  let parsed;
+  try {
+    parsed = await parseMermaid(source);
+  } catch (err) {
+    return { ok: false, reason: "unparseable", detail: String(err?.message ?? err) };
+  }
+  if (parsed?.type !== "flowchart") {
+    return { ok: false, reason: "kind", detail: parsed?.type ?? "unknown" };
+  }
+  if (parsed.subGraphs?.length) {
+    return { ok: false, reason: "subgraph", detail: parsed.subGraphs.map((s) => s.id).join(", ") };
+  }
+  const vertices = Object.values(parsed.vertices ?? {}).filter(Boolean);
+  if (!vertices.length) return { ok: false, reason: "empty", detail: "" };
+
+  // mermaid writes a line break as <br/>; carried through verbatim it would
+  // render as four literal characters in the middle of the label
+  const lines = (text) => String(text ?? "").replace(/<br\s*\/?>/gi, "\n");
+  const texts = vertices.map((v) => lines(v.text));
+  const measured = await measureText(texts.map((text) => ({ text, fontSize, fontFamily })));
+  const shapes = vertices.map((v) => MERMAID_SHAPE[v.type] ?? "rectangle");
+  // one conversion, only to read back the sizes the converter settles on
+  const sized = convertToExcalidrawElements(
+    vertices.map((v, i) => ({
+      type: shapes[i],
+      id: `m${i}`,
+      x: 0,
+      y: 0,
+      width: Math.ceil(measured[i].width) + 2 * padding,
+      height: Math.ceil(measured[i].height) + 2 * padding,
+      label: { text: texts[i], fontSize, fontFamily },
+    })),
+  ).filter((e) => e.type !== "text");
+
+  return {
+    ok: true,
+    nodes: vertices.map((v, i) => ({
+      id: String(v.id),
+      text: texts[i],
+      shape: shapes[i],
+      width: sized[i].width,
+      height: sized[i].height,
+    })),
+    edges: (parsed.edges ?? []).map((e) => ({
+      source: String(e.start),
+      target: String(e.end),
+      label: lines(e.text),
+    })),
+  };
+}
+
 window.__ex = {
   convert: async (skeleton, opts) => {
     await ensureFonts(skeletonTexts(skeleton));
@@ -301,6 +393,7 @@ window.__ex = {
     glyphs: warmChars.size,
   }),
   measureText,
+  mermaidGraph,
   imageSize,
   // refreshDimensions re-measures every text element, so the fonts must be
   // warmed for the document's glyphs first or the refreshed sizes come from

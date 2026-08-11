@@ -46,6 +46,13 @@ Two traps it handles, both verified in `tools/smoke.js`:
    faces fail to load or apply throws a `FontIntegrityError` and leaves the
    previous warm intact — the next call re-warms from scratch.
 
+A generator can start from mermaid rather than from scratch: `fromMermaid` parses
+a mermaid flowchart with the official converter and returns house-built nodes and
+edges for `graph` to lay out. The converter's own positions, colours and text
+metrics are discarded — they are computed with the metrics this pipeline exists
+to replace — so an ingested diagram is measured, laid out, palette-styled and
+gated like any other.
+
 ## Commands
 
 ```bash
@@ -129,11 +136,12 @@ skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, images, library splicing, diagram-level finish register, in-process gate, one-session batches, revise round-trip
   layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap, fans that spread their landings, graphs laid out in layers by ELK (anchored on geometry.js bounds)
+  mermaid.js        mermaid flowchart ingestion: the official converter's parse tree, rebuilt as house nodes and edges for layout.js's graph()
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
   geometry.js       one bounds definition shared by the gate, the frame binder and arrow anchoring
   color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included
-  page.js           browser-side Excalidraw entry (measure, convert, export)
+  page.js           browser-side Excalidraw entry (measure, convert, export, parse mermaid)
   browser.js        headless-Chromium driver around page.js; Chrome loads the bundle off disk via dist/index.html
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs
   revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place

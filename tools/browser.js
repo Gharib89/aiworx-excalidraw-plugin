@@ -228,6 +228,8 @@ export async function withExcalidraw(fn, { scale = 2 } = {}) {
         ),
       measureText: (items) =>
         guard("measureText", () => page.evaluate((i) => window.__ex.measureText(i), items)),
+      mermaidGraph: (args) =>
+        guard("mermaidGraph", () => page.evaluate((a) => window.__ex.mermaidGraph(a), args)),
       imageSize: (file) =>
         guard("imageSize", () => page.evaluate((f) => window.__ex.imageSize(f), file)),
       restore: (data, opts) =>

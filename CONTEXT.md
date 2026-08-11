@@ -55,6 +55,14 @@ The authoring judgment that the picture's structure mirrors the idea's structure
 The author-supplied element description handed to the converter before it becomes real Excalidraw elements.
 _Avoid_: template, draft element
 
+**Ingestion**:
+Turning a diagram someone already wrote in another notation — today a mermaid
+flowchart — into house material. The parse is kept (nodes, edges, labels,
+shapes); the source's own positions, colours and text metrics are dropped,
+because they were computed with the metrics this pipeline replaces. `fromMermaid`
+is the one ingestion path, and what it returns goes straight into `graph`.
+_Avoid_: import, conversion
+
 **Layout group**:
 A `stack`/`column`/`row` positioning construct. It places children but is not an Excalidraw group and cannot be an arrow target.
 _Avoid_: group (unqualified)

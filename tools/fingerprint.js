@@ -35,7 +35,12 @@ export function expectedFingerprint() {
   // range string changing — exactly the forgot-to-rebundle case the stamp
   // exists to catch.
   const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
-  for (const dep of ["@excalidraw/excalidraw", "react", "react-dom", "esbuild"]) {
+  // @excalidraw/mermaid-to-excalidraw is a transitive dependency, pinned by the
+  // library — but page.js imports its parser directly, so the bundle carries it
+  // and a lockfile move under it is exactly as stale as a move under the others.
+  for (const dep of [
+    "@excalidraw/excalidraw", "@excalidraw/mermaid-to-excalidraw", "react", "react-dom", "esbuild",
+  ]) {
     hash.update(lock.packages[`node_modules/${dep}`]?.version ?? "").update("\0");
   }
   return hash.digest("hex").slice(0, 16);

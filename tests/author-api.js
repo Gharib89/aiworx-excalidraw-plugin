@@ -25,6 +25,8 @@
  *      layers, resolves every arrow, and passes the gate
  *  13. fanOut() called through the build context lands three arrows at
  *      distinct points and passes the gate
+ *  14. a community library item spliced with `text: "drop"` authors and gates
+ *      clean, where the same item spliced by default still trips foreign-font
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
@@ -867,6 +869,61 @@ const nodeBox = ({ measure, box, palette: p, PROSE }) => async (id, text) => {
   const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
   check("the fanOut()-built fan passes the CLI gate", gate.status === 0,
     (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
+// ---- 14. a spliced community item: text: "drop" reaches the gate clean ----
+//
+// Every item of a real community library labels itself in Excalidraw's own
+// faces, so the default splice hands the gate foreign-font on text the author
+// never wrote. This is the whole-pipeline half of the claim: the unit contract
+// lives in tests/splice.js, what matters here is that a dropped item authors
+// and gates, and that the default still refuses.
+{
+  const libEl = (id, extra) => ({
+    id, type: "rectangle", x: 0, y: 0, width: 60, height: 60, angle: 0,
+    strokeColor: "#1e1e1e", backgroundColor: "transparent", fillStyle: "solid",
+    strokeWidth: 2, strokeStyle: "solid", roughness: 1, opacity: 100,
+    groupIds: ["icon-group"], frameId: null, roundness: null, seed: 1, version: 1,
+    versionNonce: 1, isDeleted: false, boundElements: null, link: null, locked: false,
+    ...extra,
+  });
+  const libPath = join(outDir, "community.excalidrawlib");
+  writeFileSync(libPath, JSON.stringify({
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{
+      name: "Kinesis",
+      elements: [
+        libEl("pictogram"),
+        libEl("own-label", {
+          type: "text", x: 0, y: 80, width: 66, height: 25, text: "Kinesis",
+          fontSize: 20, fontFamily: 5, textAlign: "left", verticalAlign: "top",
+          containerId: null, originalText: "Kinesis", lineHeight: 1.25,
+        }),
+      ],
+    }],
+  }));
+
+  const out = join(outDir, "spliced-dropped.excalidraw");
+  const result = await authorDiagram({
+    out,
+    build: async ({ spliceLibraryItem }) => [spliceLibraryItem(libPath, { item: "Kinesis", text: "drop" })],
+  });
+  check('a text: "drop" splice authors without the item\'s own label',
+    existsSync(out) && result.elements.length === 1,
+    `${result.elements.length} elements`);
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check('the text: "drop" splice passes the CLI gate', gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+
+  const kept = await rejectsWith("GateError", authorDiagram({
+    out: join(outDir, "spliced-kept.excalidraw"),
+    build: async ({ spliceLibraryItem }) => [spliceLibraryItem(libPath, { item: "Kinesis" })],
+  }));
+  check("the default splice of the same item still trips foreign-font",
+    kept.ok && kept.error?.problems?.some((p) => p.code === "foreign-font"),
+    kept.detail);
+  check("the refused default splice wrote nothing",
+    !existsSync(join(outDir, "spliced-kept.excalidraw")));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

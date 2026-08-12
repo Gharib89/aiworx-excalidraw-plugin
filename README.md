@@ -109,9 +109,10 @@ refused rather than ignored. A search that matches nothing is an answer, not a
 failure, and exits 0.
 
 Note that real community libraries label their items in Excalidraw's own faces,
-which are outside the house pair, so a diagram that splices one is refused by the
-gate with `foreign-font` until the library's own text is dropped or retyped. The
-shipped skill documents the workflow; the underlying fix is tracked separately.
+which are outside the house pair, so a diagram that splices one by default is
+refused by the gate with `foreign-font`. Splice it with `text: "drop"` and the
+item's own labels stay out, leaving the pictogram for you to label with measured
+house-pair text.
 
 All four CLIs share one argument vocabulary. Any argument starting with `-` that
 is not a known flag is rejected as a typo (exit 2, naming the argument) rather

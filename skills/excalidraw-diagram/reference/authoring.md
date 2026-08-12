@@ -23,7 +23,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `fromMermaid` | `await fromMermaid(source)` | `{ nodes, edges }` built from a mermaid flowchart, in the shape `graph` takes | [Ingesting mermaid](#ingesting-mermaid) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
-| `spliceLibraryItem` | `spliceLibraryItem(path, { item, at })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |
+| `spliceLibraryItem` | `spliceLibraryItem(path, { item, at, text })` | a group whose `.ids` are the item's fresh element ids | [Real assets](#real-assets-images-and-library-items) |
 
 ## The skeleton format
 
@@ -596,17 +596,23 @@ alone — it accepts a week-old index when the network cannot refresh it, which
 otherwise refuses rather than searching month-old data in silence. A query
 matching nothing exits 0 — an answer, not a failure.
 
-**Retype or drop a spliced item's own text.** Real community items label
-themselves in Excalidraw's own faces, outside the house pair, so the gate refuses
-the diagram with `foreign-font` — measured across a popular 249-item AWS set,
-every single item. Keep the pictogram and drop the label:
+**Drop a spliced item's own text.** Real community items label themselves in
+Excalidraw's own faces, outside the house pair, so the default splice hands the
+gate `foreign-font` — measured across a popular 249-item AWS set, every single
+item. Keep the pictogram and drop the label:
 
 ```js
-const HOUSE = new Set([PROSE, CODE]);
-const icon = spliceLibraryItem(path, { item: "Kinesis" });
-const kept = icon.children.filter((e) => !(e.type === "text" && !HOUSE.has(e.fontFamily)));
-const clean = { ...icon, children: kept, ids: kept.map((e) => e.id) };
+const icon = spliceLibraryItem(path, { item: "Kinesis", text: "drop" });
 ```
+
+`text: "drop"` removes the item's own text in faces outside the house pair before
+the group is assembled, so the group's extent, `children` and `ids` all describe
+what survived and a container whose label went carries no dangling reference to
+it. House-pair text the item wrote survives. `text: "keep"` is the default and
+splices the item verbatim; an item that holds nothing but foreign text is refused
+like an element-less one, and any other value is a `LibraryError` naming the two
+that exist. Retyping is deliberately absent — honest widths come from measuring,
+which needs the browser session the splice runs without.
 
 Label it yourself instead, with measured house-pair text beside the icon — that
 is what step 3 measures for. Low-contrast spliced text fails the same way, and a

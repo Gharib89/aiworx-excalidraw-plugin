@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
-import { verifyDocument, KNOWN } from "./verify.js";
+import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, arrowBetween, fanOut, graph, flatten, resolveArrows } from "./layout.js";
 import { makeFromMermaid } from "./mermaid.js";
 import { NamedError, DocumentError } from "./errors.js";
@@ -248,8 +248,19 @@ function makeImage(ex, files) {
  * rather than left dangling for the gate to reject. The item lands with its
  * top-left corner at `at` and comes back as a layout group, so it places like
  * any other item; `ids` lists the fresh element ids for a frame's `children`.
+ *
+ * `text: "drop"` removes the item's own text in faces outside the house pair —
+ * what a real community item labels itself with, and what the gate refuses as
+ * foreign-font. House-pair text in the item survives. The default `"keep"`
+ * splices the item verbatim.
  */
-export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
+export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" } = {}) {
+  if (text !== "keep" && text !== "drop") {
+    throw new LibraryError(`unknown text mode ${JSON.stringify(text)}`, {
+      where: path,
+      next: 'Pass text: "keep" to splice the item\'s own labels, or "drop" to remove the ones outside the house pair.',
+    });
+  }
   let data;
   try {
     data = JSON.parse(readFileSync(path, "utf8"));
@@ -276,11 +287,27 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
   if (!picked || !Array.isArray(picked.elements)) throw noSuchItemError();
 
   // The emptiness check sits after the filter, not before it: an item holding
-  // nothing but tombstones has as little to splice as one holding nothing at
-  // all, and letting it through leaves Math.min/max with no boxes to measure —
-  // a group whose width is -Infinity, which poisons every layout downstream.
-  const source = picked.elements.filter((e) => !e.isDeleted);
-  if (source.length === 0) throw noSuchItemError();
+  // nothing but tombstones — or nothing but dropped foreign text — has as
+  // little to splice as one holding nothing at all, and letting it through
+  // leaves Math.min/max with no boxes to measure — a group whose width is
+  // -Infinity, which poisons every layout downstream.
+  //
+  // Dropping here, before the id map, is what keeps the drop honest: a dropped
+  // element's id never enters the map, so the remap below nulls or filters
+  // every reference to it, and the extent is measured over the survivors.
+  const live = picked.elements.filter((e) => !e.isDeleted);
+  const source = text === "drop" ? live.filter((e) => !isForeignFont(e)) : live;
+  if (source.length === 0) {
+    // The drop's own dead end reads nothing like a missing item, so it says so:
+    // pointing an author back at the item that just failed is no next action.
+    if (live.length) {
+      throw new LibraryError(`item ${JSON.stringify(item)} is text outside the house pair and nothing else`, {
+        where: path,
+        next: "Pick an item that carries a pictogram — dropping this one's text leaves nothing to splice.",
+      });
+    }
+    throw noSuchItemError();
+  }
   const idMap = new Map(source.map((e) => [e.id, freshId()]));
   const groupMap = new Map();
 

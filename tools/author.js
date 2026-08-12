@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
-import { verifyDocument, KNOWN } from "./verify.js";
+import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, arrowBetween, fanOut, graph, flatten, resolveArrows } from "./layout.js";
 import { makeFromMermaid } from "./mermaid.js";
 import { NamedError, DocumentError } from "./errors.js";
@@ -295,12 +295,19 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
   // Dropping here, before the id map, is what keeps the drop honest: a dropped
   // element's id never enters the map, so the remap below nulls or filters
   // every reference to it, and the extent is measured over the survivors.
-  const house = new Set([PROSE, CODE]);
-  const foreignText = (e) => e.type === "text" && !house.has(e.fontFamily);
-  const source = picked.elements.filter(
-    (e) => !e.isDeleted && !(text === "drop" && foreignText(e)),
-  );
-  if (source.length === 0) throw noSuchItemError();
+  const live = picked.elements.filter((e) => !e.isDeleted);
+  const source = text === "drop" ? live.filter((e) => !isForeignFont(e)) : live;
+  if (source.length === 0) {
+    // The drop's own dead end reads nothing like a missing item, so it says so:
+    // pointing an author back at the item that just failed is no next action.
+    if (live.length) {
+      throw new LibraryError(`item ${JSON.stringify(item)} is text outside the house pair and nothing else`, {
+        where: path,
+        next: "Pick an item that carries a pictogram — dropping this one's text leaves nothing to splice.",
+      });
+    }
+    throw noSuchItemError();
+  }
   const idMap = new Map(source.map((e) => [e.id, freshId()]));
   const groupMap = new Map();
 

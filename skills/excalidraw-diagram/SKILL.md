@@ -52,7 +52,7 @@ hand-accumulated pixel offsets), mermaid ingestion (`fromMermaid` turns a
 flowchart source into nodes and edges `graph` lays out), real assets (`image` embeds bytes in the files dictionary;
 the `library.js` CLI finds and downloads a community `.excalidrawlib` and
 `spliceLibraryItem` inserts an item from it with fresh ids, and `text: "drop"`
-leaves the item's own label — which fails the house pair — behind),
+removes the item's own label, which fails the house pair),
 and the generator shape for a band — compose, place, then bind, in that order.
 
 Four options in there carry most of the leverage, and a session that misses them

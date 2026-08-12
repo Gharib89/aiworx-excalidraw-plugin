@@ -116,7 +116,10 @@ entry).
 _Avoid_: arrow label (unqualified), floating label
 
 **Splice**:
-Inserting a library item into a diagram with freshly regenerated ids so repeated insertions never collide.
+Inserting a library item into a diagram with freshly regenerated ids so repeated
+insertions never collide. It inserts the item verbatim unless asked to drop the
+item's own text outside the house pair — which is what a real community item
+labels itself with, and what the gate refuses.
 _Avoid_: import, paste
 
 **Library index**:

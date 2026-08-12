@@ -22,6 +22,14 @@ const SOLID = new Set(["rectangle", "ellipse", "diamond", "image"]);
 // only what this toolchain authors and renders — anything else is a typo or an import artefact
 export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
 
+const HOUSE = new Set([palette.fontFamily.prose, palette.fontFamily.code]);
+/**
+ * Text in a face outside the house pair — the `foreign-font` rule's own
+ * predicate. Exported so a splice that drops such text drops exactly what this
+ * gate would have refused, instead of a second definition that can drift.
+ */
+export const isForeignFont = (el) => el.type === "text" && !HOUSE.has(el.fontFamily);
+
 /**
  * Run every element-level rule over a parsed Excalidraw document.
  * Returns the defects found and the counts the CLI prints as a summary.
@@ -425,9 +433,8 @@ export function verifyDocument(data) {
   }
 
   // 14. fonts outside the house pair substitute per machine and reflow the layout
-  const HOUSE = new Set([palette.fontFamily.prose, palette.fontFamily.code]);
   for (const t of texts) {
-    if (!HOUSE.has(t.fontFamily)) {
+    if (isForeignFont(t)) {
       note(
         "foreign-font",
         `text "${preview(t.text)}" uses fontFamily ${t.fontFamily ?? "unset"} outside the house pair (prose ${palette.fontFamily.prose}, code ${palette.fontFamily.code})`,

@@ -322,9 +322,16 @@ const library = (name, doc) => {
       })],
     }],
   });
-  check('an item dropped to nothing is refused, not spliced to an empty group',
-    spliceLibraryItem(allForeign).children.length === 1
-      && throwsWith("LibraryError", () => spliceLibraryItem(allForeign, { text: "drop" })).ok);
+  check("the same item splices whole by default", spliceLibraryItem(allForeign).children.length === 1);
+  const nothingLeft = throwsWith("LibraryError", () => spliceLibraryItem(allForeign, { text: "drop" }));
+  check("an item dropped to nothing is refused, not spliced to an empty group",
+    nothingLeft.ok, nothingLeft.detail);
+  // "no item 0 — pick one of its 1" would be false and circular here: the item
+  // is there, and picking it again is what just failed
+  check("the dead end names the drop, not a missing item",
+    nothingLeft.message?.includes("text outside the house pair and nothing else")
+      && nothingLeft.message.includes("pictogram"),
+    nothingLeft.message);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nspliceLibraryItem holds its contract");

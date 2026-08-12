@@ -369,8 +369,9 @@ for (const c of CASES) {
         : e.name.endsWith(".excalidraw") ? [join(root, dir, e.name)] : []);
 
   const committed = bands("examples");
-  // a walk that finds nothing would pass every check below without reading a file
-  check("the walk finds the committed bands", committed.length >= 2, `${committed.length} found`);
+  // a walk that finds nothing would pass the check below without reading a file;
+  // the count itself is not pinned, so adding or retiring a band stays a one-file change
+  check("the walk finds the committed bands", committed.length > 0, `${committed.length} found`);
 
   const all = spawnSync(process.execPath, [gate, ...committed], { encoding: "utf8" });
   check("every committed band is gate-clean", all.status === 0,

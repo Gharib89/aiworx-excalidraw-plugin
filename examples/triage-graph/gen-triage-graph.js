@@ -10,8 +10,10 @@
  * per-edge offsets those options force, which is a lesson of its own — differ.
  *
  * The machine is drawn honestly, cycles included. `agent-working` hands back to
- * `needs-triage`, and `needs-triage` ↔ `needs-info` is a genuine two-way pair
- * that piles both arrows onto one line and strikes the forward leg's label. The
+ * `needs-triage`, and `needs-triage` ↔ `needs-info` is a two-way pair — see the
+ * note above `transitions` for which legs the triage-labels doc states and which
+ * are read off it — that piles both arrows onto one line and strikes the
+ * forward leg's label. The
  * return leg carries `originAt` / `landAt` so `text-struck-by-arrow` never
  * fires: the documented remedy in use, not a dodged shape.
  *
@@ -54,17 +56,25 @@ const STATES = [
   ["closed", "pass"],
 ];
 
-// docs/agents/triage-labels.md is the source: the hand-back lands on
-// `needs-triage`, never back on `ready-for-agent`, and merging closes the issue.
+// Where the transitions come from. docs/agents/triage-labels.md states the
+// `agent-working` legs outright — the claim, the hand-back landing on
+// `needs-triage` rather than back on `ready-for-agent`, and merging closing the
+// issue — and those are drawn as written. The rest are read off the meanings in
+// that file's table: `needs-info` means "waiting on reporter", so an issue goes
+// there from triage and comes back once the reporter answers. That pair is the
+// inference, not a quotation, and it is the one worth checking against the doc
+// if the labels are ever reworked.
+//
 // Each edge carries its own id so a gate refusal names the transition rather
 // than a generated string.
-// `tune` carries the per-edge `originAt` / `landAt` for one layout. They live
+//
+// `offsets` carries the per-edge `originAt` / `landAt` for one layout. They live
 // with the layout rather than here because a fraction runs along the *facing*
 // edge, and which edge faces depends on `direction`: 0.2 is a fifth of the way
 // across the bottom of a box laid out "down", and a fifth of the way down its
 // side laid out "right". One set of numbers cannot serve both pictures.
-const transitions = (tag, tune, [triage, info, ready, human, working, wontfix, closed]) => {
-  const at = (name) => ({ id: `${tag}-${name}`, ...(tune[name] ?? {}) });
+const transitions = ({ tag, offsets }, [triage, info, ready, human, working, wontfix, closed]) => {
+  const at = (name) => ({ id: `${tag}-${name}`, ...(offsets[name] ?? {}) });
   // A label rides at the middle of its own arrow, so its width is what decides
   // whether a neighbouring edge can pass. Set smaller than the state names on
   // purpose: at the body size these read as wide as the boxes they sit between,
@@ -102,7 +112,7 @@ const LAYOUTS = [
   {
     tag: "down",
     opts: { direction: "down", gap: 110, layerGap: 96 },
-    tune: {
+    offsets: {
       ask: { originAt: 0.34, landAt: 0.78 },
       answered: { originAt: 0.2, landAt: 0.08 },
       human: { originAt: 0.62 },
@@ -119,7 +129,7 @@ const LAYOUTS = [
   {
     tag: "right",
     opts: { direction: "right", gap: 64, layerGap: 190 },
-    tune: {
+    offsets: {
       ask: { originAt: 0.3, landAt: 0.7 },
       answered: { originAt: 0.1, landAt: 0.08 },
       human: { originAt: 0.55 },
@@ -164,7 +174,7 @@ await authorDiagram({
     const panels = [];
     for (const [i, layout] of LAYOUTS.entries()) {
       const nodes = await states(layout.tag);
-      const { g, arrows } = await graph(nodes, transitions(layout.tag, layout.tune, nodes), {
+      const { g, arrows } = await graph(nodes, transitions(layout, nodes), {
         ...layout.opts,
         standoff: 10, strokeColor: p.grey.stroke, strokeWidth: 2, endArrowhead: "triangle",
       });

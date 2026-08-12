@@ -441,6 +441,13 @@ return [g, ...arrows];                     // g places like any group; spread th
   left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
   layers themselves. These four are the whole option surface: the algorithm is
   always `layered`, and raw ELK options do not pass through.
+- **A cycle costs you the reading order.** The engine layers a graph by making it
+  acyclic first, so every cycle has one edge reversed for the purpose of laying
+  out — and the state an author thinks of as the entry can land mid-picture or
+  at the bottom. Nothing in the option surface picks which edge gives way, and
+  the order `nodes` is listed in does not sway it. The arrows still point the way
+  the edges were written, so the picture stays true: it is the layers that stop
+  being the reading order. Say so in the caption rather than fighting the engine.
 - `g` obeys the **last mover** like any group, so compose it into a band and the
   nodes move with it; the arrows are deferred, so they still resolve against the
   final positions. Node positions come back on whole pixels, which is what makes
@@ -455,7 +462,12 @@ return [g, ...arrows];                     // g places like any group; spread th
     it with `arrow-crossing`. Write that one edge's path with `via`.
   - a **two-way pair** puts both arrows on the same line, so one strikes the
     other's label (`text-struck-by-arrow`). Give the return leg its own
-    `originAt` / `landAt`, or label only one direction.
+    `originAt` / `landAt`, or label only one direction. Both fractions run along
+    whichever edge **faces** the other node, so they turn with `direction`:
+    numbers that separate two legs laid out `"down"` separate nothing laid out
+    `"right"`, where the facing edge is the box's short side. Pick them per
+    layout, and open a gap wider than half the label — a label rides at the
+    middle of its own arrow, so a narrower offset leaves it struck anyway.
 
   Both are the gate doing its job — run the build, read the code it names, and
   fix that edge rather than the layout.

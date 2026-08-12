@@ -9,6 +9,7 @@
  * Exits non-zero on any mismatch, with the gate's actual output printed.
  */
 import { spawnSync } from "node:child_process";
+import { readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -352,6 +353,29 @@ for (const c of CASES) {
   check("a label sitting on its own container arrow gets no text-struck-by-arrow",
     !find(jsonFile("arrow-label-wide"), "text-struck-by-arrow"),
     JSON.stringify(jsonFile("arrow-label-wide").problems));
+}
+
+// ---- every committed band, held to the same gate ----
+//
+// A band is generator output, and authorDiagram gates before it writes, so a
+// defect in a committed artifact means someone edited the file instead of
+// re-running its generator — exactly what the examples are documented not to
+// allow. Walked rather than listed, so a band added later is covered the day it
+// lands and not the day someone remembers this file.
+{
+  const bands = (dir) =>
+    readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? bands(join(dir, e.name))
+        : e.name.endsWith(".excalidraw") ? [join(root, dir, e.name)] : []);
+
+  const committed = bands("examples");
+  // a walk that finds nothing would pass every check below without reading a file
+  check("the walk finds the committed bands", committed.length >= 2, `${committed.length} found`);
+
+  const all = spawnSync(process.execPath, [gate, ...committed], { encoding: "utf8" });
+  check("every committed band is gate-clean", all.status === 0,
+    all.status === 0 ? `${committed.length} clean`
+      : all.stderr.trim().split("\n").filter(Boolean).slice(0, 4).join(" | "));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall gate fixtures behave");

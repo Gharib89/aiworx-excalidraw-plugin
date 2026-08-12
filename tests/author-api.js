@@ -787,5 +787,86 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     `${line?.fillStyle} / ${line?.strokeWidth}`);
 }
 
+// ---- 12. graph() through the build context: a diamond DAG reaches the gate ----
+{
+  const out = join(outDir, "graph-diamond.excalidraw");
+  const result = await authorDiagram({
+    out,
+    build: async ({ measure, box, graph, palette: p, PROSE }) => {
+      const label = async (id, text) => {
+        const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
+        return box(
+          { type: "text", text, fontSize: 18, fontFamily: PROSE, strokeColor: p.grey.ink,
+            width: m.width, height: m.height },
+          { id, padding: 20, strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill },
+        );
+      };
+      const a = await label("gd-a", "Start");
+      const b = await label("gd-b", "Left");
+      const c = await label("gd-c", "Right");
+      const d = await label("gd-d", "End");
+      const { g, arrows } = await graph(
+        [a, b, c, d],
+        [[a, b, { label: "yes" }], [a, c], [b, d], [c, d]],
+        { direction: "down", strokeColor: p.grey.stroke },
+      );
+      return [g, ...arrows];
+    },
+  });
+  check("graph() authors a diamond DAG through authorDiagram", existsSync(out),
+    `${result.elements.length} elements`);
+  const byId = new Map(result.elements.map((e) => [e.id, e]));
+  const [a, b, c, d] = ["gd-a", "gd-b", "gd-c", "gd-d"].map((id) => byId.get(id));
+  check("graph() layers the diamond into three distinct rows",
+    a && b && c && d && new Set([a.y, b.y, c.y, d.y]).size === 3 &&
+      a.y < b.y && b.y === c.y && c.y < d.y,
+    `a=${a?.y} b=${b?.y} c=${c?.y} d=${d?.y}`);
+  const graphArrows = result.elements.filter((e) => e.type === "arrow");
+  check("every graph() arrow resolves to real points",
+    graphArrows.length === 4 && graphArrows.every((ar) => Array.isArray(ar.points) && ar.points.length >= 2),
+    `${graphArrows.length} arrows`);
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("the graph()-built diamond passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
+// ---- 13. fanOut() through the build context: one source, three landings, gated ----
+{
+  const out = join(outDir, "fanout-band.excalidraw");
+  const result = await authorDiagram({
+    out,
+    build: async ({ measure, box, row, column, fanOut, palette: p, PROSE }) => {
+      const label = async (id, text) => {
+        const [m] = await measure([{ text, fontSize: 16, fontFamily: PROSE }]);
+        return box(
+          { type: "text", text, fontSize: 16, fontFamily: PROSE, strokeColor: p.grey.ink,
+            width: m.width, height: m.height },
+          { id, padding: 16, strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill },
+        );
+      };
+      const src = await label("fo-src", "Source");
+      const t1 = await label("fo-t1", "One");
+      const t2 = await label("fo-t2", "Two");
+      const t3 = await label("fo-t3", "Three");
+      const targets = column([t1, t2, t3], { gap: 30 });
+      const band = row([src, targets], { gap: 120, align: "center" });
+      return [band, ...fanOut(src, [t1, t2, t3], { standoff: 10, strokeColor: p.grey.stroke })];
+    },
+  });
+  check("fanOut() authors a fan through authorDiagram", existsSync(out), `${result.elements.length} elements`);
+  const fanArrows = result.elements.filter((e) => e.type === "arrow");
+  const landings = fanArrows.map((ar) => {
+    const last = ar.points[ar.points.length - 1];
+    return [ar.x + last[0], ar.y + last[1]];
+  });
+  const landingYs = new Set(landings.map(([, y]) => y));
+  check("fanOut()'s three arrows land at pairwise distinct points",
+    fanArrows.length === 3 && landingYs.size === 3,
+    `${fanArrows.length} arrows, landings ${JSON.stringify(landings)}`);
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("the fanOut()-built fan passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");
 process.exit(fail.length ? 1 : 0);

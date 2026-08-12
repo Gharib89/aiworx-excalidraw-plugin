@@ -441,6 +441,13 @@ return [g, ...arrows];                     // g places like any group; spread th
   left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
   layers themselves. These four are the whole option surface: the algorithm is
   always `layered`, and raw ELK options do not pass through.
+- **A cycle costs you the reading order.** The engine layers a graph by making it
+  acyclic first, so every cycle has one edge reversed for the purpose of laying
+  out — and the state an author thinks of as the entry can land mid-picture or
+  at the bottom. Nothing in the option surface picks which edge gives way, and
+  the order `nodes` is listed in does not sway it. The arrows still point the way
+  the edges were written, so the picture stays true: it is the layers that stop
+  being the reading order. Say so in the caption rather than fighting the engine.
 - `g` obeys the **last mover** like any group, so compose it into a band and the
   nodes move with it; the arrows are deferred, so they still resolve against the
   final positions. Node positions come back on whole pixels, which is what makes
@@ -455,7 +462,13 @@ return [g, ...arrows];                     // g places like any group; spread th
     it with `arrow-crossing`. Write that one edge's path with `via`.
   - a **two-way pair** puts both arrows on the same line, so one strikes the
     other's label (`text-struck-by-arrow`). Give the return leg its own
-    `originAt` / `landAt`, or label only one direction.
+    `originAt` / `landAt`, or label only one direction. Both fractions run along
+    whichever edge **faces** the other node, so the gap they open is a fraction
+    of *that* edge's length — and which edge faces turns with `direction`.
+    Re-pick them per layout: numbers that clear a label along the wide side of a
+    box laid out `"down"` open a much smaller gap along the short side laid out
+    `"right"`, often too small to clear anything. A label rides at the middle of
+    its own arrow, so the gap has to beat half the label's width.
 
   Both are the gate doing its job — run the build, read the code it names, and
   fix that edge rather than the layout.

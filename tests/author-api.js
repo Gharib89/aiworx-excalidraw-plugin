@@ -21,6 +21,10 @@
  *  10. a session authors N diagrams over one browser launch, without drift
  *  11. a computed orthogonal route reaches the converter as an elbow, stays
  *      bound at both ends, and passes the gate
+ *  12. graph() called through the build context lays a diamond into distinct
+ *      layers, resolves every arrow, and passes the gate
+ *  13. fanOut() called through the build context lands three arrows at
+ *      distinct points and passes the gate
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
@@ -785,6 +789,84 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   check("the register's fill reaches a closed line",
     line?.fillStyle === "cross-hatch" && line.strokeWidth === 3,
     `${line?.fillStyle} / ${line?.strokeWidth}`);
+}
+
+/** One measured line in a padded box — the node shape both layout cases build. */
+const nodeBox = ({ measure, box, palette: p, PROSE }) => async (id, text) => {
+  const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
+  return box(
+    { type: "text", text, fontSize: 18, fontFamily: PROSE, strokeColor: p.grey.ink,
+      width: m.width, height: m.height },
+    { id, padding: 20, strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill },
+  );
+};
+
+// ---- 12. graph() through the build context: a diamond graph reaches the gate ----
+{
+  const out = join(outDir, "graph-diamond.excalidraw");
+  const result = await authorDiagram({
+    out,
+    build: async (ctx) => {
+      const { graph, palette: p } = ctx;
+      const label = nodeBox(ctx);
+      const a = await label("gd-a", "Start");
+      const b = await label("gd-b", "Left");
+      const c = await label("gd-c", "Right");
+      const d = await label("gd-d", "End");
+      const { g, arrows } = await graph(
+        [a, b, c, d],
+        [[a, b, { label: "yes" }], [a, c], [b, d], [c, d]],
+        { direction: "down", strokeColor: p.grey.stroke },
+      );
+      return [g, ...arrows];
+    },
+  });
+  check("graph() authors a diamond graph through authorDiagram", existsSync(out),
+    `${result.elements.length} elements`);
+  const byId = new Map(result.elements.map((e) => [e.id, e]));
+  const [a, b, c, d] = ["gd-a", "gd-b", "gd-c", "gd-d"].map((id) => byId.get(id));
+  check("graph() lays the diamond into three distinct layers",
+    a && b && c && d && a.y < b.y && b.y === c.y && c.y < d.y,
+    `a=${a?.y} b=${b?.y} c=${c?.y} d=${d?.y}`);
+  const graphArrows = result.elements.filter((e) => e.type === "arrow");
+  check("every graph() arrow resolves to real points",
+    graphArrows.length === 4 && graphArrows.every((ar) => Array.isArray(ar.points) && ar.points.length >= 2),
+    `${graphArrows.length} arrows`);
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("the graph()-built diamond passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
+}
+
+// ---- 13. fanOut() through the build context: one source, three landings, gated ----
+{
+  const out = join(outDir, "fanout-band.excalidraw");
+  const result = await authorDiagram({
+    out,
+    build: async (ctx) => {
+      const { row, column, fanOut, palette: p } = ctx;
+      const label = nodeBox(ctx);
+      const src = await label("fo-src", "Source");
+      const t1 = await label("fo-t1", "One");
+      const t2 = await label("fo-t2", "Two");
+      const t3 = await label("fo-t3", "Three");
+      const targets = column([t1, t2, t3], { gap: 30 });
+      const band = row([src, targets], { gap: 120, align: "center" });
+      return [band, ...fanOut(src, [t1, t2, t3], { standoff: 10, strokeColor: p.grey.stroke })];
+    },
+  });
+  check("fanOut() authors a fan through authorDiagram", existsSync(out), `${result.elements.length} elements`);
+  const fanArrows = result.elements.filter((e) => e.type === "arrow");
+  const landings = fanArrows.map((ar) => {
+    const last = ar.points[ar.points.length - 1];
+    return [ar.x + last[0], ar.y + last[1]];
+  });
+  const distinct = new Set(landings.map((pt) => pt.join(","))).size;
+  check("fanOut()'s three arrows land at pairwise distinct points",
+    fanArrows.length === 3 && distinct === 3,
+    `${fanArrows.length} arrows, landings ${JSON.stringify(landings)}`);
+  const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
+  check("the fanOut()-built fan passes the CLI gate", gate.status === 0,
+    (gate.stdout + gate.stderr).trim().split("\n").pop());
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

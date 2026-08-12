@@ -14,6 +14,10 @@
  *   5. the item lands with its top-left corner at `at` and reports its extent
  *   6. an item whose every element is deleted is refused like an element-less
  *      one, rather than splicing to an empty group with a non-finite extent
+ *   7. `text: "drop"` removes the item's own text in faces outside the house
+ *      pair and leaves the group's extent, children and ids describing what
+ *      survived; the default keeps it, an unknown mode is refused, and an item
+ *      dropped to nothing is refused like an element-less one
  *
  * The stick-figure library (examples/) is the real-world case; everything that
  * needs a specific shape is written inline, so the expectation and the input
@@ -23,7 +27,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spliceLibraryItem } from "../tools/author.js";
+import { spliceLibraryItem, PROSE } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = mkdtempSync(join(tmpdir(), "splice-"));
@@ -238,6 +242,89 @@ const library = (name, doc) => {
   }));
   check("a deleted element is dropped from a live item",
     live.children.length === 1 && live.width === 40, `${live.children.length} children, width ${live.width}`);
+}
+
+// ---- 7. text: "drop" removes the item's own foreign-font labels ----
+//
+// Every item of a real community library labels itself in Excalidraw's own
+// faces, so the default splice hands the gate text the author never wrote
+// (foreign-font). "drop" removes exactly that text before the group is
+// assembled, so the bounds, children and ids all describe what is left.
+{
+  const labelled = library("labelled", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{
+      name: "icon",
+      elements: [
+        el("box", { width: 40, height: 40, boundElements: [{ id: "label", type: "text" }] }),
+        // the item's own container label, in a face outside the house pair
+        el("label", {
+          type: "text", x: 4, y: 12, width: 32, height: 20, text: "Kinesis",
+          fontSize: 16, fontFamily: 1, containerId: "box",
+        }),
+        // a free foreign label wide and low enough to own the item's extent
+        el("wide", {
+          type: "text", x: 0, y: 100, width: 200, height: 20, text: "AWS",
+          fontSize: 16, fontFamily: 5,
+        }),
+        el("keeper", {
+          type: "text", x: 0, y: 60, width: 30, height: 20, text: "mine",
+          fontSize: 16, fontFamily: PROSE,
+        }),
+      ],
+    }],
+  });
+
+  const kept = spliceLibraryItem(labelled);
+  check("the default splice still carries the item's foreign text",
+    kept.children.length === 4 && kept.children.some((e) => e.fontFamily === 1),
+    `${kept.children.length} children`);
+  check("the default splice reports the extent the foreign text owns",
+    kept.width === 200 && kept.height === 120, `${kept.width}x${kept.height}`);
+
+  const dropped = spliceLibraryItem(labelled, { text: "drop" });
+  const texts = dropped.children.filter((e) => e.type === "text");
+  check('text: "drop" removes text outside the house pair',
+    dropped.children.length === 2 && !texts.some((t) => t.fontFamily === 1 || t.fontFamily === 5),
+    dropped.children.map((e) => `${e.type}:${e.fontFamily ?? "-"}`).join(", "));
+  check('text: "drop" keeps house-pair text the item wrote',
+    texts.length === 1 && texts[0].text === "mine" && texts[0].fontFamily === PROSE,
+    JSON.stringify(texts.map((t) => t.text)));
+  // an extent measured over dropped elements is the same lie as an empty
+  // group's -Infinity: it reserves space nothing occupies
+  check('text: "drop" reports the extent of what is left',
+    dropped.width === 40 && dropped.height === 80, `${dropped.width}x${dropped.height}`);
+  check('text: "drop" keeps ids and children in step',
+    dropped.ids.length === dropped.children.length
+      && dropped.ids.every((id, i) => id === dropped.children[i].id),
+    `${dropped.ids.length} ids, ${dropped.children.length} children`);
+  const box = dropped.children.find((e) => e.type === "rectangle");
+  check('a container whose bound text was dropped keeps no dangling reference',
+    box?.boundElements?.length === 0, JSON.stringify(box?.boundElements));
+
+  // "retype" is the mode an author reaches for and this splice does not have:
+  // the refusal has to name what it does have, not merely say no
+  const badMode = throwsWith("LibraryError", () => spliceLibraryItem(labelled, { text: "retype" }));
+  check("an unknown text mode is a LibraryError", badMode.ok, badMode.detail);
+  check("the unknown text mode names the modes that exist",
+    badMode.message?.includes('unknown text mode "retype"')
+      && badMode.message.includes('"keep"') && badMode.message.includes('"drop"'),
+    badMode.message);
+
+  // nothing but foreign text left is nothing to splice, exactly like an item of
+  // nothing but tombstones — not a group with a non-finite extent
+  const allForeign = library("all-foreign", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{
+      name: "words only",
+      elements: [el("w", {
+        type: "text", width: 30, height: 20, text: "AWS", fontSize: 16, fontFamily: 1,
+      })],
+    }],
+  });
+  check('an item dropped to nothing is refused, not spliced to an empty group',
+    spliceLibraryItem(allForeign).children.length === 1
+      && throwsWith("LibraryError", () => spliceLibraryItem(allForeign, { text: "drop" })).ok);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nspliceLibraryItem holds its contract");

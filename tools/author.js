@@ -248,8 +248,19 @@ function makeImage(ex, files) {
  * rather than left dangling for the gate to reject. The item lands with its
  * top-left corner at `at` and comes back as a layout group, so it places like
  * any other item; `ids` lists the fresh element ids for a frame's `children`.
+ *
+ * `text: "drop"` removes the item's own text in faces outside the house pair —
+ * what a real community item labels itself with, and what the gate refuses as
+ * foreign-font. House-pair text in the item survives. The default `"keep"`
+ * splices the item verbatim.
  */
-export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
+export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" } = {}) {
+  if (text !== "keep" && text !== "drop") {
+    throw new LibraryError(`unknown text mode ${JSON.stringify(text)}`, {
+      where: path,
+      next: 'Pass text: "keep" to splice the item\'s own labels, or "drop" to remove the ones outside the house pair.',
+    });
+  }
   let data;
   try {
     data = JSON.parse(readFileSync(path, "utf8"));
@@ -276,10 +287,19 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0] } = {}) {
   if (!picked || !Array.isArray(picked.elements)) throw noSuchItemError();
 
   // The emptiness check sits after the filter, not before it: an item holding
-  // nothing but tombstones has as little to splice as one holding nothing at
-  // all, and letting it through leaves Math.min/max with no boxes to measure —
-  // a group whose width is -Infinity, which poisons every layout downstream.
-  const source = picked.elements.filter((e) => !e.isDeleted);
+  // nothing but tombstones — or nothing but dropped foreign text — has as
+  // little to splice as one holding nothing at all, and letting it through
+  // leaves Math.min/max with no boxes to measure — a group whose width is
+  // -Infinity, which poisons every layout downstream.
+  //
+  // Dropping here, before the id map, is what keeps the drop honest: a dropped
+  // element's id never enters the map, so the remap below nulls or filters
+  // every reference to it, and the extent is measured over the survivors.
+  const house = new Set([PROSE, CODE]);
+  const foreignText = (e) => e.type === "text" && !house.has(e.fontFamily);
+  const source = picked.elements.filter(
+    (e) => !e.isDeleted && !(text === "drop" && foreignText(e)),
+  );
   if (source.length === 0) throw noSuchItemError();
   const idMap = new Map(source.map((e) => [e.id, freshId()]));
   const groupMap = new Map();

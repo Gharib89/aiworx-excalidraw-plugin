@@ -21,6 +21,10 @@
  *  10. a session authors N diagrams over one browser launch, without drift
  *  11. a computed orthogonal route reaches the converter as an elbow, stays
  *      bound at both ends, and passes the gate
+ *  12. graph() called through the build context lays a diamond into distinct
+ *      layers, resolves every arrow, and passes the gate
+ *  13. fanOut() called through the build context lands three arrows at
+ *      distinct points and passes the gate
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
@@ -787,20 +791,24 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     `${line?.fillStyle} / ${line?.strokeWidth}`);
 }
 
-// ---- 12. graph() through the build context: a diamond DAG reaches the gate ----
+/** One measured line in a padded box — the node shape both layout cases build. */
+const nodeBox = ({ measure, box, palette: p, PROSE }) => async (id, text) => {
+  const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
+  return box(
+    { type: "text", text, fontSize: 18, fontFamily: PROSE, strokeColor: p.grey.ink,
+      width: m.width, height: m.height },
+    { id, padding: 20, strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill },
+  );
+};
+
+// ---- 12. graph() through the build context: a diamond graph reaches the gate ----
 {
   const out = join(outDir, "graph-diamond.excalidraw");
   const result = await authorDiagram({
     out,
-    build: async ({ measure, box, graph, palette: p, PROSE }) => {
-      const label = async (id, text) => {
-        const [m] = await measure([{ text, fontSize: 18, fontFamily: PROSE }]);
-        return box(
-          { type: "text", text, fontSize: 18, fontFamily: PROSE, strokeColor: p.grey.ink,
-            width: m.width, height: m.height },
-          { id, padding: 20, strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill },
-        );
-      };
+    build: async (ctx) => {
+      const { graph, palette: p } = ctx;
+      const label = nodeBox(ctx);
       const a = await label("gd-a", "Start");
       const b = await label("gd-b", "Left");
       const c = await label("gd-c", "Right");
@@ -813,13 +821,12 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
       return [g, ...arrows];
     },
   });
-  check("graph() authors a diamond DAG through authorDiagram", existsSync(out),
+  check("graph() authors a diamond graph through authorDiagram", existsSync(out),
     `${result.elements.length} elements`);
   const byId = new Map(result.elements.map((e) => [e.id, e]));
   const [a, b, c, d] = ["gd-a", "gd-b", "gd-c", "gd-d"].map((id) => byId.get(id));
-  check("graph() layers the diamond into three distinct rows",
-    a && b && c && d && new Set([a.y, b.y, c.y, d.y]).size === 3 &&
-      a.y < b.y && b.y === c.y && c.y < d.y,
+  check("graph() lays the diamond into three distinct layers",
+    a && b && c && d && a.y < b.y && b.y === c.y && c.y < d.y,
     `a=${a?.y} b=${b?.y} c=${c?.y} d=${d?.y}`);
   const graphArrows = result.elements.filter((e) => e.type === "arrow");
   check("every graph() arrow resolves to real points",
@@ -835,15 +842,9 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   const out = join(outDir, "fanout-band.excalidraw");
   const result = await authorDiagram({
     out,
-    build: async ({ measure, box, row, column, fanOut, palette: p, PROSE }) => {
-      const label = async (id, text) => {
-        const [m] = await measure([{ text, fontSize: 16, fontFamily: PROSE }]);
-        return box(
-          { type: "text", text, fontSize: 16, fontFamily: PROSE, strokeColor: p.grey.ink,
-            width: m.width, height: m.height },
-          { id, padding: 16, strokeColor: p.roles.local.stroke, backgroundColor: p.roles.local.fill },
-        );
-      };
+    build: async (ctx) => {
+      const { row, column, fanOut, palette: p } = ctx;
+      const label = nodeBox(ctx);
       const src = await label("fo-src", "Source");
       const t1 = await label("fo-t1", "One");
       const t2 = await label("fo-t2", "Two");
@@ -859,9 +860,9 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     const last = ar.points[ar.points.length - 1];
     return [ar.x + last[0], ar.y + last[1]];
   });
-  const landingYs = new Set(landings.map(([, y]) => y));
+  const distinct = new Set(landings.map((pt) => pt.join(","))).size;
   check("fanOut()'s three arrows land at pairwise distinct points",
-    fanArrows.length === 3 && landingYs.size === 3,
+    fanArrows.length === 3 && distinct === 3,
     `${fanArrows.length} arrows, landings ${JSON.stringify(landings)}`);
   const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), out], { encoding: "utf8" });
   check("the fanOut()-built fan passes the CLI gate", gate.status === 0,

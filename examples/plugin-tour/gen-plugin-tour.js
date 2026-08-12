@@ -3,7 +3,7 @@
  * Plugin tour — a 9-frame teaching band that explains the aiworx-excalidraw
  * plugin with its own tools. Each frame lands one claim on a distinct pattern,
  * and together they exercise every authoring feature: withAuthoring, measure,
- * wrap, column/row/box, arrowBetween (labels, standoff, fan-out), image,
+ * wrap, column/row/box, arrowBetween (labels, standoff), fanOut, image,
  * spliceLibraryItem, frames, palette roles, both fonts, arrowhead vocabulary,
  * and color.js for real dark-theme contrast numbers.
  *
@@ -35,7 +35,7 @@ await withAuthoring(async (author) => {
   await author({
     out: join(here, "plugin-tour.excalidraw"),
     build: async (ctx) => {
-      const { measure, wrap, row, column, box, arrowBetween, image, spliceLibraryItem,
+      const { measure, wrap, row, column, box, arrowBetween, fanOut, image, spliceLibraryItem,
               palette: p, PROSE, CODE } = ctx;
       const ink = p.ink;
       const grey = p.grey;
@@ -138,16 +138,15 @@ await withAuthoring(async (author) => {
         const renderM = await mod("render.js · revise.js", "SVG, PNGs, round-trip", "artifact", "p3-render");
         const geomM = await mod("geometry.js", "one bounds definition", undefined, "p3-geometry");
         const arrows = [
-          ...[layoutM, verifyM, browserM, renderM].map((m) =>
-            arrowBetween(authorM, m, { standoff: 10, strokeColor: grey.stroke,
-              strokeWidth: 2, endArrowhead: "diamond" })),
+          ...fanOut(authorM, [layoutM, verifyM, browserM, renderM],
+            { standoff: 10, strokeColor: grey.stroke, strokeWidth: 2, endArrowhead: "diamond" }),
           arrowBetween(verifyM, geomM, { standoff: 10, strokeColor: grey.stroke,
             strokeWidth: 2, endArrowhead: "diamond", label: { text: "shared bounds", fontSize: 13 } }),
         ];
         const mid = row([layoutM, verifyM, browserM, renderM], { gap: 34, align: "start" });
         const title = await text("author.js composes everything; geometry.js is shared", { fontSize: 22 });
-        // fan gap must exceed the horizontal distance to the outer cards, or
-        // arrowBetween picks the horizontal axis and the diagonal clips a neighbour
+        // fan gap must exceed the horizontal distance to the outer cards, or the
+        // fan picks the horizontal axis and the diagonal clips a neighbour
         const g = column([title, authorM, mid, geomM], { gap: [30, 220, 64], align: "center" });
         panels.push({ g, name: "3 · the components, and who owns whom", arrows });
       }

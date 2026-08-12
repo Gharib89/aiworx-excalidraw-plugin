@@ -463,11 +463,12 @@ return [g, ...arrows];                     // g places like any group; spread th
   - a **two-way pair** puts both arrows on the same line, so one strikes the
     other's label (`text-struck-by-arrow`). Give the return leg its own
     `originAt` / `landAt`, or label only one direction. Both fractions run along
-    whichever edge **faces** the other node, so they turn with `direction`:
-    numbers that separate two legs laid out `"down"` separate nothing laid out
-    `"right"`, where the facing edge is the box's short side. Pick them per
-    layout, and open a gap wider than half the label — a label rides at the
-    middle of its own arrow, so a narrower offset leaves it struck anyway.
+    whichever edge **faces** the other node, so the gap they open is a fraction
+    of *that* edge's length — and which edge faces turns with `direction`.
+    Re-pick them per layout: numbers that clear a label along the wide side of a
+    box laid out `"down"` open a much smaller gap along the short side laid out
+    `"right"`, often too small to clear anything. A label rides at the middle of
+    its own arrow, so the gap has to beat half the label's width.
 
   Both are the gate doing its job — run the build, read the code it names, and
   fix that edge rather than the layout.

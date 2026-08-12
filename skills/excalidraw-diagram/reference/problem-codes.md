@@ -71,7 +71,7 @@ warning level.
 | `unparseable-color` | live | [element] or (empty) | `field`, `value` | a colour field is neither a hex value, `transparent`, nor empty |
 | `text-over-image` | live | [text, image] | — | text sits over an image, whose pixels are a ground no contrast ratio can measure |
 | `low-contrast` | live | [text] | `ratio`, `needs`, `ink`, `bg`, `theme` | text misses 4.5:1 (3:1 for large text) against its ground, under the named theme |
-| `foreign-font` | live | [text] | — | the text's `fontFamily` is outside the house pair |
+| `foreign-font` | live | [text] | — | the text's `fontFamily` is outside the house pair — a spliced library item's own labels are the usual source, so splice it with `text: "drop"` ([authoring.md](authoring.md#real-assets-images-and-library-items)) |
 | `missing-image-bytes` | live | [image] | — | the image's `fileId` has no bytes in the files dictionary |
 
 `frame-edge-crowding` is the near miss `frame-escape` does not cover: a per-frame

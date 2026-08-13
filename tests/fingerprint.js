@@ -17,7 +17,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bundledClosure, expectedFingerprint } from "../tools/fingerprint.js";
+import { BUNDLED_ROOTS, bundledClosure, expectedFingerprint } from "../tools/fingerprint.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -28,7 +28,7 @@ const check = (name, cond, detail) => {
   if (!cond) fail.push(name);
 };
 
-const ROOTS = ["@excalidraw/excalidraw", "@excalidraw/mermaid-to-excalidraw", "react", "react-dom", "esbuild"];
+const ROOTS = BUNDLED_ROOTS;
 
 /** Minimal fixture lockfile: all five bundled roots present, no deps unless overridden. */
 const fixtureLock = (packageOverrides = {}) => ({

@@ -22,7 +22,7 @@ export const FINGERPRINT_MARKER = "//# aiworxBundleFingerprint=";
 // versions missed the transitive closure underneath them — mermaid, its own
 // dependencies, scheduler, and the rest — which floats independently of any
 // range string and can move the real bundle while the stamp stays green.
-const BUNDLED_ROOTS = [
+export const BUNDLED_ROOTS = [
   "@excalidraw/excalidraw", "@excalidraw/mermaid-to-excalidraw", "react", "react-dom", "esbuild",
 ];
 
@@ -40,7 +40,9 @@ function resolveDep(lock, fromPath, name) {
     if (lock.packages[candidate]) return candidate;
     if (p === "") return null;
     const m = p.match(/(?:^|\/)node_modules\/(?:@[^/]+\/[^/]+|[^/]+)$/);
-    p = p.slice(0, m.index);
+    // A path with no node_modules segment (a workspace entry like packages/app)
+    // climbs straight to the root node_modules, as npm itself would.
+    p = m ? p.slice(0, m.index) : "";
   }
 }
 
@@ -64,6 +66,9 @@ export function bundledClosure(lock) {
     visited.add(path);
     const entry = lock.packages[path];
     versions.add(`${name}@${entry.version}`);
+    // Peers included deliberately: a resolved peer (react under react-dom) is a
+    // real instance the bundle carries. Over-hashing an unused one just forces a
+    // rebundle on its move; under-hashing is the silent staleness this guards.
     const deps = { ...entry.dependencies, ...entry.optionalDependencies, ...entry.peerDependencies };
     for (const depName of Object.keys(deps)) {
       const depPath = resolveDep(lock, path, depName);

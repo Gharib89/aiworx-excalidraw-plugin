@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { NamedError, UsageError, DocumentError } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, AssetError, LibraryError,
-  makeWrap, spliceLibraryItem,
+  makeWrap, spliceLibraryItem, authorDiagram,
 } from "../tools/author.js";
 // browser.js is imported for its error classes only — importing never launches
 // Chrome, so this suite stays in the fast (browser-free) target.
@@ -175,6 +175,15 @@ const thrown = async (label, fn, Cls) => {
     Boolean(err.where) && Boolean(err.next)
       && err.message.includes(err.where) && err.message.includes(err.next), err.message);
 };
+
+// These three reject at options validation, before withExcalidraw runs — this
+// suite is in test:fast and chromeless.js re-runs it with CHROME_PATH pointed
+// at nothing, so a guard that slipped past the browser launch would go red.
+await thrown("authorDiagram with a misspelled option",
+  () => authorDiagram({ out: "x.excalidraw", build: async () => [], regster: {} }), SkeletonError);
+await thrown("authorDiagram with null options", () => authorDiagram(null), SkeletonError);
+await thrown("authorDiagram with the deleted background option",
+  () => authorDiagram({ out: "x.excalidraw", build: async () => [], background: "#fff" }), SkeletonError);
 
 await thrown("wrap with a zero width", () => makeWrap(fakeMeasure)("hello", 0), WrapError);
 await thrown("stack with no items", () => stack([]), LayoutError);

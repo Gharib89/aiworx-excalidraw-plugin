@@ -486,7 +486,13 @@ const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register"]);
  * was never told to keep.
  */
 function validateAuthorOptions(options) {
-  for (const key of Object.keys(options ?? {})) {
+  if (options == null || typeof options !== "object" || Array.isArray(options)) {
+    throw new SkeletonError(
+      `must be an object of authoring options, got ${options === null ? "null" : Array.isArray(options) ? "an array" : typeof options}`,
+      { where: "options", next: 'Pass an object like { out: "d.excalidraw", build }.' },
+    );
+  }
+  for (const key of Object.keys(options)) {
     if (!AUTHOR_OPTIONS.has(key)) {
       throw new SkeletonError(`has unknown option ${JSON.stringify(key)}`, {
         where: "options", next: `Use one of: ${[...AUTHOR_OPTIONS].join(", ")}.`,

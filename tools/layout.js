@@ -96,9 +96,9 @@ export function stack(items, { direction = "column", x = 0, y = 0, gap = 0, alig
   // identity, not id: the same item twice would collapse under place()'s
   // mutation — the last call wins the slot and leaves the other slot's extent
   // phantom-empty, a silently wrong layout the gate can't catch
-  const index = new Map(items.map((item, i) => [item, i]));
-  if (index.size !== items.length) {
-    throw new LayoutError(`items lists ${items.length} entries but only ${index.size} distinct shapes`, {
+  const distinct = new Set(items);
+  if (distinct.size !== items.length) {
+    throw new LayoutError(`items lists ${items.length} entries but only ${distinct.size} distinct shapes`, {
       where: "stack", next: "Pass a separate shape per slot, and list each one once.",
     });
   }

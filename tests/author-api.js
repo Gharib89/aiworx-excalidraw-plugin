@@ -35,7 +35,7 @@ import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { withExcalidraw } from "../tools/browser.js";
-import { authorDiagram, reviseDiagram, makeWrap, PROSE } from "../tools/author.js";
+import { authorDiagram, reviseDiagram, makeWrap, withAuthoring, PROSE } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = mkdtempSync(join(tmpdir(), "author-api-"));
@@ -800,6 +800,28 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     register: { roughness: 0 },
   });
   check("a call using only accepted options still authors", result.elements.length > 0, result.elements.length);
+}
+
+// withAuthoring's author() funnels through the same guard: the typo fails its
+// one diagram and leaves the session usable for the next
+{
+  const sessionOut = join(outDir, "options-typo-session.excalidraw");
+  let sessionBuilt = false;
+  let typoRefused = false;
+  await withAuthoring(async (author) => {
+    try {
+      await author({ out: join(outDir, "never.excalidraw"), svg: false, regster: {}, build: async () => [] });
+    } catch (e) {
+      typoRefused = e.name === "SkeletonError" && /regster/.test(e.message);
+    }
+    await author({
+      out: sessionOut,
+      svg: false,
+      build: async () => { sessionBuilt = true; return [{ type: "rectangle", x: 0, y: 0, width: 10, height: 10 }]; },
+    });
+  });
+  check("withAuthoring's author() refuses the same typo", typoRefused);
+  check("the session survives the refusal and authors the next diagram", sessionBuilt && existsSync(sessionOut));
 }
 
 // a closed line fills like an area shape, so the register's fill has to reach it

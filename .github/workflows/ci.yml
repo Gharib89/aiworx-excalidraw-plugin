@@ -46,5 +46,10 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run bundle
+      # The fingerprint certifies the hashed inputs, not the bytes: a floating
+      # transitive dep (mermaid, d3) can move the real bundle while the stamp
+      # stays green. Byte-comparing the rebuild catches every unhashed input.
+      - name: rebuilt bundle must match the committed dist/
+        run: git diff --exit-code dist/
       - run: npm run smoke
       - run: node tools/check.js tests/fixtures/clean.excalidraw

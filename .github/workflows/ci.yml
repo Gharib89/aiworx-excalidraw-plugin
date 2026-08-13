@@ -48,8 +48,13 @@ jobs:
       - run: npm run bundle
       # The fingerprint certifies the hashed inputs, not the bytes: a floating
       # transitive dep (mermaid, d3) can move the real bundle while the stamp
-      # stays green. Byte-comparing the rebuild catches every unhashed input.
+      # stays green. Compare bytes AND paths — `git diff` alone misses an added
+      # file (a content-hashed woff2 renamed by a dep bump, or a new dist/ path
+      # that .gitignore's by-name un-ignores would silently drop).
       - name: rebuilt bundle must match the committed dist/
-        run: git diff --exit-code dist/
+        run: |
+          git diff --stat --exit-code dist/
+          test -z "$(git status --porcelain --ignored dist/)" \
+            || { git status --porcelain --ignored dist/; exit 1; }
       - run: npm run smoke
       - run: node tools/check.js tests/fixtures/clean.excalidraw

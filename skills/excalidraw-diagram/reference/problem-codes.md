@@ -128,7 +128,7 @@ The exit-code conventions differ deliberately:
 |---|---|---|---|
 | `check.js` | every file passed | any file failed the rules | any file was unreadable, or the invocation was bad |
 | `render.js`, `revise.js` | the file was written | the document was refused — unparseable, foreign, or failing the gate | the invocation was bad: an unknown flag, a missing or invalid flag value, no input file, or more files than the tool takes |
-| `library.js` | the search answered (no matches is still an answer) or the download landed in the cache — the splice stays a separate step | the request failed — the index, a download, or a hostile entry | the invocation was bad, including a missing query |
+| `library.js` | the search answered (no matches is still an answer) or the download landed in the cache — the splice stays a separate step | the request failed — the index, a download, or a hostile entry | the invocation was bad, including a missing or blank query |
 
 A batch reports the **worst** code across its files, so an unreadable input (2)
 outranks a file that failed the rules (1) instead of hiding behind it. The

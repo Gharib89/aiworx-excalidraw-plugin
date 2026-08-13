@@ -303,7 +303,6 @@ export function verifyDocument(data) {
 
   // 12. an element far from everything else is a coordinate typo: it silently
   //     stretches the export canvas and shrinks the diagram to a corner
-  const STRAY_GAP = 1000;
   // one NaN box would silence the rule for every element, so measure finite ones only
   const placeable = els.filter((e) => !nonFinite.has(e.id));
   if (placeable.length > 1) {
@@ -472,7 +471,7 @@ export function verifyDocument(data) {
  * ink legitimately fills its frame stops a few px inside — so it flags content
  * on the border, not content that is merely snug.
  */
-const FRAME_EDGE_INSET = 4;
+export const FRAME_EDGE_INSET = 4;
 
 /**
  * Minimum clearance a text's outline must keep from an arrow it isn't the
@@ -482,7 +481,15 @@ const FRAME_EDGE_INSET = 4;
  * exempts an arrow bound to the text's own container rather than shrinking
  * this floor to fit under it.
  */
-const TEXT_ARROW_CLEARANCE = 6;
+export const TEXT_ARROW_CLEARANCE = 6;
+
+/**
+ * How far an element must sit from every other element before it reads as an
+ * off-canvas stray rather than a placed one. Hoisted to module scope (out of
+ * the rule that reads it) so problem-codes.md's published number can be
+ * checked against this one directly.
+ */
+export const STRAY_GAP = 1000;
 
 /**
  * The box the app actually wraps bound text into — Excalidraw's

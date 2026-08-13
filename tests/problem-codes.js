@@ -22,12 +22,17 @@
  *      a regex, and a computed code (`note(code, …)`) would be invisible to it
  *      *and* absent from the registry — a silent pass in both directions.
  *      Counting call sites against literal matches is what closes that hole.
+ *   4. the thresholds the registry's prose quotes for `frame-edge-crowding`,
+ *      `text-struck-by-arrow` and `stray` match the gate's own constants — a
+ *      retuned constant would otherwise leave the shipped prose lying about
+ *      the number the gate actually enforces.
  *
  * Exits non-zero on any mismatch, naming the codes on each side.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { FRAME_EDGE_INSET, TEXT_ARROW_CLEARANCE, STRAY_GAP } from "../tools/verify.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
@@ -102,6 +107,36 @@ for (const [level, heading] of Object.entries(SECTIONS)) {
   const phantom = [...live].filter((c) => !emitted[level].has(c));
   check(`no ${level}-level code is listed live but never emitted`, phantom.length === 0, list(phantom));
 }
+
+// Invariant 4 — the prose quotes the same numbers the gate enforces. Anchored
+// to the wording, not bare digits, so an unrelated number elsewhere in the
+// doc can't false-match.
+const quoted = (re, label) => {
+  const m = registry.match(re);
+  check(`the registry quotes a number for ${label}`, m !== null);
+  return m ? Number(m[1]) : null;
+};
+
+const quotedInset = quoted(/minimum inset is \*\*(\d+)px\*\*/, "the frame-edge inset");
+check(
+  "the registry's frame-edge inset matches FRAME_EDGE_INSET",
+  quotedInset === FRAME_EDGE_INSET,
+  `doc says ${quotedInset}px, verify.js says ${FRAME_EDGE_INSET}px`,
+);
+
+const quotedClearance = quoted(/minimum clearance is \*\*(\d+)px\*\*/, "the text/arrow clearance");
+check(
+  "the registry's text/arrow clearance matches TEXT_ARROW_CLEARANCE",
+  quotedClearance === TEXT_ARROW_CLEARANCE,
+  `doc says ${quotedClearance}px, verify.js says ${TEXT_ARROW_CLEARANCE}px`,
+);
+
+const quotedStrayGap = quoted(/sits more than (\d+)px from anything else/, "the stray gap");
+check(
+  "the registry's stray gap matches STRAY_GAP",
+  quotedStrayGap === STRAY_GAP,
+  `doc says ${quotedStrayGap}px, verify.js says ${STRAY_GAP}px`,
+);
 
 console.log(
   fail.length

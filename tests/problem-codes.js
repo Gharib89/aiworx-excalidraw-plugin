@@ -131,6 +131,22 @@ check(
   `doc says ${quotedClearance}px, verify.js says ${TEXT_ARROW_CLEARANCE}px`,
 );
 
+// The registry table restates two of the numbers in its own cells — hold
+// those copies too, or a retune ships a half-stale registry with green CI.
+const tableInset = quoted(/stops less than (\d+)px from the border/, "the frame-edge inset (table cell)");
+check(
+  "the registry table's frame-edge inset matches FRAME_EDGE_INSET",
+  tableInset === FRAME_EDGE_INSET,
+  `doc says ${tableInset}px, verify.js says ${FRAME_EDGE_INSET}px`,
+);
+
+const tableClearance = quoted(/passes within (\d+)px of a text/, "the text/arrow clearance (table cell)");
+check(
+  "the registry table's text/arrow clearance matches TEXT_ARROW_CLEARANCE",
+  tableClearance === TEXT_ARROW_CLEARANCE,
+  `doc says ${tableClearance}px, verify.js says ${TEXT_ARROW_CLEARANCE}px`,
+);
+
 const quotedStrayGap = quoted(/sits more than (\d+)px from anything else/, "the stray gap");
 check(
   "the registry's stray gap matches STRAY_GAP",

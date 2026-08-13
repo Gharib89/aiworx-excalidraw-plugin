@@ -63,7 +63,11 @@ fingerprint_check() {
     console.log(`fingerprint ${expected} matches`);'
 }
 
-dist_unchanged() { git diff --quiet -- dist/; }
+# Bytes AND paths: `git diff` alone misses an added file (renamed woff2, or a
+# new dist/ path .gitignore's by-name un-ignores would drop). Mirrors ci.yml.
+dist_unchanged() {
+  git diff --quiet -- dist/ && [ -z "$(git status --porcelain --ignored dist/)" ]
+}
 
 if [ -n "$SMALL_NODE" ]; then
   run "fingerprint" fingerprint_check

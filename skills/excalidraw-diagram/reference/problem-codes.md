@@ -114,7 +114,8 @@ Emitted by `check.js` for a file that never reached the rules. They appear under
 
 ## Invocation
 
-`check.js`, `render.js` and `revise.js` share one argument vocabulary. Any
+`check.js`, `render.js`, `revise.js` and `library.js` share one argument
+vocabulary. Any
 argument starting with `-` that is not a known flag is refused as a typo —
 exit 2, naming the argument — rather than read as a file name, so `-dark` is an
 error instead of a silently dropped `--dark`. A value flag will not swallow one
@@ -127,6 +128,7 @@ The two exit-code conventions differ deliberately:
 |---|---|---|---|
 | `check.js` | every file passed | any file failed the rules | any file was unreadable, or the invocation was bad |
 | `render.js`, `revise.js` | the file was written | the document was refused — unparseable, foreign, or failing the gate | the invocation was bad: an unknown flag, a missing or invalid flag value, no input file, or more files than the tool takes |
+| `library.js` | the search answered (no matches is still an answer) or the download spliced | the request failed — the index, a download, or a hostile entry | the invocation was bad, including a missing query |
 
 A batch reports the **worst** code across its files, so an unreadable input (2)
 outranks a file that failed the rules (1) instead of hiding behind it. The

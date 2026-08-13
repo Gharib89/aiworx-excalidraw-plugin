@@ -125,7 +125,21 @@ const fixtureLock = (packageOverrides = {}) => ({
     !threw && !closure.some((e) => e.startsWith("missing-peer@")), closure?.join(", "));
 }
 
-// ---- 6. missing root throws ----
+// ---- 6. unresolved required dependency throws ----
+{
+  const lock = fixtureLock({
+    "node_modules/react": { version: "1.0.0", dependencies: { gone: "^1" } },
+  });
+  let threw = false;
+  try {
+    bundledClosure(lock);
+  } catch {
+    threw = true;
+  }
+  check("a required dependency with no lockfile entry throws", threw);
+}
+
+// ---- 7. missing root throws ----
 {
   const lock = fixtureLock();
   delete lock.packages["node_modules/react"];

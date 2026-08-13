@@ -72,7 +72,17 @@ export function bundledClosure(lock) {
     const deps = { ...entry.dependencies, ...entry.optionalDependencies, ...entry.peerDependencies };
     for (const depName of Object.keys(deps)) {
       const depPath = resolveDep(lock, path, depName);
-      if (depPath != null) queue.push({ name: depName, path: depPath });
+      if (depPath != null) {
+        queue.push({ name: depName, path: depPath });
+      } else if (entry.dependencies?.[depName]) {
+        // A regular dependency that resolves nowhere is a corrupt lockfile —
+        // npm ci would refuse it; a frozen stamp must not outlive it either.
+        // Unresolved peers/optionals are just not installed: nothing in the
+        // bundle, nothing to hash.
+        throw new Error(
+          `bundledClosure: "${name}" requires "${depName}" but the lockfile has no entry for it`,
+        );
+      }
     }
   }
 

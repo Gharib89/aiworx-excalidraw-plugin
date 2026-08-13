@@ -17,6 +17,78 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 export const FINGERPRINT_MARKER = "//# aiworxBundleFingerprint=";
 
+// Everything the bundle actually pulls in starts from these four packages
+// plus esbuild itself (issue #159). Hashing only these five names' own
+// versions missed the transitive closure underneath them — mermaid, its own
+// dependencies, scheduler, and the rest — which floats independently of any
+// range string and can move the real bundle while the stamp stays green.
+export const BUNDLED_ROOTS = [
+  "@excalidraw/excalidraw", "@excalidraw/mermaid-to-excalidraw", "react", "react-dom", "esbuild",
+];
+
+/**
+ * npm's nearest-node_modules resolution: for dependency `name` required by
+ * the package at lockfile path `fromPath`, try progressively shorter
+ * ancestor paths' node_modules until one has an entry, mirroring how npm
+ * itself would resolve the require at install time. Returns the resolved
+ * lockfile path, or null if nothing satisfies it (an unmet optional peer).
+ */
+function resolveDep(lock, fromPath, name) {
+  let p = fromPath;
+  for (;;) {
+    const candidate = `${p ? `${p}/` : ""}node_modules/${name}`;
+    if (lock.packages[candidate]) return candidate;
+    if (p === "") return null;
+    const m = p.match(/(?:^|\/)node_modules\/(?:@[^/]+\/[^/]+|[^/]+)$/);
+    // A path with no node_modules segment (a workspace entry like packages/app)
+    // climbs straight to the root node_modules, as npm itself would.
+    p = m ? p.slice(0, m.index) : "";
+  }
+}
+
+/** Sorted "name@version" list of every lockfile package reachable from the bundled roots. */
+export function bundledClosure(lock) {
+  const visited = new Set();
+  const versions = new Set();
+  const queue = [];
+
+  for (const name of BUNDLED_ROOTS) {
+    const path = resolveDep(lock, "", name);
+    if (path == null) {
+      throw new Error(`bundledClosure: bundled root "${name}" is missing from the lockfile`);
+    }
+    queue.push({ name, path });
+  }
+
+  while (queue.length) {
+    const { name, path } = queue.shift();
+    if (visited.has(path)) continue;
+    visited.add(path);
+    const entry = lock.packages[path];
+    versions.add(`${name}@${entry.version}`);
+    // Peers included deliberately: a resolved peer (react under react-dom) is a
+    // real instance the bundle carries. Over-hashing an unused one just forces a
+    // rebundle on its move; under-hashing is the silent staleness this guards.
+    const deps = { ...entry.dependencies, ...entry.optionalDependencies, ...entry.peerDependencies };
+    for (const depName of Object.keys(deps)) {
+      const depPath = resolveDep(lock, path, depName);
+      if (depPath != null) {
+        queue.push({ name: depName, path: depPath });
+      } else if (entry.dependencies?.[depName]) {
+        // A regular dependency that resolves nowhere is a corrupt lockfile —
+        // npm ci would refuse it; a frozen stamp must not outlive it either.
+        // Unresolved peers/optionals are just not installed: nothing in the
+        // bundle, nothing to hash.
+        throw new Error(
+          `bundledClosure: "${name}" requires "${depName}" but the lockfile has no entry for it`,
+        );
+      }
+    }
+  }
+
+  return [...versions].sort();
+}
+
 /** Hash of everything that shapes the bundle: page source, bundler config, resolved dep versions. */
 export function expectedFingerprint() {
   const hash = createHash("sha256");
@@ -35,13 +107,11 @@ export function expectedFingerprint() {
   // range string changing — exactly the forgot-to-rebundle case the stamp
   // exists to catch.
   const lock = JSON.parse(readFileSync(join(root, "package-lock.json"), "utf8"));
-  // @excalidraw/mermaid-to-excalidraw is a transitive dependency, pinned by the
-  // library — but page.js imports its parser directly, so the bundle carries it
-  // and a lockfile move under it is exactly as stale as a move under the others.
-  for (const dep of [
-    "@excalidraw/excalidraw", "@excalidraw/mermaid-to-excalidraw", "react", "react-dom", "esbuild",
-  ]) {
-    hash.update(lock.packages[`node_modules/${dep}`]?.version ?? "").update("\0");
+  // The dependency list itself comes from walking the lockfile's transitive
+  // closure under the bundled roots (issue #159), rather than a hand-picked
+  // set of names — so it cannot drift from what the bundle actually carries.
+  for (const dep of bundledClosure(lock)) {
+    hash.update(dep).update("\0");
   }
   return hash.digest("hex").slice(0, 16);
 }

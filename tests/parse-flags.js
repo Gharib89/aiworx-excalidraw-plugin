@@ -47,7 +47,8 @@ const parse = (...argv) => {
   check("an empty argv parses to nothing", bare.positionals.length === 0 && Object.keys(bare.flags).length === 0);
 
   const empty = parse("").result;
-  check("an empty-string argument is a positional", empty.positionals.join(",") === "");
+  check("an empty-string argument is a positional",
+    empty.positionals.length === 1 && empty.positionals[0] === "");
 }
 
 // ---- `--` ends the flags ----

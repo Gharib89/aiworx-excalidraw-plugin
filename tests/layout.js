@@ -107,6 +107,31 @@ const rejectsLayoutError = async (fn) => {
     throwsLayoutError(() => stack([{ width: 1, height: 1 }], { direction: "diagonal" })));
 }
 
+// ---- stack/row/column reject a repeated item ----
+{
+  // the same item twice would collapse under place()'s mutation — the last
+  // call wins the slot and leaves the other slot's extent phantom-empty
+  check("stack refuses the same item listed twice", throwsLayoutError(() => {
+    const a = { type: "text", width: 10, height: 10 };
+    const b = { type: "text", width: 10, height: 10 };
+    return stack([a, b, a]);
+  }));
+  check("column refuses the same item listed twice", throwsLayoutError(() => {
+    const a = { type: "text", width: 10, height: 10 };
+    const b = { type: "text", width: 10, height: 10 };
+    return column([a, b, a]);
+  }));
+  check("row refuses the same item listed twice", throwsLayoutError(() => {
+    const a = { type: "text", width: 10, height: 10 };
+    const b = { type: "text", width: 10, height: 10 };
+    return row([a, b, a]);
+  }));
+  check("distinct items still stack", !throwsLayoutError(() => stack([
+    { type: "text", width: 10, height: 10 },
+    { type: "text", width: 10, height: 10 },
+  ])));
+}
+
 // ---- nesting: groups place like elements ----
 {
   const a = { type: "text", width: 30, height: 10 };

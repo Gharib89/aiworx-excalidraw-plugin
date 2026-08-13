@@ -476,6 +476,31 @@ const REGISTER = {
   endArrowhead: { governs: ARROW_ONLY, ...oneOf(null, "arrow", "triangle", "diamond", "circle", "bar") },
 };
 
+/** The options authorDiagram and withAuthoring's author() accept. */
+const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register"]);
+
+/**
+ * Reject an unknown option before any browser work starts. A misspelled key
+ * (`regster`) would otherwise be dropped by the destructure and change nothing
+ * at all, silently, and the diagram would just come out with the default it
+ * was never told to keep.
+ */
+function validateAuthorOptions(options) {
+  if (options == null || typeof options !== "object" || Array.isArray(options)) {
+    throw new SkeletonError(
+      `must be an object of authoring options, got ${options === null ? "null" : Array.isArray(options) ? "an array" : typeof options}`,
+      { where: "options", next: 'Pass an object like { out: "d.excalidraw", build }.' },
+    );
+  }
+  for (const key of Object.keys(options)) {
+    if (!AUTHOR_OPTIONS.has(key)) {
+      throw new SkeletonError(`has unknown option ${JSON.stringify(key)}`, {
+        where: "options", next: `Use one of: ${[...AUTHOR_OPTIONS].join(", ")}.`,
+      });
+    }
+  }
+}
+
 /**
  * Reject a register the author cannot have meant, before `build` spends a
  * browser on measuring. A misspelled property is the failure worth catching: it
@@ -706,7 +731,9 @@ const buildContext = (ex, files) => ({
 });
 
 /** One diagram, built and written inside an already-open browser session. */
-async function authorInto(ex, { out, build, svg = true, background, register }) {
+async function authorInto(ex, options) {
+  validateAuthorOptions(options);
+  const { out, build, svg = true, register } = options;
   validateRegister(register);
   const files = {};
   // the build is the last thing that can move a shape and validateSkeleton has
@@ -720,7 +747,7 @@ async function authorInto(ex, { out, build, svg = true, background, register }) 
   const converted = await ex.convert(skeleton, { regenerateIds: false });
   const elements = bindToFrames(applyBindingStitches(converted, stitches));
   const appState = {
-    viewBackgroundColor: background ?? palette.canvas,
+    viewBackgroundColor: palette.canvas,
     gridSize: 20,
   };
   return gateAndWrite(ex, { out, elements, appState, files, svg });
@@ -728,6 +755,9 @@ async function authorInto(ex, { out, build, svg = true, background, register }) 
 
 /** Build, verify in-process, and write a diagram from a skeleton. */
 export async function authorDiagram(options) {
+  // validated here too, before withExcalidraw spends a browser launch on a
+  // call that was always going to be rejected
+  validateAuthorOptions(options);
   return withExcalidraw((ex) => authorInto(ex, options));
 }
 

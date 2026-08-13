@@ -193,7 +193,9 @@ Three things to know:
 - **A typo is an error, not a no-op.** An unknown property or an
   out-of-vocabulary value throws a `SkeletonError` naming the property, the
   value and the accepted set, before any browser work — `register: { stroke_width: 2 }`
-  fails loudly rather than silently changing nothing.
+  fails loudly rather than silently changing nothing. The options object holds
+  itself to the same rule: `regster:` or any other unknown key is refused with
+  the accepted set (`out`, `build`, `svg`, `register`) rather than dropped.
 
 Omit `register` and every element keeps whatever it set for itself, exactly as
 before. `withAuthoring`'s `author()` takes it too, per diagram — a band whose

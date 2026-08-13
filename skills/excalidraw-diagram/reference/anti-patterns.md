@@ -37,6 +37,7 @@ reshape ([palette.md](palette.md)).
 ## Symptom of a broken toolchain, not a broken diagram
 
 **Every family renders identical, vaguely serif text.** The font warm-up
-failed, so every measurement in the file is wrong. Re-run the generator and
-check `fontStatus()` — a layout nudged against fallback metrics breaks again
-the moment the real fonts load.
+failed, so every measurement in the file is wrong. The warm now refuses loudly
+(`FontIntegrityError`), so a written file showing this symptom predates that
+guard: re-run the generator with the current tools — a layout nudged against
+fallback metrics breaks again the moment the real fonts load.

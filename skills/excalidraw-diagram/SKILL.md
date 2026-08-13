@@ -85,7 +85,7 @@ geometry including rotation, arrow bindings and crossings, text contrast in both
 themes, and the house font pair.
 [reference/problem-codes.md](reference/problem-codes.md) is the whole vocabulary:
 every code with its `elements` order and extra fields, the `--json` report shape,
-and the argument and exit-code conventions all three CLIs share. Codes are
+and the argument and exit-code conventions the CLIs share. Codes are
 append-only, so machine handling keys on `code` and the `message` prose carries
 no contract.
 

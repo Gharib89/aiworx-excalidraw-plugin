@@ -651,6 +651,18 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   const misspelled = await rejectsWith("SkeletonError", withAuthoring(async () => {}, { drivr: countingDriver }));
   check("withAuthoring rejects a misspelled options key", misspelled.ok, misspelled.detail);
 
+  // A driver the seam cannot call fails named, not as a raw TypeError from the
+  // call site — null slips past a destructuring default, which only covers
+  // undefined.
+  const nullDriver = await rejectsWith("SkeletonError", authorDiagram({
+    out: join(outDir, "null-driver.excalidraw"), build: oneLine("x"), driver: null,
+  }));
+  check("authorDiagram rejects a non-function driver",
+    nullDriver.ok && /options\.driver/.test(nullDriver.message), nullDriver.detail);
+  const stringDriver = await rejectsWith("SkeletonError", withAuthoring(async () => {}, { driver: "nope" }));
+  check("withAuthoring rejects a non-function driver",
+    stringDriver.ok && /options\.driver/.test(stringDriver.message), stringDriver.detail);
+
   // ...and the next action a diagram author reads never offers the seam: the
   // accepted set includes driver, the message names only the authoring options.
   const driverTypo = await rejectsWith("SkeletonError", authorDiagram({

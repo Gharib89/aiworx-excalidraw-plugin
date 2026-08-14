@@ -521,6 +521,19 @@ function validateAuthorOptions(
 }
 
 /**
+ * Reject a driver the seam cannot call. A destructuring default only covers
+ * undefined, so `driver: null` — or a string — would otherwise pass the key
+ * check and die at the call site as a raw TypeError with no next action.
+ */
+function validateDriver(driver) {
+  if (driver !== undefined && typeof driver !== "function") {
+    throw new SkeletonError(`must be a function shaped like withExcalidraw, got ${driver === null ? "null" : typeof driver}`, {
+      where: "options.driver", next: "Pass a function like withExcalidraw, or omit it for the real browser.",
+    });
+  }
+}
+
+/**
  * Reject a register the author cannot have meant, before `build` spends a
  * browser on measuring. A misspelled property is the failure worth catching: it
  * would otherwise change nothing at all, silently, and the diagram would just
@@ -785,6 +798,7 @@ export async function authorDiagram(options) {
   // validated here too, before withExcalidraw spends a browser launch on a
   // call that was always going to be rejected
   validateAuthorOptions(options, { accepted: SINGLE_SHOT_OPTIONS, named: AUTHOR_OPTIONS });
+  validateDriver(options.driver);
   const { driver = withExcalidraw, ...rest } = options;
   return driver((ex) => authorInto(ex, rest));
 }
@@ -818,6 +832,7 @@ export async function authorDiagram(options) {
  */
 export async function withAuthoring(fn, options = {}) {
   validateAuthorOptions(options, { accepted: WITH_AUTHORING_OPTIONS, example: "{ driver }" });
+  validateDriver(options.driver);
   const { driver = withExcalidraw } = options;
   return driver(async (ex) => {
     let queue = Promise.resolve();

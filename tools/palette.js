@@ -56,9 +56,13 @@ const GREY = {
 
 const args = process.argv.slice(2);
 const write = args.includes("--write");
+// same rule as the shared parseFlags: a dash-prefixed argument that is not a
+// known flag is a typo, never a file path — `--wrote x.json` must not verify
+// x.json as if --write had been dropped on purpose
 const positionals = args.filter((a) => a !== "--write");
-if (positionals.length > 1 || (write && positionals.length)) {
-  console.error(`UsageError: ${USAGE}`);
+const typo = positionals.find((a) => a.startsWith("-"));
+if (typo !== undefined || positionals.length > 1 || (write && positionals.length)) {
+  console.error(`UsageError: ${typo ? `unknown flag ${typo} — ` : ""}${USAGE}`);
   process.exit(2);
 }
 const overrideFile = positionals[0] ?? null;

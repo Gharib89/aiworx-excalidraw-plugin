@@ -11,6 +11,7 @@
  * Everything here is file reading and colour math — no browser.
  */
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
@@ -64,7 +65,7 @@ const swappedOverride = () => ({
   canvas: housePalette.canvas,
   ink: housePalette.ink,
   roles: Object.fromEntries(
-    Object.entries(housePalette.roles).map(([k, v]) => {
+    Object.keys(housePalette.roles).map((k) => {
       const from = k === "local" ? "remote" : k === "remote" ? "local" : k;
       return [k, housePalette.roles[from].stroke];
     }),
@@ -213,8 +214,6 @@ check("an override failing a contrast claim refuses and names the failed claim",
 
 // ---- the consumers read through the shared path ----
 
-import { execFileSync } from "node:child_process";
-
 /** What a fresh Node process, cwd'd into `dir`, sees as the given module
  * expression — the consumer modules bind their palette at import time, so only
  * a child process can observe them under a different working directory. */
@@ -277,6 +276,17 @@ check("check.js with a valid override still checks the diagram", () => {
     const r = runCli(dir, "tools/check.js", "--json", join(dir, "d.excalidraw"));
     assert.equal(r.code, 0, `exit ${r.code}, stderr: ${r.stderr}`);
     assert.equal(JSON.parse(r.stdout).ok, true);
+  });
+});
+
+check("revise.js under an invalid override refuses before touching the file", () => {
+  inTempDir((dir) => {
+    writeFileSync(join(dir, ".excalidraw-brand.json"), "{}");
+    writeFileSync(join(dir, "d.excalidraw"), CLEAN_DIAGRAM);
+    const r = runCli(dir, "tools/revise.js", join(dir, "d.excalidraw"));
+    assert.notEqual(r.code, 0, "must not exit 0");
+    assert.match(r.stderr, /BrandOverrideError/);
+    assert.equal(readFileSync(join(dir, "d.excalidraw"), "utf8"), CLEAN_DIAGRAM, "writes nothing");
   });
 });
 

@@ -17,7 +17,8 @@ palette.roles.remote.fill     // "#FFF0FF"
 
 ## Roles
 
-What each role *means* lives in SKILL.md's House style table; these are the values.
+What each role *means* lives in SKILL.md's House style table; these are the house
+palette's values (a brand override, below, replaces them project-wide).
 
 | role | stroke | fill |
 |---|---|---|
@@ -93,7 +94,7 @@ The file names strokes only:
 }
 ```
 
-All six roles are required, each a 6-digit hex. Everything else is derived, so
+`canvas`, `ink` and all six roles are required, each a 6-digit hex. Everything else is derived, so
 the override cannot drift from the rules above: fills by the same OKLCH snap,
 grey by neutralising chroma at the house grey's lightness values over the
 override's ink and canvas. Fonts are not overridable — the derived palette keeps

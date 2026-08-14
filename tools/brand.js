@@ -33,14 +33,14 @@ const ROLE_NAMES = ["local", "artifact", "pass", "remote", "decision", "fail"];
 /** The shipped AIWorx palette — what every consumer gets when no override exists. */
 export const housePalette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
 
-/** The well-known override file name, shared by discovery and its documentation. */
-export const OVERRIDE_FILENAME = ".excalidraw-brand.json";
+/** The well-known override file name. */
+const OVERRIDE_FILENAME = ".excalidraw-brand.json";
 
 /**
  * The nearest override file at or above `cwd`, or null when none exists all the
  * way up to the filesystem root.
  */
-export function findBrandOverride(cwd) {
+function findBrandOverride(cwd) {
   let dir = cwd;
   for (;;) {
     const candidate = join(dir, OVERRIDE_FILENAME);
@@ -51,14 +51,6 @@ export function findBrandOverride(cwd) {
   }
 }
 
-/**
- * The palette this run authors, checks and renders with: the house palette, or
- * the one derived from the nearest brand override. Derivation and verification
- * run on every call — there is no generated palette file to go stale.
- *
- * @throws {BrandOverrideError} when an override exists but fails the schema or
- *   any contrast claim.
- */
 // ---- derivation ----
 // Tuned so that every slot clears 3:1 stroke-on-own-fill; cyan is the binding
 // constraint at L=0.965 (2.98:1), so fills sit slightly lighter and less chromatic.
@@ -175,7 +167,7 @@ export const THEMES = [
 ];
 
 /** verifyPalette over both themes: theme-prefixed failures plus each theme's report. */
-export function verifyBothThemes(palette) {
+function verifyBothThemes(palette) {
   const fail = [];
   const reports = [];
   for (const theme of THEMES) {
@@ -188,6 +180,9 @@ export function verifyBothThemes(palette) {
 
 // ---- schema ----
 
+// Stricter than color.js's normalizeHex on purpose: an override is authored
+// config, so one canonical spelling beats accepting shorthand forms that the
+// derivation would then echo back in a different shape.
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 const refuse = (what, path, remedy = "Fix the override file, or delete it to keep the house palette") => {

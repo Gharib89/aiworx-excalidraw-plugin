@@ -17,7 +17,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { NamedError, UsageError, loadDependency } from "../tools/errors.js";
+import { NamedError, UsageError, BrandOverrideError, loadDependency } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, DocumentError, AssetError, LibraryError,
 } from "../tools/author.js";
@@ -46,7 +46,7 @@ const sources = readdirSync(toolsDir)
 // ---- 1. the base holds ----
 
 const DERIVED = [
-  UsageError,
+  UsageError, BrandOverrideError,
   SkeletonError, GateError, WrapError, DocumentError, AssetError, LibraryError,
   StaleBundleError, BundleLoadError, PageError, ChromeLaunchError, MissingDependencyError,
   LayoutError, MermaidError, LibraryIndexError,

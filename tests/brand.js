@@ -280,5 +280,41 @@ check("check.js with a valid override still checks the diagram", () => {
   });
 });
 
+// ---- the palette tool is the override author's preflight ----
+
+check("palette.js against a valid override prints the derived palette and passes", () => {
+  inTempDir((dir) => {
+    const file = join(dir, "brand.json");
+    writeFileSync(file, JSON.stringify(swappedOverride()));
+    const r = runCli(dir, "tools/palette.js", file);
+    assert.equal(r.code, 0, `exit ${r.code}, stderr: ${r.stderr}`);
+    // the derived grey (#5B5B5B, neutralised) appears in no house-mode output,
+    // so its presence proves the tool scored the override, not the house palette
+    assert.match(r.stdout, /#5B5B5B/i, "prints the derived palette");
+    assert.match(r.stdout, /all contrast checks passed/);
+  });
+});
+
+check("palette.js against a failing override names the claim and exits 1", () => {
+  inTempDir((dir) => {
+    const file = join(dir, "brand.json");
+    const body = swappedOverride();
+    body.roles.decision = "#FFFF00";
+    writeFileSync(file, JSON.stringify(body));
+    const r = runCli(dir, "tools/palette.js", file);
+    assert.equal(r.code, 1, `exit ${r.code}`);
+    assert.match(r.stderr, /stroke on canvas/);
+  });
+});
+
+check("palette.js refuses --write together with an override file", () => {
+  inTempDir((dir) => {
+    const file = join(dir, "brand.json");
+    writeFileSync(file, JSON.stringify(swappedOverride()));
+    const r = runCli(dir, "tools/palette.js", file, "--write");
+    assert.equal(r.code, 2, `exit ${r.code}`);
+  });
+});
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nbrand override contract holds");
 process.exit(fail.length ? 1 : 0);

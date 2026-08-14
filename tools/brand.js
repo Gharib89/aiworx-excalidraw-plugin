@@ -190,8 +190,8 @@ export function verifyBothThemes(palette) {
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
-const refuse = (what, path, next = "Fix the override file, or delete it to keep the house palette") => {
-  throw new BrandOverrideError(what, { where: path, next });
+const refuse = (what, path, remedy = "Fix the override file, or delete it to keep the house palette") => {
+  throw new BrandOverrideError(what, { where: path, next: remedy });
 };
 
 /**

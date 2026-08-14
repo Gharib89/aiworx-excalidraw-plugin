@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadBrandPalette, housePalette as houseExport } from "../tools/brand.js";
 import { BrandOverrideError } from "../tools/errors.js";
@@ -218,7 +218,7 @@ check("an override failing a contrast claim refuses and names the failed claim",
  * expression — the consumer modules bind their palette at import time, so only
  * a child process can observe them under a different working directory. */
 const inChild = (dir, expr) =>
-  execFileSync(process.execPath, ["-e", `import(${JSON.stringify(join(root, "tools/author.js"))}).then((m) => console.log(JSON.stringify(${expr})))`], {
+  execFileSync(process.execPath, ["-e", `import(${JSON.stringify(pathToFileURL(join(root, "tools/author.js")).href)}).then((m) => console.log(JSON.stringify(${expr})))`], {
     cwd: dir, encoding: "utf8",
   }).trim();
 

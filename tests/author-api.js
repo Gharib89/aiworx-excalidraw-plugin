@@ -651,11 +651,13 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   const misspelled = await rejectsWith("SkeletonError", withAuthoring(async () => {}, { drivr: countingDriver }));
   check("withAuthoring rejects a misspelled options key", misspelled.ok, misspelled.detail);
 
+  // ...and the next action a diagram author reads never offers the seam: the
+  // accepted set includes driver, the message names only the authoring options.
   const driverTypo = await rejectsWith("SkeletonError", authorDiagram({
     out: join(outDir, "driver-typo.excalidraw"), build: oneLine("x"), drver: countingDriver,
   }));
   check("authorDiagram rejects a misspelled driver key too",
-    driverTypo.ok && /driver/.test(driverTypo.message), driverTypo.detail);
+    driverTypo.ok && !/driver/.test(driverTypo.message), driverTypo.detail);
 }
 
 // ---- 11. the finish register: one setting, applied to every element it governs ----

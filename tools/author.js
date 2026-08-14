@@ -477,7 +477,7 @@ const REGISTER = {
   endArrowhead: { governs: ARROW_ONLY, ...oneOf(null, "arrow", "triangle", "diamond", "circle", "bar") },
 };
 
-/** The options authorDiagram and withAuthoring's author() accept. */
+/** The per-diagram options; authorDiagram additionally accepts the driver seam. */
 const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register"]);
 /**
  * The single-shot entry point additionally accepts a `driver` override — a test
@@ -495,18 +495,26 @@ const WITH_AUTHORING_OPTIONS = new Set(["driver"]);
  * (`regster`) would otherwise be dropped by the destructure and change nothing
  * at all, silently, and the diagram would just come out with the default it
  * was never told to keep.
+ *
+ * `named` is what the error message offers and defaults to what is accepted;
+ * authorDiagram narrows it so the driver seam never reaches a diagram author's
+ * next action. `example` keeps the shape hint honest per entry point — the
+ * single-shot example names options withAuthoring would reject.
  */
-function validateAuthorOptions(options, accepted = AUTHOR_OPTIONS) {
+function validateAuthorOptions(
+  options,
+  { accepted = AUTHOR_OPTIONS, named = accepted, example = '{ out: "d.excalidraw", build }' } = {},
+) {
   if (options == null || typeof options !== "object" || Array.isArray(options)) {
     throw new SkeletonError(
       `must be an object of authoring options, got ${options === null ? "null" : Array.isArray(options) ? "an array" : typeof options}`,
-      { where: "options", next: 'Pass an object like { out: "d.excalidraw", build }.' },
+      { where: "options", next: `Pass an object like ${example}.` },
     );
   }
   for (const key of Object.keys(options)) {
     if (!accepted.has(key)) {
       throw new SkeletonError(`has unknown option ${JSON.stringify(key)}`, {
-        where: "options", next: `Use one of: ${[...accepted].join(", ")}.`,
+        where: "options", next: `Use one of: ${[...named].join(", ")}.`,
       });
     }
   }
@@ -776,7 +784,7 @@ async function authorInto(ex, options) {
 export async function authorDiagram(options) {
   // validated here too, before withExcalidraw spends a browser launch on a
   // call that was always going to be rejected
-  validateAuthorOptions(options, SINGLE_SHOT_OPTIONS);
+  validateAuthorOptions(options, { accepted: SINGLE_SHOT_OPTIONS, named: AUTHOR_OPTIONS });
   const { driver = withExcalidraw, ...rest } = options;
   return driver((ex) => authorInto(ex, rest));
 }
@@ -809,7 +817,7 @@ export async function authorDiagram(options) {
  * browser.
  */
 export async function withAuthoring(fn, options = {}) {
-  validateAuthorOptions(options, WITH_AUTHORING_OPTIONS);
+  validateAuthorOptions(options, { accepted: WITH_AUTHORING_OPTIONS, example: "{ driver }" });
   const { driver = withExcalidraw } = options;
   return driver(async (ex) => {
     let queue = Promise.resolve();

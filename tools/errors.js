@@ -59,6 +59,16 @@ export class DocumentError extends NamedError {
 }
 
 /**
+ * A brand override file (`.excalidraw-brand.json`) that fails its schema or a
+ * contrast claim. It lives here rather than beside the loader (tools/brand.js)
+ * because check.js catches it to map the refusal into its code contract, and
+ * the CLI should not depend on the loader for one class. Never a silent
+ * fallback to house colours: an override that cannot be honoured refuses the
+ * run.
+ */
+export class BrandOverrideError extends NamedError {}
+
+/**
  * A runtime dependency the checkout never installed. It lives here rather than
  * beside either raiser because both the browser driver (playwright-core) and the
  * graph engine (elkjs) reach it, and layout.js must not import the browser

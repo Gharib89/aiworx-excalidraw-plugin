@@ -190,7 +190,9 @@ that has to vary. [reference/patterns.md](reference/patterns.md) is what each
 value means, [reference/authoring.md](reference/authoring.md) the option itself.
 
 [reference/palette.md](reference/palette.md) carries the exact values, how the
-palette is verified, and why it survives the dark export unchanged.
+palette is verified, why it survives the dark export unchanged, and the brand
+override — the `.excalidraw-brand.json` file a project drops at its root to
+re-colour every role with its own brand.
 
 ## When the skill misbehaves
 

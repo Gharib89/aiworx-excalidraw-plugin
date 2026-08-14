@@ -142,6 +142,15 @@ node tools/render.js d.excalidraw --background "#0d1117"
 [`examples/example-dark.svg`](examples/example-dark.svg) is the committed `--dark`
 render of the example band.
 
+The palette itself is overridable per project: a strokes-only
+`.excalidraw-brand.json` at a consumer project's root (discovered by walking up
+from the working directory) re-colours every role. Fills and grey are derived
+from it by the same OKLCH rule the house palette uses and verified against the
+same contrast claims on every read; an override that fails them refuses the run
+(`invalid-brand-override`) instead of silently falling back to house colours.
+`node tools/palette.js <file>` preflights a candidate override. Fonts stay the
+house pair — they sit under bundle discipline.
+
 Dark exports are gated, not assumed. Excalidraw's dark theme is one CSS filter
 chain on the root `<svg>` — `invert(93%) hue-rotate(180deg)` — so every dark
 colour is a pure function of its light one. `tools/palette.js` therefore runs
@@ -174,12 +183,14 @@ tools/
   library.js        find and download a community icon library, CLI face of library-index.js
   library-index.js  the libraries.excalidraw.com index: fetch, week-long disk cache, search by name/item/description, download
   smoke.js          browser smoke suite proving measurement, conversion, export and raster survival
-  palette.js        derives brand/palette.json and verifies every contrast claim
+  palette.js        derives brand/palette.json and verifies every contrast claim; preflights a brand override file
+  brand.js          brand override: discovers .excalidraw-brand.json up from cwd, derives the full palette from its
+                    strokes, verifies it, refuses invalid ones — the one palette path every consumer loads through
   bundle.js         builds the committed dist/ bundle, its loader page and its vendored fonts, stamped with a source fingerprint
   fonts.js          the Excalidraw font families dist/ vendors, so nothing is fetched at render time
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
   document.js       one .excalidraw loader shared by check, render and revise: read, parse, shape-check, DocumentError with a machine kind
-  errors.js         the shared NamedError base every tool error derives from, plus UsageError and DocumentError
+  errors.js         the shared NamedError base every tool error derives from, plus UsageError, DocumentError and BrandOverrideError
                     every error states what failed, where, and the one next action: "where: what — next action"
 tests/              geometry + verifyDocument units, layout units, gate fixtures, failure paths, render + revise CLI, author API suites
 dist/               committed browser bundle, the loader page Chrome navigates to, and fonts/ — the vendored woff2 files

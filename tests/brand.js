@@ -161,6 +161,13 @@ check('a defaults value other than "accepted" refuses', () => {
   inTempDir((dir) => assert.match(refusalFor(dir, '{ "defaults": "yes" }').what, /only accepted value/));
 });
 
+check("accepted defaults alongside a palette field refuses — no field is silently discarded", () => {
+  inTempDir((dir) => {
+    const err = refusalFor(dir, '{ "defaults": "accepted", "canvas": "#000000" }');
+    assert.match(err.what, /canvas/);
+  });
+});
+
 check("a missing role refuses and names it", () => {
   inTempDir((dir) => {
     const body = swappedOverride();

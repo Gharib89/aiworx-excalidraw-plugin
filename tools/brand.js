@@ -212,7 +212,15 @@ export function parseBrandOverride(text, path) {
   }
   // roles wins over defaults when both appear, per the override contract
   if (data.roles === undefined) {
-    if (data.defaults === "accepted") return null;
+    if (data.defaults === "accepted") {
+      // a palette field beside accepted defaults would be silently discarded —
+      // the file must be one thing: an override (roles) or the recorded decision
+      const stray = ["canvas", "ink"].filter((k) => data[k] !== undefined);
+      if (stray.length) {
+        refuse(`records accepted defaults but also names ${stray.join(" and ")} — palette fields need "roles"`, path);
+      }
+      return null;
+    }
     refuse(
       data.defaults === undefined
         ? 'names neither "roles" nor "defaults": "accepted"'

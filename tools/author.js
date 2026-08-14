@@ -479,6 +479,16 @@ const REGISTER = {
 
 /** The options authorDiagram and withAuthoring's author() accept. */
 const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register"]);
+/**
+ * The single-shot entry point additionally accepts a `driver` override — a test
+ * seam, not part of a session's per-diagram options. A session cannot honor a
+ * per-diagram driver (it already committed to one browser for the whole batch),
+ * so `authorInto` keeps validating with the base set and a per-diagram `driver`
+ * is rejected loudly rather than silently ignored.
+ */
+const SINGLE_SHOT_OPTIONS = new Set([...AUTHOR_OPTIONS, "driver"]);
+/** The options withAuthoring itself accepts — just the driver seam. */
+const WITH_AUTHORING_OPTIONS = new Set(["driver"]);
 
 /**
  * Reject an unknown option before any browser work starts. A misspelled key
@@ -486,7 +496,7 @@ const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register"]);
  * at all, silently, and the diagram would just come out with the default it
  * was never told to keep.
  */
-function validateAuthorOptions(options) {
+function validateAuthorOptions(options, accepted = AUTHOR_OPTIONS) {
   if (options == null || typeof options !== "object" || Array.isArray(options)) {
     throw new SkeletonError(
       `must be an object of authoring options, got ${options === null ? "null" : Array.isArray(options) ? "an array" : typeof options}`,
@@ -494,9 +504,9 @@ function validateAuthorOptions(options) {
     );
   }
   for (const key of Object.keys(options)) {
-    if (!AUTHOR_OPTIONS.has(key)) {
+    if (!accepted.has(key)) {
       throw new SkeletonError(`has unknown option ${JSON.stringify(key)}`, {
-        where: "options", next: `Use one of: ${[...AUTHOR_OPTIONS].join(", ")}.`,
+        where: "options", next: `Use one of: ${[...accepted].join(", ")}.`,
       });
     }
   }
@@ -712,7 +722,9 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
   return { elements, frames, out: outPath, svgOut, recentered };
 }
 
-const buildContext = (ex, files) => ({
+// Exported for the inventory guard (tests/build-context.js), which reads this
+// factory's real surface via Object.keys — not part of the authoring API.
+export const buildContext = (ex, files) => ({
   measure: ex.measureText,
   wrap: makeWrap(ex.measureText),
   palette,
@@ -754,12 +766,19 @@ async function authorInto(ex, options) {
   return gateAndWrite(ex, { out, elements, appState, files, svg });
 }
 
-/** Build, verify in-process, and write a diagram from a skeleton. */
+/**
+ * Build, verify in-process, and write a diagram from a skeleton.
+ *
+ * `driver` is a test seam: a function taking the same shape as withExcalidraw
+ * — `(fn) => Promise` — that stands in for the real browser. It defaults to
+ * withExcalidraw itself, so production callers never see it.
+ */
 export async function authorDiagram(options) {
   // validated here too, before withExcalidraw spends a browser launch on a
   // call that was always going to be rejected
-  validateAuthorOptions(options);
-  return withExcalidraw((ex) => authorInto(ex, options));
+  validateAuthorOptions(options, SINGLE_SHOT_OPTIONS);
+  const { driver = withExcalidraw, ...rest } = options;
+  return driver((ex) => authorInto(ex, rest));
 }
 
 /**
@@ -770,11 +789,13 @@ export async function authorDiagram(options) {
  *     for (const panel of panels) await author({ out: panel.out, build: panel.build });
  *   });
  *
- * `author` takes exactly the options authorDiagram takes and gates each diagram
- * before its own write, so a failure names one diagram and leaves the session
- * usable for the next. Font warming accumulates across the session: a glyph
- * first seen in the fifth diagram re-warms the page, and the strings measured
- * before it still measure the same.
+ * `author` takes the same per-diagram options as authorDiagram, minus `driver`
+ * — a session already committed to one browser for the whole batch, so it
+ * cannot honor a per-diagram override — and gates each diagram before its own
+ * write, so a failure names one diagram and leaves the session usable for the
+ * next. Font warming accumulates across the session: a glyph first seen in the
+ * fifth diagram re-warms the page, and the strings measured before it still
+ * measure the same.
  *
  * Diagrams run one at a time even when the caller fires them together. The page
  * warms fonts for the glyphs it has been asked about and re-warms when a new one
@@ -782,9 +803,15 @@ export async function authorDiagram(options) {
  * tools/page.js): overlap two and one of them measures against the fallback face,
  * silently. `Promise.all` over a batch of panels is the natural thing to write, so
  * the calls queue here rather than the invariant resting on the caller.
+ *
+ * `options.driver` is the same test seam authorDiagram takes — a function
+ * shaped like withExcalidraw, `(fn) => Promise` — and defaults to the real
+ * browser.
  */
-export async function withAuthoring(fn) {
-  return withExcalidraw(async (ex) => {
+export async function withAuthoring(fn, options = {}) {
+  validateAuthorOptions(options, WITH_AUTHORING_OPTIONS);
+  const { driver = withExcalidraw } = options;
+  return driver(async (ex) => {
     let queue = Promise.resolve();
     try {
       return await fn((options) => {

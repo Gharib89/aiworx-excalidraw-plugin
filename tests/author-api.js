@@ -27,14 +27,17 @@
  *      distinct points and passes the gate
  *  14. a community library item spliced with `text: "drop"` authors and gates
  *      clean, where the same item spliced by default still trips foreign-font
+ *  15. the driver seam: a session's per-diagram author() cannot override the
+ *      driver, and a misspelled driver key is a SkeletonError rather than a
+ *      silent fallback to the real browser, on both authorDiagram and withAuthoring
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
   writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { withExcalidraw } from "../tools/browser.js";
+import { fileURLToPath } from "node:url";
+import { withExcalidraw, PageError } from "../tools/browser.js";
 import { authorDiagram, reviseDiagram, makeWrap, withAuthoring, PROSE } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -416,48 +419,21 @@ const oneLine = (text) => async ({ measure, PROSE }) => {
     width: m.width, height: m.height }];
 };
 
-/**
- * A copy of the plugin whose tools/browser.js is replaced by `source` — a stub
- * that delegates to the real driver, so convert, the gate and playwright stay
- * real and only the one seam under test changes. The stub imports the real
- * driver by absolute URL, which is also how the copy resolves playwright: through
- * the real plugin root, where node_modules lives.
- *
- * Returns the copy's directory; `moduleIn` builds an import specifier for a file
- * inside it, and importing the same specifier twice gets the same module
- * instance, so a stub can expose state the test reads back.
- */
-function pluginCopyWith(label, source) {
-  const dir = mkdtempSync(join(tmpdir(), `author-${label}-`));
-  cpSync(join(root, "tools"), join(dir, "tools"), { recursive: true });
-  cpSync(join(root, "brand"), join(dir, "brand"), { recursive: true });
-  // outside the repo the copied .js files have no nearest "type": "module", and
-  // only Node's ESM syntax detection saves them — carry the manifest instead
-  cpSync(join(root, "package.json"), join(dir, "package.json"));
-  writeFileSync(join(dir, "tools/browser.js"), source);
-  return dir;
-}
-const moduleIn = (dir, file) => pathToFileURL(join(dir, file)).href;
-const realBrowser = JSON.stringify(pathToFileURL(join(root, "tools/browser.js")).href);
-
 // ---- 7. a failing SVG export leaves the output directory clean ----
-// The stub sabotages the export step: the renderer breaks, which is the window
+// The driver sabotages the export step: the renderer breaks, which is the window
 // where a half-written pair used to appear. It throws the PageError the real
 // driver would, so the failure has the shape production produces.
 {
-  const brokenPlugin = pluginCopyWith(
-    "export-fail",
-    `import { withExcalidraw as real, PageError } from ${realBrowser};\n` +
-      `export function withExcalidraw(fn, opts) {\n` +
-      `  return real((ex) => fn({ ...ex, exportSvg: async () => {\n` +
-      `    throw new PageError("exportSvg failed in the page: induced export failure");\n` +
-      `  } }), opts);\n` +
-      `}\n`,
-  );
-  const { authorDiagram: brokenAuthor } = await import(moduleIn(brokenPlugin, "tools/author.js"));
+  const exportFailDriver = (fn) => withExcalidraw((ex) => fn({
+    ...ex,
+    exportSvg: async () => {
+      throw new PageError("exportSvg failed in the page: induced export failure");
+    },
+  }));
 
   const out = join(outDir, "export-fails.excalidraw");
-  const r = await rejectsWith("PageError", brokenAuthor({ out, build: oneLine("the export will fail") }));
+  const r = await rejectsWith("PageError",
+    authorDiagram({ out, build: oneLine("the export will fail"), driver: exportFailDriver }));
   check("a failing SVG export propagates", r.ok && /induced export failure/.test(r.message ?? ""),
     r.detail);
   const svgOut = out.replace(/\.excalidraw$/, ".svg");
@@ -581,22 +557,8 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     });
   }
 
-  const countingPlugin = pluginCopyWith(
-    "launch-count",
-    `import { withExcalidraw as real } from ${realBrowser};\n` +
-      `let launches = 0;\n` +
-      `export const launchCount = () => launches;\n` +
-      `export function withExcalidraw(fn, opts) {\n` +
-      `  launches++;\n` +
-      `  return real(fn, opts);\n` +
-      `}\n`,
-  );
-  const { authorDiagram: countedAuthor, withAuthoring } = await import(
-    moduleIn(countingPlugin, "tools/author.js")
-  );
-  // the same specifier the copied author.js imports, so this reads that stub's
-  // own counter rather than a second instance of the module
-  const { launchCount } = await import(moduleIn(countingPlugin, "tools/browser.js"));
+  let launches = 0;
+  const countingDriver = (fn) => { launches++; return withExcalidraw(fn); };
 
   const outs = ["s1", "s2", "s3", "s4"].map((n) => join(outDir, `session-${n}.excalidraw`));
   const gateOut = join(outDir, "session-gated.excalidraw");
@@ -610,11 +572,11 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     const exported = await author({ out: outs[2], build: measuring("sessionExported", RARE) });
     const again = await author({ out: outs[3], svg: false, build: measuring("sessionAsciiAgain", ASCII) });
     return { first, gated, rare, exported, again };
-  });
+  }, { driver: countingDriver });
 
   check("a session authors every diagram", outs.every(existsSync), outs.map(existsSync).join(","));
-  check("a session costs one browser launch, not one per diagram", launchCount() === 1,
-    `${launchCount()} launches for a session of ${outs.length} diagrams`);
+  check("a session costs one browser launch, not one per diagram", launches === 1,
+    `${launches} launches for a session of ${outs.length} diagrams`);
   check("a session still writes the SVG beside the document",
     existsSync(session.exported.svgOut), session.exported.svgOut);
   check("a gate failure inside a session is a GateError that writes nothing",
@@ -636,7 +598,7 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     Promise.all(RARER.map((text, i) =>
       author({ out: join(outDir, `batch-${i}.excalidraw`), svg: false,
         build: measuring(`batch${i}`, text) }))),
-  );
+  { driver: countingDriver });
   const drifted = RARER
     .map((_, i) => ({ i, batch: widths[`batch${i}`], fresh: widths[`fresh${i + 1}`] }))
     .filter(({ batch, fresh }) => Math.abs(batch - fresh) >= 0.01);
@@ -653,7 +615,7 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   const loose = join(outDir, "unawaited.excalidraw");
   await withAuthoring(async (author) => {
     author({ out: loose, svg: false, build: measuring("loose", ASCII) }).catch(() => {});
-  });
+  }, { driver: countingDriver });
   check("a session finishes diagrams the caller never awaited", existsSync(loose),
     `${loose} ${widths.loose === undefined ? "never built" : "written"}`);
 
@@ -663,14 +625,37 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
   const thrown = await rejectsWith("RangeError", withAuthoring(async (author) => {
     author({ out: looseThrown, svg: false, build: measuring("looseThrown", ASCII) }).catch(() => {});
     throw new RangeError("the generator gave up mid-batch");
-  }));
+  }, { driver: countingDriver }));
   check("a callback that throws still leaves its diagrams written",
     thrown.ok && existsSync(looseThrown), `${thrown.detail}; written ${existsSync(looseThrown)}`);
 
   // the single-shot API still opens and closes its own browser
   const solo = join(outDir, "still-single-shot.excalidraw");
-  await countedAuthor({ out: solo, svg: false, build: measuring("solo", ASCII) });
-  check("the single-shot API still launches per call", launchCount() === 5, `${launchCount()} launches`);
+  await authorDiagram({ out: solo, svg: false, build: measuring("solo", ASCII), driver: countingDriver });
+  check("the single-shot API still launches per call", launches === 5, `${launches} launches`);
+
+  // ---- 15. the driver seam's guard rails ----
+  // A session already committed to a browser; a per-diagram driver override is
+  // something it cannot honor, so it is a loud SkeletonError rather than a
+  // silently ignored option — the same silent-failure class issue #161 closed.
+  const sessionDriverOut = join(outDir, "session-driver-override.excalidraw");
+  await withAuthoring(async (author) => {
+    const r = await rejectsWith("SkeletonError", author({
+      out: sessionDriverOut, svg: false, build: oneLine("x"), driver: countingDriver,
+    }));
+    check("a session's per-diagram author() rejects a driver override",
+      r.ok && /driver/.test(r.message), r.detail);
+  });
+
+  // A misspelled driver key must not fall back to the real browser unnoticed.
+  const misspelled = await rejectsWith("SkeletonError", withAuthoring(async () => {}, { drivr: countingDriver }));
+  check("withAuthoring rejects a misspelled options key", misspelled.ok, misspelled.detail);
+
+  const driverTypo = await rejectsWith("SkeletonError", authorDiagram({
+    out: join(outDir, "driver-typo.excalidraw"), build: oneLine("x"), drver: countingDriver,
+  }));
+  check("authorDiagram rejects a misspelled driver key too",
+    driverTypo.ok && /driver/.test(driverTypo.message), driverTypo.detail);
 }
 
 // ---- 11. the finish register: one setting, applied to every element it governs ----

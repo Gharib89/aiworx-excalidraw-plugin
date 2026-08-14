@@ -24,6 +24,7 @@ import { join, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
+import { readExcalidrawDocument } from "./document.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, arrowBetween, fanOut, graph, flatten, resolveArrows } from "./layout.js";
@@ -815,27 +816,7 @@ export async function withAuthoring(fn) {
  * and are named in the success output; a pass that moved none stays quiet.
  */
 export async function reviseDiagram({ file, svg = true }) {
-  let raw;
-  try {
-    raw = readFileSync(file, "utf8");
-  } catch (err) {
-    throw new DocumentError(`cannot read — ${err.message}`, {
-      where: file, next: "Check that the file exists and is readable.",
-    });
-  }
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (err) {
-    throw new DocumentError(`not valid JSON — ${err.message}`, {
-      where: file, next: "Fix the JSON syntax error, or regenerate the file with authorDiagram.",
-    });
-  }
-  if (data?.type !== "excalidraw" || !Array.isArray(data.elements)) {
-    throw new DocumentError(`not an Excalidraw document (type ${JSON.stringify(data?.type)})`, {
-      where: file, next: 'Pass a file with type: "excalidraw" and an elements array.',
-    });
-  }
+  const data = readExcalidrawDocument(file);
   return withExcalidraw(async (ex) => {
     // Where every bound arrow label sat before the round-trip. restore re-centers
     // one onto its arrow's path on every pass — house behaviour (CONTEXT.md,

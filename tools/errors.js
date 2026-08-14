@@ -47,8 +47,16 @@ export class UsageError extends NamedError {}
  * than beside the authoring API because every tool that opens a file raises it —
  * render.js would otherwise load the whole authoring module for one class.
  * Re-exported from tools/author.js, which is where the API documents it.
+ *
+ * `kind` is the machine-readable file-level code (`unreadable`, `empty-file`,
+ * `invalid-json`, `not-excalidraw`) check.js maps to its code contract.
  */
-export class DocumentError extends NamedError {}
+export class DocumentError extends NamedError {
+  constructor(what, { kind = "", ...rest } = {}) {
+    super(what, rest);
+    this.kind = kind;
+  }
+}
 
 /**
  * A runtime dependency the checkout never installed. It lives here rather than

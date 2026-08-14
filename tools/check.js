@@ -15,9 +15,9 @@
  * problem carries the theme it failed under. Render tools keep their dark
  * flags; that is output selection, not verification.
  */
-import { readFileSync } from "node:fs";
 import { CHECK_FLAGS, parseFlags } from "./cli-flags.js";
-import { UsageError } from "./errors.js";
+import { readExcalidrawDocument } from "./document.js";
+import { DocumentError, UsageError } from "./errors.js";
 import { verifyDocument } from "./verify.js";
 
 const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw ...]";
@@ -44,23 +44,24 @@ try {
  * never reached the rules.
  */
 function inspect(file) {
-  let raw;
-  try {
-    raw = readFileSync(file, "utf8");
-  } catch (err) {
-    return { file, ok: false, code: 2, error: { code: "unreadable", message: `cannot read — ${err.message}` } };
-  }
-  if (raw.trim() === "") {
-    return { file, ok: false, code: 1, error: { code: "empty-file", message: "empty file — not an Excalidraw document" } };
-  }
   let data;
   try {
-    data = JSON.parse(raw);
+    data = readExcalidrawDocument(file);
   } catch (err) {
-    return { file, ok: false, code: 1, error: { code: "invalid-json", message: `not valid JSON — ${err.message}` } };
-  }
-  if (data?.type !== "excalidraw" || !Array.isArray(data.elements)) {
-    return { file, ok: false, code: 1, error: { code: "not-excalidraw", message: `not an Excalidraw document (type ${JSON.stringify(data?.type)})` } };
+    if (!(err instanceof DocumentError)) throw err;
+    // tests/problem-codes.js statically requires a literal code at every error
+    // site in this file, so err.kind is switched into one rather than passed
+    // through — a computed code would be invisible to that scan.
+    switch (err.kind) {
+      case "unreadable":
+        return { file, ok: false, code: 2, error: { code: "unreadable", message: err.what } };
+      case "empty-file":
+        return { file, ok: false, code: 1, error: { code: "empty-file", message: err.what } };
+      case "invalid-json":
+        return { file, ok: false, code: 1, error: { code: "invalid-json", message: err.what } };
+      default:
+        return { file, ok: false, code: 1, error: { code: "not-excalidraw", message: err.what } };
+    }
   }
   // The rules name a malformed document rather than throwing on it, but a batch
   // owes every other file its report whatever this one turns out to contain.

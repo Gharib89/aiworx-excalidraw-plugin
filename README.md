@@ -178,6 +178,7 @@ tools/
   bundle.js         builds the committed dist/ bundle, its loader page and its vendored fonts, stamped with a source fingerprint
   fonts.js          the Excalidraw font families dist/ vendors, so nothing is fetched at render time
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
+  document.js       one .excalidraw loader shared by check, render and revise: read, parse, shape-check, DocumentError with a machine kind
   errors.js         the shared NamedError base every tool error derives from, plus UsageError and DocumentError
                     every error states what failed, where, and the one next action: "where: what — next action"
 tests/              geometry + verifyDocument units, layout units, gate fixtures, failure paths, render + revise CLI, author API suites

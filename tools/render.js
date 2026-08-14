@@ -18,10 +18,11 @@
  * PNGs are numbered in reading order — rows top to bottom, left to right within
  * a row — so frame numbers match the review order, not element-array accidents.
  */
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname, resolve } from "node:path";
 import { withExcalidraw } from "./browser.js";
 import { RENDER_FLAGS, parseFlags } from "./cli-flags.js";
+import { readExcalidrawDocument } from "./document.js";
 import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
@@ -91,23 +92,8 @@ try {
   }
   const stem = basename(input, extname(input));
 
-  let raw;
-  try {
-    raw = readFileSync(input, "utf8");
-  } catch (err) {
-    throw new DocumentError(`cannot read — ${err.message}`, {
-      where: input, next: "Check that the file exists and is readable.",
-    });
-  }
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (err) {
-    throw new DocumentError(`not valid JSON — ${err.message}`, {
-      where: input, next: "Fix the JSON syntax error.",
-    });
-  }
-  if (!Array.isArray(data.elements) || data.elements.length === 0) {
+  const data = readExcalidrawDocument(input);
+  if (data.elements.length === 0) {
     throw new DocumentError("has no elements", {
       where: input, next: "Add elements to the document, or point at a different file.",
     });

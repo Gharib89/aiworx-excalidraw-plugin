@@ -19,7 +19,7 @@ export function readExcalidrawDocument(file) {
   }
   if (raw.trim() === "") {
     throw new DocumentError("empty file — not an Excalidraw document", {
-      kind: "empty-file", where: file, next: 'Pass a file with type: "excalidraw" and an elements array.',
+      kind: "empty-file", where: file, next: "Regenerate the file — an empty file is usually a truncated write.",
     });
   }
   let data;

@@ -6,8 +6,8 @@
  * and shape-check an .excalidraw file with their own divergent rules — render.js
  * never checked `data.type === "excalidraw"`, so foreign JSON reached Chrome
  * and died as a PageError instead of a clean refusal. readExcalidrawDocument is
- * the one loader all three now share; this suite pins its five failure modes
- * and the machine-readable `kind` each one carries.
+ * the one loader all three now share; this suite pins its four failure kinds
+ * and the machine-readable `kind` each thrown error carries.
  *
  * Exits non-zero on any mismatch.
  */

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Mechanical gate, CLI face. The rules live in tools/verify.js so the authoring
- * API can run them in-process before writing; this wrapper adds the file-level
- * checks (readable, parseable, actually an Excalidraw document) and the output.
+ * API can run them in-process before writing; this wrapper maps the shared
+ * loader's file-level refusals (tools/document.js) to its code contract and
+ * adds the output.
  *
  * Usage: node tools/check.js [--json] [--] diagram.excalidraw [more.excalidraw ...]
  *
@@ -59,8 +60,12 @@ function inspect(file) {
         return { file, ok: false, code: 1, error: { code: "empty-file", message: err.what } };
       case "invalid-json":
         return { file, ok: false, code: 1, error: { code: "invalid-json", message: err.what } };
-      default:
+      case "not-excalidraw":
         return { file, ok: false, code: 1, error: { code: "not-excalidraw", message: err.what } };
+      default:
+        // a kind this contract has no code for is a programming error, not a
+        // file to mislabel — let it crash loudly like any other unexpected throw
+        throw err;
     }
   }
   // The rules name a malformed document rather than throwing on it, but a batch

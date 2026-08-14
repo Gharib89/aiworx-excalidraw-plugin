@@ -211,5 +211,74 @@ check("an override failing a contrast claim refuses and names the failed claim",
   });
 });
 
+// ---- the consumers read through the shared path ----
+
+import { execFileSync } from "node:child_process";
+
+/** What a fresh Node process, cwd'd into `dir`, sees as the given module
+ * expression — the consumer modules bind their palette at import time, so only
+ * a child process can observe them under a different working directory. */
+const inChild = (dir, expr) =>
+  execFileSync(process.execPath, ["-e", `import(${JSON.stringify(join(root, "tools/author.js"))}).then((m) => console.log(JSON.stringify(${expr})))`], {
+    cwd: dir, encoding: "utf8",
+  }).trim();
+
+check("the author module's palette export honours the override", () => {
+  inTempDir((dir) => {
+    writeFileSync(join(dir, ".excalidraw-brand.json"), JSON.stringify(swappedOverride()));
+    const roles = JSON.parse(inChild(dir, "m.palette.roles"));
+    assert.equal(roles.local.stroke, housePalette.roles.remote.stroke);
+    assert.equal(roles.remote.stroke, housePalette.roles.local.stroke);
+  });
+});
+
+check("the author module under an invalid override refuses with a BrandOverrideError", () => {
+  inTempDir((dir) => {
+    writeFileSync(join(dir, ".excalidraw-brand.json"), "{}");
+    assert.throws(
+      () => inChild(dir, "m.palette.roles"),
+      (err) => /BrandOverrideError/.test(err.stderr ?? ""),
+      "the import must fail, naming the error class",
+    );
+  });
+});
+
+// ---- check.js maps the refusal into its code contract ----
+
+/** Run a CLI from `dir`, capturing exit code and both streams. */
+const runCli = (dir, script, ...args) => {
+  try {
+    const stdout = execFileSync(process.execPath, [join(root, script), ...args], {
+      cwd: dir, encoding: "utf8",
+    });
+    return { code: 0, stdout, stderr: "" };
+  } catch (err) {
+    return { code: err.status, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
+  }
+};
+
+const CLEAN_DIAGRAM = JSON.stringify({ type: "excalidraw", version: 2, source: "test", elements: [], appState: {} });
+
+check("check.js under an invalid override reports invalid-brand-override and exits 2", () => {
+  inTempDir((dir) => {
+    writeFileSync(join(dir, ".excalidraw-brand.json"), "{}");
+    writeFileSync(join(dir, "d.excalidraw"), CLEAN_DIAGRAM);
+    const r = runCli(dir, "tools/check.js", "--json", join(dir, "d.excalidraw"));
+    assert.equal(r.code, 2, `exit ${r.code}, stderr: ${r.stderr}`);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.files[0].error.code, "invalid-brand-override");
+  });
+});
+
+check("check.js with a valid override still checks the diagram", () => {
+  inTempDir((dir) => {
+    writeFileSync(join(dir, ".excalidraw-brand.json"), JSON.stringify(swappedOverride()));
+    writeFileSync(join(dir, "d.excalidraw"), CLEAN_DIAGRAM);
+    const r = runCli(dir, "tools/check.js", "--json", join(dir, "d.excalidraw"));
+    assert.equal(r.code, 0, `exit ${r.code}, stderr: ${r.stderr}`);
+    assert.equal(JSON.parse(r.stdout).ok, true);
+  });
+});
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nbrand override contract holds");
 process.exit(fail.length ? 1 : 0);

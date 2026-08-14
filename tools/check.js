@@ -18,7 +18,7 @@
  */
 import { CHECK_FLAGS, parseFlags } from "./cli-flags.js";
 import { readExcalidrawDocument } from "./document.js";
-import { DocumentError, UsageError } from "./errors.js";
+import { BrandOverrideError, DocumentError, UsageError } from "./errors.js";
 import { verifyDocument } from "./verify.js";
 
 const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw ...]";
@@ -74,6 +74,12 @@ function inspect(file) {
   try {
     result = verifyDocument(data);
   } catch (err) {
+    // a brand override that fails its schema or a contrast claim refuses the
+    // run: the fix is the override file, not the diagram, hence exit 2 like an
+    // input that never reached the rules
+    if (err instanceof BrandOverrideError) {
+      return { file, ok: false, code: 2, error: { code: "invalid-brand-override", message: err.message } };
+    }
     return { file, ok: false, code: 1, error: { code: "check-crashed", message: `cannot be checked — ${err.name}: ${err.message}` } };
   }
   const { problems, stats } = result;

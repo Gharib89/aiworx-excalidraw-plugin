@@ -7,14 +7,15 @@
  * geometry, colour contrast, fonts, file integrity — so eyes are spent on
  * composition instead.
  */
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { bounds, outline, outlinesOverlap, outlineContains, clearance, gap, shapeDepth, segmentLengthInsideShape, segmentGap } from "./geometry.js";
 import { blend, contrast, normalizeHex, toDarkTheme } from "./color.js";
+import { housePalette, loadBrandPalette } from "./brand.js";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
+// Loaded on first verification, not at import: check.js must survive this
+// module's import under an invalid brand override so it can map the refusal
+// into its own code contract instead of dying before parsing argv.
+let brandPalette;
+const getBrandPalette = () => (brandPalette ??= loadBrandPalette());
 
 const LINEAR = new Set(["arrow", "line", "freedraw"]);
 // shapes with area: what an arrow can cross, what a text can sit on
@@ -22,7 +23,9 @@ const SOLID = new Set(["rectangle", "ellipse", "diamond", "image"]);
 // only what this toolchain authors and renders — anything else is a typo or an import artefact
 export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
 
-const HOUSE = new Set([palette.fontFamily.prose, palette.fontFamily.code]);
+// The house pair, never the override's: fonts are not overridable (the font
+// IDs and vendored woff2 files sit under bundle discipline).
+const HOUSE = new Set([housePalette.fontFamily.prose, housePalette.fontFamily.code]);
 /**
  * Text in a face outside the house pair — the `foreign-font` rule's own
  * predicate. Exported so a splice that drops such text drops exactly what this
@@ -53,6 +56,7 @@ export const isForeignFont = (el) => el.type === "text" && !HOUSE.has(el.fontFam
  * nothing else runs twice.
  */
 export function verifyDocument(data) {
+  const palette = getBrandPalette();
   const problems = [];
   const note = (code, message, elements = [], extra = {}) =>
     problems.push({ code, message, elements, ...extra });

@@ -30,12 +30,14 @@ import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, arrowBetween, fanOut, graph, flatten, resolveArrows } from "./layout.js";
 import { makeFromMermaid } from "./mermaid.js";
 import { NamedError, DocumentError } from "./errors.js";
+import { loadBrandPalette } from "./brand.js";
 
 /** The input file is not a parseable Excalidraw document. Defined in errors.js. */
 export { DocumentError };
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-export const palette = JSON.parse(readFileSync(join(root, "brand/palette.json"), "utf8"));
+/** The house palette, or the one a brand override derives (tools/brand.js). */
+export const palette = loadBrandPalette();
 
 export const PROSE = palette.fontFamily.prose;
 export const CODE = palette.fontFamily.code;

@@ -21,51 +21,12 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname, resolve } from "node:path";
 import { withExcalidraw } from "./browser.js";
-import { RENDER_BOOL_FLAGS, RENDER_VALUE_FLAGS } from "./cli-flags.js";
+import { RENDER_FLAGS, parseFlags } from "./cli-flags.js";
 import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
   "usage: render.js [--out DIR] [--scale N] [--no-frames] [--frame N] [--dark] " +
   "[--padding N] [--background COLOR] [--] <file.excalidraw>";
-
-function parseArgs(argv) {
-  const opts = { _: [] };
-  let literal = false; // everything after -- is a path, even if it looks like a flag
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    // Any unrecognised dash-prefixed argument is a typo, not a path: `-dark` read
-    // as a positional is a flag silently dropped when a real file is named too.
-    // A path that genuinely starts with a dash goes after `--`.
-    if (literal || !a.startsWith("-")) {
-      opts._.push(a);
-      continue;
-    }
-    if (a === "--") {
-      literal = true;
-      continue;
-    }
-    if (!a.startsWith("--")) throw new UsageError("unknown flag", { where: a, next: USAGE });
-    const name = a.slice(2);
-    if (RENDER_BOOL_FLAGS.has(name)) {
-      opts[name] = true;
-    } else if (RENDER_VALUE_FLAGS.has(name)) {
-      const v = argv[++i];
-      if (v === undefined) {
-        throw new UsageError("needs a value", { where: `--${name}`, next: USAGE });
-      }
-      // A dash-prefixed token is a flag under the same rule, never this flag's
-      // value: `--out -dark` must not create a directory named "-dark". Name the
-      // token — a value *was* given, so a bare "needs a value" reads as a lie.
-      if (v.startsWith("-")) {
-        throw new UsageError(`needs a value, got ${v}`, { where: `--${name}`, next: USAGE });
-      }
-      opts[name] = v;
-    } else {
-      throw new UsageError("unknown flag", { where: `--${name}`, next: USAGE });
-    }
-  }
-  return opts;
-}
 
 const numeric = (name, raw, { min, integer = false } = {}) => {
   if (raw === undefined) return undefined;
@@ -103,8 +64,8 @@ function readingOrder(frames) {
 }
 
 try {
-  const opts = parseArgs(process.argv.slice(2));
-  const input = opts._[0];
+  const { positionals, flags } = parseFlags(process.argv.slice(2), { ...RENDER_FLAGS, usage: USAGE });
+  const input = positionals[0];
   if (!input) throw new UsageError("no input file given", { where: "input", next: USAGE });
 
   // Resolved once, so every path a success line reports is absolute: a relative
@@ -112,19 +73,19 @@ try {
   // process cwd, so a run from a scratchpad writes there — and echoing the path
   // as given made the two runs report the same line. The refusal below still
   // names the directory as given.
-  const outGiven = opts.out ?? dirname(input);
+  const outGiven = flags.out ?? dirname(input);
   const outDir = resolve(outGiven);
-  const scale = numeric("scale", opts.scale, { min: 0.1 }) ?? 2;
-  const padding = numeric("padding", opts.padding, { min: 0 });
-  const frameNo = numeric("frame", opts.frame, { min: 1, integer: true });
-  const doFrames = !opts["no-frames"];
+  const scale = numeric("scale", flags.scale, { min: 0.1 }) ?? 2;
+  const padding = numeric("padding", flags.padding, { min: 0 });
+  const frameNo = numeric("frame", flags.frame, { min: 1, integer: true });
+  const doFrames = !flags["no-frames"];
   if (frameNo !== undefined && !doFrames) {
     throw new UsageError("cannot be combined with --no-frames", {
       where: "--frame", next: "Drop one of the two flags.",
     });
   }
-  if (opts.background !== undefined && !/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(opts.background)) {
-    throw new UsageError(`must be a hex colour or CSS colour name, got "${opts.background}"`, {
+  if (flags.background !== undefined && !/^(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)$/.test(flags.background)) {
+    throw new UsageError(`must be a hex colour or CSS colour name, got "${flags.background}"`, {
       where: "--background", next: "Pass a hex colour like #121212 or a CSS colour name.",
     });
   }
@@ -171,8 +132,8 @@ try {
     const base = {
       elements: restored.elements,
       appState: {
-        viewBackgroundColor: opts.background ?? data.appState?.viewBackgroundColor ?? "#ffffff",
-        ...(opts.dark ? { exportWithDarkMode: true } : {}),
+        viewBackgroundColor: flags.background ?? data.appState?.viewBackgroundColor ?? "#ffffff",
+        ...(flags.dark ? { exportWithDarkMode: true } : {}),
       },
       files: data.files ?? {},
       ...(padding !== undefined ? { exportPadding: padding } : {}),

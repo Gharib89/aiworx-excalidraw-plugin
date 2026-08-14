@@ -120,7 +120,7 @@ check("no colour drifts more than two 8-bit levels from the browser", worst <= 2
   // --dark is gone — one run, one truth. A flag that silently narrowed the run
   // back to one theme would report a pass the plain run contradicts.
   const flag = run([fixture("dark-contrast"), "--dark"]);
-  check("--dark is a usage error now", flag.status === 2 && flag.output.includes("unknown flag --dark"),
+  check("--dark is a usage error now", flag.status === 2 && flag.output.includes("--dark: unknown flag"),
     `exit ${flag.status}: ${flag.output.trim().split("\n")[0]}`);
 }
 

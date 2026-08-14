@@ -218,7 +218,7 @@ for (const c of CASES) {
   for (const typo of ["-json", "-dark", "-"]) {
     const bad = run(typo, CLEAN);
     check(`${typo} is rejected as an unknown flag`,
-      bad.status === 2 && bad.stderr.includes(`unknown flag ${typo}`),
+      bad.status === 2 && bad.stderr.includes(`UsageError: ${typo}: unknown flag`),
       `exit ${bad.status}: ${bad.stderr.trim().split("\n")[0]}`);
   }
   // …and a real file whose name starts with a dash still reaches the gate
@@ -262,11 +262,15 @@ for (const c of CASES) {
   check("--json on a clean file exits 0 with ok true",
     jClean.status === 0 && JSON.parse(jClean.stdout).ok === true, `exit ${jClean.status}`);
 
+  // The error shape matches the other CLIs: a UsageError prefix, the offending
+  // token as the where, and the usage line as the next step — not a bare print.
   const bogus = run(CLEAN, "--bogus");
-  check("an unknown flag is a usage error", bogus.status === 2 && /unknown flag --bogus/.test(bogus.stderr),
+  check("an unknown flag is a usage error",
+    bogus.status === 2 && /UsageError: --bogus: unknown flag — usage: check\.js/.test(bogus.stderr),
     `exit ${bogus.status}: ${bogus.stderr.trim().split("\n")[0]}`);
   const noArgs = run();
-  check("no input is a usage error", noArgs.status === 2 && /usage: check\.js/.test(noArgs.stderr),
+  check("no input is a usage error",
+    noArgs.status === 2 && /UsageError: .*usage: check\.js/.test(noArgs.stderr),
     `exit ${noArgs.status}`);
 }
 

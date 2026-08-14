@@ -329,6 +329,13 @@ const cacheDir = () => mkdtempSync(join(tmpdir(), "library-index-"));
   // Usage errors, all before any cache or network access.
   const noQuery = cli();
   check("no query exits 2", noQuery.code === 2 && /UsageError/.test(noQuery.err), `${noQuery.code} ${noQuery.err.trim()}`);
+  // A blank query is the same usage mistake as no query — a wrong invocation (2),
+  // not an index refusal (1). The in-process guard in library-index.js stays for
+  // API callers; the CLI refuses first.
+  const blank = cli("");
+  check("a blank query exits 2 as a usage error",
+    blank.code === 2 && /UsageError/.test(blank.err) && /empty search query/.test(blank.err),
+    `${blank.code} ${blank.err.trim()}`);
   const unknown = cli("--no-such-flag", "aws");
   check("an unknown flag exits 2 and says so",
     unknown.code === 2 && /unknown flag/.test(unknown.err), `${unknown.code} ${unknown.err.trim()}`);

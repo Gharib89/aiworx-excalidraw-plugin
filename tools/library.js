@@ -26,6 +26,7 @@
  * 1 for a refusal — no index, an undownloadable library, a bad handle. A search
  * that simply matches nothing is an answer, not a failure, and exits 0.
  */
+import { LIBRARY_FLAGS, parseFlags } from "./cli-flags.js";
 import { UsageError, NamedError } from "./errors.js";
 import { loadIndex, searchIndex, downloadLibrary } from "./library-index.js";
 
@@ -41,40 +42,11 @@ function hitBlock(hit) {
 }
 
 try {
-  const words = [];
-  let download = null;
-  let json = false;
-  let refresh = false;
-  let stale = false;
-  let literal = false; // everything after -- is query text, even if it looks like a flag
-  const argv = process.argv.slice(2);
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (literal || !a.startsWith("-")) {
-      words.push(a);
-    } else if (a === "--") {
-      literal = true;
-    } else if (a === "--json") {
-      json = true;
-    } else if (a === "--refresh") {
-      refresh = true;
-    } else if (a === "--stale") {
-      stale = true;
-    } else if (a === "--download") {
-      // The value is a separate argument, as in render.js: `--download=x` would
-      // be a second spelling of the same flag for no gain.
-      if (i + 1 >= argv.length) throw new UsageError("needs a value", { where: a, next: USAGE });
-      // And it will not swallow the next flag, exactly as render.js's value flags
-      // do not: naming the token keeps a bare "needs a value" from reading as a
-      // lie when one was given.
-      if (argv[i + 1].startsWith("-")) {
-        throw new UsageError(`needs a value, got ${argv[i + 1]}`, { where: a, next: USAGE });
-      }
-      download = argv[++i];
-    } else {
-      throw new UsageError("unknown flag", { where: a, next: USAGE });
-    }
-  }
+  const { positionals: words, flags } = parseFlags(process.argv.slice(2), { ...LIBRARY_FLAGS, usage: USAGE });
+  const download = flags.download ?? null;
+  const json = Boolean(flags.json);
+  const refresh = Boolean(flags.refresh);
+  const stale = Boolean(flags.stale);
 
   // Both modes at once has no meaning, and guessing which one was meant would
   // silently ignore half the invocation.
@@ -85,6 +57,14 @@ try {
   }
   if (download === null && words.length === 0) {
     throw new UsageError("no search query given", { where: "query", next: USAGE });
+  }
+  // A blank query is the same usage mistake with characters in it — a wrong
+  // invocation (2), not an index refusal (1). library-index.js keeps its own
+  // guard for in-process API callers; the CLI refuses before reaching it.
+  if (download === null && words.join(" ").trim() === "") {
+    throw new UsageError("empty search query", {
+      where: "query", next: "Name what to search for — a vendor, a product, or an icon name",
+    });
   }
   // A download reads no index, so --stale has nothing to accept. Refused rather
   // than ignored: a flag that silently does nothing is the failure this CLI's

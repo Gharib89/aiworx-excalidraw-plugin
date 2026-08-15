@@ -9,14 +9,10 @@
  * text metrics, which this pipeline exists to replace, so its coordinates would
  * be wrong the moment the labels are re-measured. `graph()` does the placing.
  */
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { NamedError } from "./errors.js";
+import { loadBrandPalette } from "./brand.js";
 
-const palette = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
-);
+const palette = loadBrandPalette();
 
 /** A mermaid source cannot become a house graph — wrong diagram kind, or unparseable. */
 export class MermaidError extends NamedError {}

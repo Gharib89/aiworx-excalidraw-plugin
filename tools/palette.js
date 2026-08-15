@@ -1,27 +1,36 @@
 #!/usr/bin/env node
 /**
- * Derive the diagram palette from the AIWorx brand slots and verify it.
+ * Derive the diagram palette and verify it — the house palette by default, a
+ * brand override file when one is named.
  *
- * Strokes are the brand's own validated categorical colours, used verbatim. Fills
- * are derived by snapping each stroke to a fixed high lightness in OKLCH — one
- * rule for all six, rather than six hand-picked tints that drift.
+ * Strokes are used verbatim. Fills are derived by snapping each stroke to a
+ * fixed high lightness in OKLCH — one rule for all six, rather than six
+ * hand-picked tints that drift (tools/brand.js carries the rule). Every check
+ * runs twice — once on the authored colours, once on what a dark export
+ * renders, because Excalidraw's dark theme is a filter over the same values
+ * and its ratios are not the light ones.
  *
- * Nothing is written unless every contrast check passes: body text must clear
- * 4.5:1 on its fill, and a stroke must clear 3:1 against the canvas. Every check
- * runs twice — once on the authored colours, once on what a dark export renders,
- * because Excalidraw's dark theme is a filter over the same values and its
- * ratios are not the light ones.
+ * House mode: verify the constants below, and with `--write` rewrite
+ * brand/palette.json — nothing is written unless every check passes. The house
+ * grey is hand-pinned, not derived, so --write never moves it.
  *
- * Usage: node tools/palette.js [--write]
+ * Override mode: name a `.excalidraw-brand.json`-shaped file and the tool
+ * prints the palette it derives, the contrast report for both themes, and a
+ * verdict — the preflight for anyone writing an override by hand or by agent.
+ * Exit 0 when every claim holds, 1 when any fails.
+ *
+ * Usage: node tools/palette.js [override.json] [--write]
  */
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { toOklch, fromOklch, contrast, oklabDist, toDarkTheme } from "./color.js";
+import { BrandOverrideError } from "./errors.js";
+import { snapFill, deriveBrandPalette, parseBrandOverride, verifyPalette, THEMES, FILL_L, FILL_C_MAX } from "./brand.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const USAGE = "usage: palette.js [override.json] [--write]  (--write only in house mode)";
 
-// ---------- brand input ----------
+// ---- brand input (house mode) ----
 // Hex values and slot order come from the AIWorx brand tokens. The brand's own
 // validation rejected the raw theme accents as marks (accent1 too dark,
 // accent4/accent6 sub-3:1 on white); these are the validated categorical slots.
@@ -35,6 +44,8 @@ const ROLES = [
   { role: "decision", stroke: "#A17E00", hue: "gold", means: "a decision, a threshold, a trap" },
   { role: "fail", stroke: "#B61E24", hue: "red", means: "what goes wrong" },
 ];
+// Hand-pinned, not derived: the house grey carries a deliberate warm tint the
+// override derivation (neutral chroma) does not reproduce.
 const GREY = {
   stroke: "#5B5B58",
   fill: "#F1F1EF",
@@ -43,86 +54,51 @@ const GREY = {
   canvas: CANVAS,
 };
 
-// ---------- derive fills ----------
-// Tuned so that every slot clears 3:1 stroke-on-own-fill; cyan is the binding
-// constraint at L=0.965 (2.98:1), so fills sit slightly lighter and less chromatic.
-const FILL_L = 0.975;
-const FILL_C_MAX = 0.034;
+const args = process.argv.slice(2);
+const write = args.includes("--write");
+// same rule as the shared parseFlags: a dash-prefixed argument that is not a
+// known flag is a typo, never a file path — `--wrote x.json` must not verify
+// x.json as if --write had been dropped on purpose
+const positionals = args.filter((a) => a !== "--write");
+const typo = positionals.find((a) => a.startsWith("-"));
+if (typo !== undefined || positionals.length > 1 || (write && positionals.length)) {
+  console.error(`UsageError: ${typo ? `unknown flag ${typo} — ` : ""}${USAGE}`);
+  process.exit(2);
+}
+const overrideFile = positionals[0] ?? null;
 
-const slots = ROLES.map((r) => {
-  const { L, C, h } = toOklch(r.stroke);
-  const fill = fromOklch({ L: FILL_L, C: Math.min(C, FILL_C_MAX), h });
-  return { ...r, fill, strokeL: +L.toFixed(3), strokeC: +C.toFixed(3) };
-});
-
-// ---------- verify ----------
-/**
- * Every contrast and separation claim the palette makes, over one set of rendered
- * colours. `paint` is identity for the light export and the dark-theme filter for
- * the dark one; the rules are the same either way because the filter changes what
- * is on screen, not what the diagram promises about it.
- */
-function verify(paint) {
-  const canvas = paint(CANVAS);
-  const ink = paint(INK);
-  const fail = [];
-  const rows = [];
-  for (const s of slots) {
-    const [stroke, fill] = [paint(s.stroke), paint(s.fill)];
-    const inkOnFill = contrast(ink, fill);
-    const strokeOnCanvas = contrast(stroke, canvas);
-    const strokeOnFill = contrast(stroke, fill);
-    rows.push({
-      role: s.role,
-      stroke,
-      fill,
-      "ink on fill": inkOnFill.toFixed(2),
-      "stroke on canvas": strokeOnCanvas.toFixed(2),
-      "stroke on fill": strokeOnFill.toFixed(2),
-    });
-    if (inkOnFill < 4.5) fail.push(`${s.role}: body text on fill only ${inkOnFill.toFixed(2)}:1`);
-    if (strokeOnCanvas < 3) fail.push(`${s.role}: stroke on canvas only ${strokeOnCanvas.toFixed(2)}:1`);
-    if (strokeOnFill < 3) fail.push(`${s.role}: stroke on own fill only ${strokeOnFill.toFixed(2)}:1`);
+/** The palette under test: derived from the named override, or the house constants. */
+let palette;
+if (overrideFile) {
+  let strokes;
+  try {
+    strokes = parseBrandOverride(readFileSync(overrideFile, "utf8"), overrideFile);
+  } catch (err) {
+    if (!(err instanceof BrandOverrideError) && err?.code !== "ENOENT") throw err;
+    console.error(err instanceof BrandOverrideError ? `${err.name}: ${err.message}` : `${overrideFile}: cannot be read — ${err.message}`);
+    process.exit(1);
   }
-
-  // Fills must read as a tint, not as the canvas and not as a block of colour.
-  // A contrast ratio can't see a chroma-only difference, so use OKLab distance.
-  for (const s of slots) {
-    const fill = paint(s.fill);
-    const d = oklabDist(fill, canvas);
-    if (d < 0.02) fail.push(`${s.role}: fill indistinguishable from canvas (ΔOKLab ${d.toFixed(3)})`);
-    if (contrast(fill, canvas) > 1.25) {
-      fail.push(`${s.role}: fill too dark against canvas (${contrast(fill, canvas).toFixed(2)}:1)`);
-    }
+  if (strokes === null) {
+    console.log(`${overrideFile} records { "defaults": "accepted" } — the house palette applies, nothing to derive`);
+    process.exit(0);
   }
-  // Adjacent fills must be tellable apart, or the colour coding conveys nothing.
-  for (let i = 0; i < slots.length; i++) {
-    for (let j = i + 1; j < slots.length; j++) {
-      const d = oklabDist(paint(slots[i].fill), paint(slots[j].fill));
-      if (d < 0.02) {
-        fail.push(`${slots[i].role}/${slots[j].role}: fills too close (ΔOKLab ${d.toFixed(3)})`);
-      }
-    }
-  }
-  const greyChecks = {
-    "grey stroke on canvas": contrast(paint(GREY.stroke), canvas),
-    "ink on canvas": contrast(ink, canvas),
-    "ink on grey fill": contrast(ink, paint(GREY.fill)),
+  palette = deriveBrandPalette(strokes);
+  console.log("derived palette:");
+  console.log(JSON.stringify(palette, null, 2));
+} else {
+  palette = {
+    canvas: CANVAS,
+    ink: INK,
+    grey: GREY,
+    roles: Object.fromEntries(ROLES.map((r) => [r.role, { stroke: r.stroke, fill: snapFill(r.stroke) }])),
   };
-  for (const [name, v] of Object.entries(greyChecks)) {
-    if (v < 4.5) fail.push(`${name} only ${v.toFixed(2)}:1`);
-  }
-  return { fail, rows, greyChecks };
 }
 
-const themes = [
-  { name: "light export", paint: (c) => c },
-  { name: "dark export (invert 93% + hue-rotate 180deg)", paint: toDarkTheme },
-];
+// ---- verify ----
 const fail = [];
-for (const theme of themes) {
-  const result = verify(theme.paint);
-  console.log(`\n${theme.name} — canvas ${theme.paint(CANVAS)}, ink ${theme.paint(INK)}`);
+for (const theme of THEMES) {
+  const result = verifyPalette(palette, theme.paint);
+  console.log(`\n${theme.name} — canvas ${theme.paint(palette.canvas)}, ink ${theme.paint(palette.ink)}`);
   console.table(result.rows);
   console.log(
     Object.entries(result.greyChecks)
@@ -139,7 +115,7 @@ if (fail.length) {
 }
 console.log("\nall contrast checks passed");
 
-if (process.argv.includes("--write")) {
+if (write) {
   const out = {
     $comment:
       `Diagram palette for the AIWorx Excalidraw plugin. Strokes are the brand's validated categorical slots; fills are derived by OKLCH lightness-snapping (L=${FILL_L}, C<=${FILL_C_MAX}) and verified for contrast by tools/palette.js.`,
@@ -148,7 +124,7 @@ if (process.argv.includes("--write")) {
     fontFamily: { prose: 6, code: 3, $comment: "6 = Nunito, 3 = Cascadia; both ship with Excalidraw and embed on export" },
     grey: GREY,
     roles: Object.fromEntries(
-      slots.map((s) => [s.role, { stroke: s.stroke, fill: s.fill, hue: s.hue, means: s.means }]),
+      ROLES.map((r) => [r.role, { stroke: r.stroke, fill: snapFill(r.stroke), hue: r.hue, means: r.means }]),
     ),
   };
   const path = join(root, "brand/palette.json");

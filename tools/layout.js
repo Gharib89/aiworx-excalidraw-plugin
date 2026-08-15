@@ -13,15 +13,11 @@
  * therefore returns a deferred arrow and `resolveArrows` measures them all once
  * the movers are done — again, authorDiagram does it for you.
  */
-import { readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { NamedError, loadDependency } from "./errors.js";
 import { bounds } from "./geometry.js";
+import { loadBrandPalette } from "./brand.js";
 
-const palette = JSON.parse(
-  readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8"),
-);
+const palette = loadBrandPalette();
 
 /** A group cannot be composed as asked — bad items, gaps, direction or align. */
 export class LayoutError extends NamedError {}

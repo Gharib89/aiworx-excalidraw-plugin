@@ -111,6 +111,7 @@ Emitted by `check.js` for a file that never reached the rules. They appear under
 | `invalid-json` | live | 1 | the file is not valid JSON |
 | `not-excalidraw` | live | 1 | the JSON is not an Excalidraw document |
 | `check-crashed` | live | 1 | the gate itself threw while checking the file |
+| `invalid-brand-override` | live | 2 | a `.excalidraw-brand.json` brand override discovered above the working directory fails its schema or a contrast claim — the fix is the override file, not the diagram; preflight it with `node tools/palette.js <file>` |
 
 ## Invocation
 

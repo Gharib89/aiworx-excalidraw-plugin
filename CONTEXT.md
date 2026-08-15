@@ -167,6 +167,14 @@ The two permitted fonts: one for prose, one for code. Any other font family fail
 A named palette slot an element's colors are chosen by. Authors pick roles, never raw hex.
 _Avoid_: color, swatch
 
+**House palette**:
+The shipped AIWorx palette, `brand/palette.json` — what every consumer gets when no brand override exists.
+_Avoid_: default palette, base palette
+
+**Brand override**:
+A project's own strokes-only palette file, `.excalidraw-brand.json`, discovered by walking up from the working directory. The full palette is derived from it in memory on every read — fills by the house OKLCH rule, grey neutralized — and verified against the same contrast claims; a file that fails refuses the run (`invalid-brand-override`), never falls back silently. `{ "defaults": "accepted" }` records the explicit decision to keep the house palette.
+_Avoid_: custom palette, theme override
+
 ### Rendering session
 
 **Warm / re-warm**:

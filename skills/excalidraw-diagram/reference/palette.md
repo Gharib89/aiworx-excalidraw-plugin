@@ -121,9 +121,8 @@ verdict — exit 0 only when every claim holds.
 
 The procedure behind SKILL.md's step 0, when a project has no override yet and
 the user names a brand to adopt. The division of labour: **you** mine the colours
-and propose the mapping, `palette.js` decides whether the proposal is usable.
-Reading a site or a stylesheet is agent work by design — no tool here fetches a
-URL or parses CSS.
+and propose the mapping — fetching the site, reading the stylesheet — and
+`palette.js` decides whether the proposal is usable.
 
 ### 1 · Mine six categorical colours, a background and an ink
 
@@ -175,10 +174,18 @@ the tool accepts is one every diagram in the project can be authored against.
 
 A brand publishing navy `#1F4E79`, teal `#17A2A2`, olive `#4C8B2B`, magenta
 `#B5179E`, amber `#D98C00` and crimson `#C0392B` on white, with near-black ink.
-The pins take crimson to `fail` and olive to `pass`, and navy is the only blue,
-so it takes `local`; the rest fall hue-nearest — teal 195° to `artifact`
-(cyan 231°), magenta 336° to `remote` (purple 318°), amber 71° to `decision`
-(gold 89°). As mined:
+This is the diff table step 2 puts to the user:
+
+| role | brand colour | why it landed there | means |
+|---|---|---|---|
+| `fail` | `#C0392B` crimson | convention | what goes wrong |
+| `pass` | `#4C8B2B` olive | convention | a check that passed, a gate held |
+| `local` | `#1F4E79` navy | convention — the brand's only blue | runs locally, on this machine |
+| `artifact` | `#17A2A2` teal | 195°, nearest cyan's 231° | an artifact or output |
+| `remote` | `#B5179E` magenta | 336°, nearest purple's 318° | leaves the machine — API, model call |
+| `decision` | `#D98C00` amber | 71°, nearest gold's 89° | a decision, a threshold, a trap |
+
+As mined, that is:
 
 ```json
 {

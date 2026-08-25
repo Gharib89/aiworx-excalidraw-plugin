@@ -22,20 +22,23 @@ Two kinds of work, and naming which one you are doing decides everything after:
 Once per project, ahead of its first diagram: walk up from the working directory
 looking for `.excalidraw-brand.json`.
 
-**A file exists** — either form — so the palette question is already settled for
+**A file exists** — a brand's strokes, or a recorded
+`{ "defaults": "accepted" }` — so the palette question is already settled for
 this project. Go to step 1.
 
 **No file** — ask the user once, and act on the answer:
 
-| the user offers | you do |
+| the user offers | where the colours come from |
 |---|---|
-| a URL — "match our website" | fetch it, mine its colours, map them, confirm, write |
-| local token files — "they're in `src/tokens.css`" | read those files, mine, map, confirm, write |
-| pasted hex values | map, confirm, write |
-| "the house colours are fine" | write `{ "defaults": "accepted" }` at the project root |
+| a URL — "match our website" | fetch the page and mine its colours |
+| local token files — "they're in `src/tokens.css`" | read the files they name and mine those |
+| pasted hex values | the paste itself |
+| "the house colours are fine" | nowhere — write `{ "defaults": "accepted" }` and go to step 1 |
 
-The file **is** the memory of that answer — the declined form included — so the
-ask costs the user one answer for the project rather than one per session.
+For the first three, map the mined colours onto the roles, confirm the mapping
+with the user, then write the file. Every path ends in a
+`.excalidraw-brand.json`, the declined one included, so the file's existence is
+the whole record of the answer.
 
 [reference/palette.md](reference/palette.md)'s **Brand onboarding** carries the
 procedure: what to mine, how brand colours land on the six roles, the diff table

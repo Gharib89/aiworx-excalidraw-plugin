@@ -35,9 +35,9 @@ jobs:
         run: test -z "$(git status --porcelain)"
 
   plugin:
-    # What ships to an install, and whether an install would ever see it. Both
-    # checks read manifests, so they are OS-independent — a 3-OS matrix here
-    # would buy three identical answers.
+    # Whether an install would ever see this change, and whether the marketplace
+    # manifest it arrives through still parses. Both read manifests, so they are
+    # OS-independent — a 3-OS matrix here would buy three identical answers.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,8 +62,9 @@ jobs:
           node tools/version-gate.js
           --base ${{ github.event.pull_request.base.sha }}
           --head ${{ github.event.pull_request.head.sha }}
-      # Pinned: an unpinned CLI would let a release of Claude Code turn this
-      # leg red without a change here.
+      # Resolves .claude-plugin/marketplace.json — the manifest an install comes
+      # through. Pinned: an unpinned CLI would let a release of Claude Code turn
+      # this leg red without a change here.
       - run: npm i -g @anthropic-ai/claude-code@2.1.245
       - run: claude plugin validate . --strict
 

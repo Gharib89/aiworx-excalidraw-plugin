@@ -30,6 +30,16 @@ export const LIBRARY_FLAGS = {
 };
 
 /**
+ * The maintainer CLIs. They act on the plugin package rather than a diagram, so
+ * no band ever draws them and they stay out of FLAGS_BY_SCRIPT below — but their
+ * flags are declared here with the rest, so this module's inventory stays the
+ * whole inventory.
+ */
+export const VERSION_GATE_FLAGS = { bool: new Set(), value: new Set(["base", "head"]) };
+/** bump-version.js takes a bare part name; the empty sets still reject typo flags. */
+export const BUMP_VERSION_FLAGS = { bool: new Set(), value: new Set() };
+
+/**
  * Every flag a script accepts, keyed by the file name a drawn command names.
  * `--` is absent on purpose: it ends the flags rather than being one.
  */

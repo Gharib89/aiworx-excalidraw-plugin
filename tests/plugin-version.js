@@ -13,7 +13,7 @@
  * against this very PR in CI.
  */
 import { deepStrictEqual, ok, strictEqual } from "node:assert";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -193,22 +193,11 @@ check("this repo's two manifests already agree on a valid version", () => {
 check("every gated prefix names something that exists in this repo", () => {
   for (const prefix of GATED_PREFIXES) {
     ok(
-      readFileSync !== undefined && existsInRepo(prefix),
+      existsSync(join(root, prefix)),
       `gated prefix ${prefix} does not exist — the gate would silently never fire on it`,
     );
   }
 });
-
-function existsInRepo(prefix) {
-  try {
-    readFileSync(join(root, prefix));
-    return true;
-  } catch (err) {
-    // EISDIR means the path is there and is a directory, which is what a
-    // prefix normally names; only "not found" is the failure this asserts.
-    return err.code === "EISDIR";
-  }
-}
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nversion gate holds");
 process.exit(fail.length ? 1 : 0);

@@ -24,7 +24,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseFlags } from "./cli-flags.js";
+import { BUMP_VERSION_FLAGS, parseFlags } from "./cli-flags.js";
 import { UsageError } from "./errors.js";
 import { PACKAGE_MANIFEST, PLUGIN_MANIFEST, nextVersion } from "./plugin-version.js";
 
@@ -33,11 +33,7 @@ const PARTS = ["patch", "minor", "major"];
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 try {
-  const { positionals } = parseFlags(process.argv.slice(2), {
-    bool: new Set(),
-    value: new Set(),
-    usage: USAGE,
-  });
+  const { positionals } = parseFlags(process.argv.slice(2), { ...BUMP_VERSION_FLAGS, usage: USAGE });
   if (positionals.length > 1) {
     throw new UsageError(`one part at a time, got ${positionals.length}`, {
       where: "input",
@@ -60,6 +56,23 @@ try {
     });
   }
 
+  // Both edits are prepared before either is written. `npm version` is a
+  // subprocess and cannot be rolled back, so a plugin manifest that does not
+  // carry the expected line has to stop the run *before* it — otherwise the
+  // helper's own failure leaves the two manifests disagreeing, which is exactly
+  // the state the gate refuses.
+  //
+  // Anchored on the current value so this can only ever move the version line,
+  // never some other "version" the manifest might grow later.
+  const before = readFileSync(pluginPath, "utf8");
+  const after = before.replace(`"version": "${current}"`, `"version": "${next}"`);
+  if (after === before) {
+    throw new UsageError(`no "version": "${current}" line to move`, {
+      where: PLUGIN_MANIFEST,
+      next: `make it agree with ${PACKAGE_MANIFEST} ("${current}") first, then re-run`,
+    });
+  }
+
   const r = spawnSync("npm", ["version", "--no-git-tag-version", next], {
     cwd: root,
     encoding: "utf8",
@@ -72,16 +85,6 @@ try {
     });
   }
 
-  // Anchored on the current value so this can only ever move the version line,
-  // never some other "version" the manifest might grow later.
-  const before = readFileSync(pluginPath, "utf8");
-  const after = before.replace(`"version": "${current}"`, `"version": "${next}"`);
-  if (after === before) {
-    throw new UsageError(`no "version": "${current}" line to move`, {
-      where: PLUGIN_MANIFEST,
-      next: `set it to "${next}" by hand — the two manifests must agree`,
-    });
-  }
   writeFileSync(pluginPath, after);
 
   console.log(`${current} -> ${next}  (${PACKAGE_MANIFEST}, ${PLUGIN_MANIFEST}, package-lock.json)`);

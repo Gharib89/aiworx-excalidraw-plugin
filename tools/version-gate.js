@@ -19,8 +19,9 @@
  *   node tools/version-gate.js --base <ref>          # ref: origin/main, a SHA, …
  *   node tools/version-gate.js --base <ref> --head <ref>
  *
- * `--head` defaults to the working tree, so the gate reports on uncommitted work
- * locally and on the pushed commit in CI without a second invocation form.
+ * `--head` defaults to the working tree — uncommitted edits and untracked files
+ * included — so the same command answers "would CI pass?" locally and judges an
+ * exact commit in CI, where both SHAs are named.
  *
  * Exit codes: 0 the change may merge, 1 it may not (each reason printed), 2 the
  * gate could not run — a ref that does not resolve, a manifest git cannot read.
@@ -30,7 +31,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { parseFlags } from "./cli-flags.js";
+import { VERSION_GATE_FLAGS, parseFlags } from "./cli-flags.js";
 import { UsageError } from "./errors.js";
 import { PACKAGE_MANIFEST, PLUGIN_MANIFEST, checkVersionBump } from "./plugin-version.js";
 
@@ -64,8 +65,7 @@ function versionAt(ref, path) {
 
 try {
   const { positionals, flags } = parseFlags(process.argv.slice(2), {
-    bool: new Set(),
-    value: new Set(["base", "head"]),
+    ...VERSION_GATE_FLAGS,
     usage: USAGE,
   });
   if (positionals.length) {
@@ -79,10 +79,20 @@ try {
   // and the working tree when it is not.
   const head = flags.head ?? null;
   const mergeBase = git("merge-base", flags.base, head ?? "HEAD").trim();
-  const changedPaths = git("diff", "--name-only", mergeBase, ...(head ? [head] : []))
-    .split("\n")
-    .map((p) => p.trim())
-    .filter(Boolean);
+  const lines = (out) =>
+    out
+      .split("\n")
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+  const changedPaths = lines(git("diff", "--name-only", mergeBase, ...(head ? [head] : [])));
+  if (!head) {
+    // Working-tree mode answers "would CI pass?", and a brand-new skill file is
+    // still untracked when it is asked. `git diff` cannot see those, so a local
+    // run without this would wave through exactly the change the gate exists
+    // for. Ignored files stay out — they never reach an install.
+    changedPaths.push(...lines(git("ls-files", "--others", "--exclude-standard")));
+  }
 
   const result = checkVersionBump({
     changedPaths,

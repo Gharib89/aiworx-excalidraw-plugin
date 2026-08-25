@@ -51,9 +51,17 @@ jobs:
       # An installed plugin is a cached copy that refreshes when the version
       # moves: plugin content merged under the version an install already has
       # never reaches it. PR-only — the gate compares two refs.
+      #
+      # Both SHAs are named explicitly. A pull_request checkout is the *merge*
+      # commit, which already carries whatever landed on the base branch since
+      # the fork point; diffing from it would blame this PR for those files and
+      # demand a bump it does not owe.
       - name: plugin content requires a version bump
         if: github.event_name == 'pull_request'
-        run: node tools/version-gate.js --base ${{ github.event.pull_request.base.sha }}
+        run: >-
+          node tools/version-gate.js
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}
       # Pinned: an unpinned CLI would let a release of Claude Code turn this
       # leg red without a change here.
       - run: npm i -g @anthropic-ai/claude-code@2.1.245

@@ -20,7 +20,7 @@ import { UsageError } from "./errors.js";
 export const CHECK_FLAGS = { bool: new Set(["json"]), value: new Set() };
 export const RENDER_FLAGS = {
   bool: new Set(["no-frames", "dark"]),
-  value: new Set(["out", "scale", "frame", "padding", "background"]),
+  value: new Set(["out", "scale", "frame", "padding", "background", "preset"]),
 };
 export const REVISE_FLAGS = { bool: new Set(["no-svg"]), value: new Set() };
 /** library.js: `--download` consumes the next argument, the rest stand alone. */

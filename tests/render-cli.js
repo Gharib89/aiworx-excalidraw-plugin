@@ -13,6 +13,8 @@
  *   4. every path a success line reports is absolute and names the file that
  *      was written — a relative `--out` run from another cwd says where it
  *      really landed
+ *   5. --preset frames an export to a named surface's aspect ratio by growing
+ *      the canvas around the picture, never by scaling it
  *
  * Exits non-zero on any mismatch.
  */
@@ -289,6 +291,70 @@ if (d.status === 0 && e.status === 0) {
   check("an absolute --out reports the absolute path it wrote",
     absPaths.length === 1 && absPaths[0] === join(absDir, "band.svg") && existsSync(absPaths[0]),
     absPaths.join(", "));
+}
+
+// ---- 5. --preset frames the export to a surface without scaling content ----
+{
+  const dir = mkdtempSync(join(tmpdir(), "render-cli-preset-"));
+  const plain = render(example, "--out", dir, "--no-frames", "--scale", "1");
+  check("an unpresetted render still exits 0", plain.status === 0, plain.stderr.trim());
+  const before = readFileSync(join(dir, "example.svg"), "utf8");
+  const rootAttrs = (svg) => {
+    const m = svg.match(/^<svg[^>]*viewBox="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"/);
+    return m && { viewBox: m[1].split(" ").map(Number), width: Number(m[2]), height: Number(m[3]) };
+  };
+  const plainRoot = rootAttrs(before);
+
+  const shot = mkdtempSync(join(tmpdir(), "render-cli-preset-16x9-"));
+  const framed = render(example, "--out", shot, "--no-frames", "--scale", "1", "--preset", "slide-16x9");
+  check("--preset slide-16x9 exits 0", framed.status === 0, framed.stderr.trim());
+  const after = readFileSync(join(shot, "example.svg"), "utf8");
+  const framedRoot = rootAttrs(after);
+  check("the framed export comes out at the preset's aspect ratio",
+    framedRoot && Math.abs(framedRoot.width / framedRoot.height - 16 / 9) < 1e-6,
+    framedRoot && `${framedRoot.width}x${framedRoot.height}`);
+  // framing, never scaling: the picture keeps its own pixels and the canvas
+  // grows around it, centred
+  check("--preset never shrinks the picture below its natural size",
+    framedRoot.width >= plainRoot.width - 1e-6 && framedRoot.height >= plainRoot.height - 1e-6,
+    `${framedRoot.width}x${framedRoot.height} vs ${plainRoot.width}x${plainRoot.height}`);
+  check("the framed root maps its viewBox one-to-one, so nothing is scaled",
+    framedRoot.viewBox[0] === 0 && framedRoot.viewBox[1] === 0 &&
+      Math.abs(framedRoot.viewBox[2] - framedRoot.width) < 1e-6 &&
+      Math.abs(framedRoot.viewBox[3] - framedRoot.height) < 1e-6,
+    framedRoot.viewBox.join(" "));
+  // the letterbox is canvas, not transparency: the new root paints it
+  const bg = after.match(/^<svg[^>]*><rect x="0" y="0" width="([\d.]+)" height="([\d.]+)" fill="([^"]*)"><\/rect>/);
+  check("the framed root paints the whole canvas",
+    bg && Number(bg[1]) === framedRoot.width && Number(bg[2]) === framedRoot.height,
+    bg ? bg.slice(1).join(", ") : "no background rect matched");
+  // the export is nested, not rewritten: Excalidraw's own markup passes through
+  // verbatim apart from the x/y that offsets it
+  const body = before.slice(before.indexOf(">") + 1);
+  const offset = after.match(/<svg x="([-\d.]+)" y="([-\d.]+)" version=/);
+  check("--preset passes the original export through untouched, offset to centre",
+    after.includes(body) && offset &&
+      Math.abs(Number(offset[1]) * 2 - (framedRoot.width - plainRoot.width)) < 1e-3 &&
+      Math.abs(Number(offset[2]) * 2 - (framedRoot.height - plainRoot.height)) < 1e-3,
+    offset ? offset.slice(1).join(", ") : "no offset inner svg");
+
+  check("--preset fit is the no-op the default is",
+    (() => {
+      const d = mkdtempSync(join(tmpdir(), "render-cli-preset-fit-"));
+      const r = render(example, "--out", d, "--no-frames", "--scale", "1", "--preset", "fit");
+      return r.status === 0 && readFileSync(join(d, "example.svg"), "utf8") === before;
+    })());
+
+  const bad = render(example, "--out", dir, "--preset", "slide-4x3");
+  check("an unknown --preset exits 2 with a UsageError",
+    bad.status === 2 && /UsageError/.test(bad.stderr) && /slide-16x9/.test(bad.stderr),
+    bad.stderr.trim().split("\n")[0]);
+
+  // frames are exports too, and a slide deck wants each panel at slide shape
+  const frames = mkdtempSync(join(tmpdir(), "render-cli-preset-frames-"));
+  const withFrames = render(orderFixture, "--out", frames, "--scale", "1", "--preset", "social-og");
+  check("--preset reaches the per-frame PNGs", withFrames.status === 0 &&
+    readdirSync(frames).some((f) => f.endsWith(".png")), withFrames.stderr.trim());
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nrender CLI behaves");

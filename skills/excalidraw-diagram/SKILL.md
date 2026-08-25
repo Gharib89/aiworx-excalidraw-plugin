@@ -17,6 +17,34 @@ Two kinds of work, and naming which one you are doing decides everything after:
   frames each explaining one idea. A generator script is the source of truth and
   the `.excalidraw` is its build artifact.
 
+## Step 0 — adopt the project's palette
+
+Once per project, ahead of its first diagram: walk up from the working directory
+looking for `.excalidraw-brand.json`.
+
+**A file exists** — either form — so the palette question is already settled for
+this project. Go to step 1.
+
+**No file** — ask the user once, and act on the answer:
+
+| the user offers | you do |
+|---|---|
+| a URL — "match our website" | fetch it, mine its colours, map them, confirm, write |
+| local token files — "they're in `src/tokens.css`" | read those files, mine, map, confirm, write |
+| pasted hex values | map, confirm, write |
+| "the house colours are fine" | write `{ "defaults": "accepted" }` at the project root |
+
+The file **is** the memory of that answer — the declined form included — so the
+ask costs the user one answer for the project rather than one per session.
+
+[reference/palette.md](reference/palette.md)'s **Brand onboarding** carries the
+procedure: what to mine, how brand colours land on the six roles, the diff table
+to confirm, and the validate-and-iterate loop that decides whether the mapping
+holds.
+
+Done when the walk-up finds a `.excalidraw-brand.json` and
+`node "${CLAUDE_PLUGIN_ROOT}/tools/palette.js" <that file>` exits 0.
+
 ## Step 1 — name the kind, list the panels
 
 Say which kind this is. For a **band**, write the panel list first: one line per

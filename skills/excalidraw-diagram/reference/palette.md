@@ -117,6 +117,116 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/palette.js" path/to/.excalidraw-brand.json
 It prints the derived palette, the contrast report for both themes, and a
 verdict — exit 0 only when every claim holds.
 
+## Brand onboarding
+
+The procedure behind SKILL.md's step 0, when a project has no override yet and
+the user names a brand to adopt. The division of labour: **you** mine the colours
+and propose the mapping, `palette.js` decides whether the proposal is usable.
+Reading a site or a stylesheet is agent work by design — no tool here fetches a
+URL or parses CSS.
+
+### 1 · Mine six categorical colours, a background and an ink
+
+Brands publish more than six. Prefer the slots the brand itself calls
+categorical, chart or accent colours, each at its most saturated tint — a tint
+scale gives you room to move in step 3. Take the background from the brand's page
+background and the ink from its body text. Fewer than six usable hues is still
+workable: map what there is and let step 3 arbitrate.
+
+### 2 · Map by hue, conventions first
+
+Three roles carry meaning the reader already holds, so they are assigned before
+anything is measured; the other three go to the slot whose house hue is
+**nearest** in OKLCH hue angle.
+
+| role | house hue | hue angle | how it is assigned |
+|---|---|---|---|
+| `fail` | red | 26° | convention — red is failure, pin the brand's red here |
+| `pass` | green | 128° | convention — green is the check that held |
+| `local` | blue | 272° | convention — blue is "here, on this machine" |
+| `artifact` | cyan | 231° | hue-nearest |
+| `remote` | purple | 318° | hue-nearest |
+| `decision` | gold | 89° | hue-nearest |
+
+Present the result to the user as a diff table — role, the brand colour landing
+on it, and what the role means (SKILL.md's House style table) — and let them move
+a slot before anything is written. The three pins are conventions, not rules: a
+brand whose green *is* its primary may want it on `local`, and that call is the
+user's.
+
+### 3 · Write it, validate it, iterate on refusal
+
+Write the strokes-only file (the schema is [Brand override](#brand-override),
+above) at the project root, then preflight it with the command in that section.
+The contrast rules are the arbiter, not your eye, so read the refusal and move
+the stroke it names:
+
+- **stroke on canvas** or **stroke on own fill** below its floor — the colour is
+  too light or too washed out for a mark. Take a darker, more saturated tint of
+  the same hue from the brand's own scale.
+- **fills too close** — two strokes sit in one hue neighbourhood, so their
+  derived fills are indistinguishable. Move one of the pair to the brand's next
+  distinct hue.
+
+Repeat until it exits 0. That exit is the whole completion criterion: an override
+the tool accepts is one every diagram in the project can be authored against.
+
+### A worked example
+
+A brand publishing navy `#1F4E79`, teal `#17A2A2`, olive `#4C8B2B`, magenta
+`#B5179E`, amber `#D98C00` and crimson `#C0392B` on white, with near-black ink.
+The pins take crimson to `fail` and olive to `pass`, and navy is the only blue,
+so it takes `local`; the rest fall hue-nearest — teal 195° to `artifact`
+(cyan 231°), magenta 336° to `remote` (purple 318°), amber 71° to `decision`
+(gold 89°). As mined:
+
+```json
+{
+  "canvas": "#FFFFFF",
+  "ink": "#1B1B1B",
+  "roles": {
+    "local": "#1F4E79",
+    "artifact": "#17A2A2",
+    "pass": "#4C8B2B",
+    "remote": "#B5179E",
+    "decision": "#D98C00",
+    "fail": "#C0392B"
+  }
+}
+```
+
+`palette.js` refuses it, naming five failures:
+
+```
+light export: artifact: stroke on own fill only 2.95:1
+light export: decision: stroke on canvas only 2.73:1
+light export: decision: stroke on own fill only 2.50:1
+light export: local/artifact: fills too close (ΔOKLab 0.018)
+dark export (invert 93% + hue-rotate 180deg): local/artifact: fills too close (ΔOKLab 0.018)
+```
+
+Three moves within the brand's own scales clear all five: the brand's saturated
+blue `#2340A8` for `local` — which is both a truer blue and enough hue distance
+to open the gap to `artifact`'s fill — a darker teal `#0E7C86`, and a darker
+amber `#9A6B00`. Half the mined colours survive verbatim:
+
+```json
+{
+  "canvas": "#FFFFFF",
+  "ink": "#1B1B1B",
+  "roles": {
+    "local": "#2340A8",
+    "artifact": "#0E7C86",
+    "pass": "#4C8B2B",
+    "remote": "#B5179E",
+    "decision": "#9A6B00",
+    "fail": "#C0392B"
+  }
+}
+```
+
+Now it exits 0, and the project is onboarded.
+
 ## Dark exports
 
 Excalidraw's dark theme is not a second palette. `exportToSvg` puts one CSS filter

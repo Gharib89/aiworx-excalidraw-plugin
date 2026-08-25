@@ -31,8 +31,22 @@
  * nothing that already exists.
  */
 
-/** Every preset, keyed by the name `preset:` and `--preset` accept. */
-export const PRESETS = {
+/** Freeze an object and everything under it — two levels here, but written to hold. */
+const deepFreeze = (o) => {
+  for (const v of Object.values(o)) if (v && typeof v === "object") deepFreeze(v);
+  return Object.freeze(o);
+};
+
+/**
+ * Every preset, keyed by the name `preset:` and `--preset` accept.
+ *
+ * Frozen through, because a build receives `surface` and `ramp` by reference:
+ * one diagram assigning to `ramp.label` would otherwise resize every later
+ * diagram in the same `withAuthoring` session. Freezing states what the ramp is
+ * — a constant of the preset — and makes the attempt throw where a defensive
+ * copy would have let it look like it worked.
+ */
+export const PRESETS = deepFreeze({
   /** Today's behaviour: no target surface, and the arrow-label size of old. */
   fit: {
     surface: null,
@@ -61,7 +75,7 @@ export const PRESETS = {
     surface: { width: 1200, height: 630 },
     ramp: { title: 44, label: 30, sublabel: 24 },
   },
-};
+});
 
 /** The valid set, in the order an error message and the docs should list it. */
 export const PRESET_NAMES = Object.keys(PRESETS);

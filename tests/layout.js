@@ -899,6 +899,11 @@ const rejectsLayoutError = async (fn) => {
   check("slide-16x9 outsizes doc-inline at every rung",
     ["title", "label", "sublabel"].every(
       (rung) => PRESETS["slide-16x9"].ramp[rung] > PRESETS["doc-inline"].ramp[rung]));
+  // a build receives surface and ramp by reference, and withAuthoring runs many
+  // diagrams in one process — an assignment here would resize every later one
+  check("a preset's surface and ramp are frozen against a build that assigns to them",
+    PRESET_NAMES.every((name) => Object.isFrozen(PRESETS[name].ramp) &&
+      (PRESETS[name].surface === null || Object.isFrozen(PRESETS[name].surface))));
   check("slide-16x9 is 16:9 and social-og is the OG card",
     PRESETS["slide-16x9"].surface.width / PRESETS["slide-16x9"].surface.height === 16 / 9 &&
       PRESETS["social-og"].surface.width === 1200 && PRESETS["social-og"].surface.height === 630);

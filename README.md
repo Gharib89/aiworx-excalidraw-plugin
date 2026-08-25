@@ -27,6 +27,28 @@ Rendering uses your **system Chrome** (no browser download) and finds it for you
 on macOS, Windows and Linux. Set `CHROME_PATH` to point at a specific executable
 — it takes precedence over anything discovered.
 
+### Stay current: enable auto-update once
+
+Claude Code auto-updates only its own first-party marketplaces, so a plugin
+installed from `aiworx` stays at the version you installed until you say
+otherwise — and a session then loads stale skill text against newer tools. Turn
+it on once:
+
+`/plugin` → **Marketplaces** → **aiworx** → **Enable auto-update**
+
+Updates apply on the next start. To move a copy right now instead:
+
+```bash
+/plugin marketplace update aiworx
+/plugin update aiworx-excalidraw
+```
+
+CI keeps the version honest from the other side: `tools/version-gate.js` refuses
+a pull request that changes what an install loads — anything under `skills/`,
+`tools/`, `dist/`, `brand/` or `.claude-plugin/` — without a strictly greater
+version in `.claude-plugin/plugin.json` and `package.json`. `node
+tools/bump-version.js [patch|minor|major]` moves both, plus the lockfile.
+
 ## Why this exists
 
 Generating Excalidraw JSON by hand or from a script means guessing how wide text
@@ -67,6 +89,8 @@ node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered i
 node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
 node tools/library.js aws         # search the community icon libraries; --json for the machine-readable form
 node tools/library.js --download childishgirl/aws-architecture-icons.excalidrawlib   # prints the cached path
+node tools/bump-version.js minor  # moves plugin.json + package.json + lockfile together
+node tools/version-gate.js --base origin/main   # what CI asks: did plugin content change without a bump?
 ```
 
 `check.js` takes any number of files: each is reported, and the exit code is the
@@ -199,6 +223,9 @@ tools/
   bundle.js         builds the committed dist/ bundle, its loader page and its vendored fonts, stamped with a source fingerprint
   fonts.js          the Excalidraw font families dist/ vendors, so nothing is fetched at render time
   fingerprint.js    content hash tying dist/ to its sources; browser.js refuses a stale bundle
+  plugin-version.js which paths reach an install, and whether the version moved — the version gate's decision logic
+  version-gate.js   CLI face of plugin-version.js: reads the two refs out of git, refuses an unbumped content change
+  bump-version.js   moves the version in plugin.json, package.json and the lockfile together
   document.js       one .excalidraw loader shared by check, render and revise: read, parse, shape-check, DocumentError with a machine kind
   errors.js         the shared NamedError base every tool error derives from, plus UsageError, DocumentError and BrandOverrideError
                     every error states what failed, where, and the one next action: "where: what — next action"

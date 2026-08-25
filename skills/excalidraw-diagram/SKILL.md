@@ -210,9 +210,11 @@ re-colour every role with its own brand.
 
 ## When the skill misbehaves
 
-The installed plugin is a cached copy that can lag this repo — a session then
-loads stale skill text against newer expectations. When a documented flag is
-rejected, an error appears that this text does not mention, or behaviour
-contradicts these docs, compare the running copy's version
-(`.claude-plugin/plugin.json` under `${CLAUDE_PLUGIN_ROOT}`) with the repo's
-before debugging further, and update the plugin if they differ.
+The installed plugin is a cached copy, and Claude Code auto-updates only its own
+first-party marketplaces. Turn it on once for this one:
+
+`/plugin` → **Marketplaces** → **aiworx** → **Enable auto-update**
+
+Until that is on, a rejected documented flag, an error this text does not
+mention, or behaviour that contradicts these docs is a stale copy first and a
+bug second — run `/plugin update aiworx-excalidraw`, then re-check.

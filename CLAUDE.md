@@ -14,9 +14,11 @@ npm run test:fast                 # ~12s, launches no Chrome — the iteration l
 npm run test:browser              # the Chrome-dependent rest
 node tests/<area>.js              # one suite directly (e.g. tests/gate.js) — plain Node scripts
 npm run bundle                    # rebuild dist/ from tools/page.js
+node tools/bump-version.js minor  # moves plugin.json + package.json + lockfile together
+node tools/version-gate.js --base origin/main   # what CI asks before it lets a content change merge
 ```
 
-CI (`.github/workflows/ci.yml`): `npm test` on a **3-OS matrix** (ubuntu / macos / windows — browser discovery and path handling are per-OS claims) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
+CI (`.github/workflows/ci.yml`): `npm test` on a **3-OS matrix** (ubuntu / macos / windows — browser discovery and path handling are per-OS claims) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture) + a **plugin job** (the version gate below, plus `claude plugin validate . --strict` against a pinned CLI). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
 
 A **new suite must be wired into `test:fast` or `test:browser`** — `tests/test-targets.js` fails on one that is in neither, in both, or missing from disk, and it pins `test` to exactly `test:fast && test:browser` so the split can never narrow the gate. `test:fast` stays Chrome-free: `tests/chromeless.js` (in `test:browser`) re-runs every fast suite with `CHROME_PATH` pointed at nothing. Importing `tools/browser.js` is fine — only a *successful launch* breaks the fast target.
 
@@ -49,7 +51,9 @@ The documents **written for an agent** are the shipped skill, this file, `CONTEX
 
 ## Release
 
-Manual. Bump the version in **both** `package.json` and `.claude-plugin/plugin.json` (the lockfile carries package.json's number), commit as `chore(release): X.Y.Z`. Squash-merge PRs with the PR title as the Conventional-Commit subject (`feat(gate): …`, `fix(author): …`); scope by area (gate, author, fonts, browser, skill, ci, examples). Minor for genuinely new capability, patch for fixes and polish.
+**The version ships with the change, not after it.** An install is a cached copy that refreshes when the marketplace's version moves, so content merged under the version an install already has never reaches it. A PR that touches what a session loads — `skills/`, `tools/`, `dist/`, `brand/`, `.claude-plugin/` — carries its own bump: run `node tools/bump-version.js [patch|minor|major]` (it moves `package.json`, `.claude-plugin/plugin.json` and the lockfile together, which is the agreement CI checks) and commit the result **in that PR**. Minor for genuinely new capability, patch for fixes and polish — the part stays your judgment, the arithmetic is the helper's. `node tools/version-gate.js --base origin/main` answers before CI does. A PR that touches none of those surfaces needs no bump.
+
+Squash-merge PRs with the PR title as the Conventional-Commit subject (`feat(gate): …`, `fix(author): …`); scope by area (gate, author, fonts, browser, skill, ci, examples).
 
 ## Code review
 

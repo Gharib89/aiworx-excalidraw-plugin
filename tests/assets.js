@@ -237,7 +237,16 @@ const demoOut = join(outDir, "assets.excalidraw");
 
   const noneLeft = copyWithoutImages("prune-none", 2);
   const sizeBeforeNone = statSync(noneLeft).size;
-  await reviseDiagram({ file: noneLeft, svg: false });
+  const pruned = await reviseDiagram({ file: noneLeft, svg: false });
+  // Pruning is the lossiest thing a revise does — the bytes are gone — so the
+  // fidelity ledger has to name the payload and what the file lost with it.
+  const payload = pruned.ledger.entries.find((e) => e.code === "image-payload-dropped");
+  check("the ledger reports the payload it pruned",
+    payload?.payloads.length === 1 && payload.payloads[0].fileId === fileId,
+    JSON.stringify(pruned.ledger.entries.map((e) => e.code)));
+  check("the ledger sizes the payload against what the file lost",
+    payload?.bytes > 0 && Math.abs(payload.bytes - (sizeBeforeNone - statSync(noneLeft).size)) < 200,
+    `ledger ${payload?.bytes} B, file lost ${sizeBeforeNone - statSync(noneLeft).size} B`);
   const afterNone = JSON.parse(readFileSync(noneLeft, "utf8"));
   const sizeAfterNone = statSync(noneLeft).size;
   check("deleting every image prunes the orphaned entry",

@@ -1,7 +1,13 @@
 # Problem codes
 
-The gate's complete vocabulary. Machine handling keys on `code` — the `message`
-prose carries no contract and may be reworded at any time.
+The gate's complete vocabulary, plus the fidelity ledger that shares its
+conventions. Machine handling keys on `code` — the `message` prose carries no
+contract and may be reworded at any time.
+
+Three code namespaces, each with its own table below: **element-level** and
+**file-level** codes are defects the gate refuses a document over, and **ledger**
+codes are repairs `revise.js` made and is telling you about. A ledger code never
+means failure.
 
 The set is **append-only**: a code is added, never renamed or repurposed. A code
 that has to change ships as a new code alongside the old one. The old code is
@@ -11,6 +17,9 @@ reused. So `live` means "emitted, rely on it", `deprecated` means "listed, may o
 may not still be emitted — migrate off it".
 
 ## Report shape
+
+Two documents share one entry shape: `check.js --json` reports defects,
+`revise.js --json` reports repairs.
 
 `check.js --json` prints one document per invocation:
 
@@ -35,7 +44,22 @@ may not still be emitted — migrate off it".
 - `error` — present **instead of** a problem list when the file could not be
   checked at all. `stats` is `null` and `problems` is empty.
 
-Every problem object carries three fields, plus the per-code fields in the table:
+`revise.js --json` prints one document per pass, and only for a pass that
+actually rewrote the file — a refusal prints the error on stderr and nothing here:
+
+```jsonc
+{
+  "file": "/abs/path/diagram.excalidraw",  // resolved, as the human report names it
+  "svg": "/abs/path/diagram.svg",          // null under --no-svg
+  "elements": 24,
+  "frames": 3,
+  "changed": true,                         // whether entries is non-empty
+  "entries": [ /* ledger objects, same shape as problems */ ]
+}
+```
+
+Every problem **and** ledger object carries the same three fields, plus the
+per-code fields in the tables:
 
 | field | type | meaning |
 |---|---|---|
@@ -112,6 +136,50 @@ Emitted by `check.js` for a file that never reached the rules. They appear under
 | `not-excalidraw` | live | 1 | the JSON is not an Excalidraw document |
 | `check-crashed` | live | 1 | the gate itself threw while checking the file |
 | `invalid-brand-override` | live | 2 | a `.excalidraw-brand.json` brand override discovered above the working directory fails its schema or a contrast claim — the fix is the override file, not the diagram; preflight it with `node tools/palette.js <file>` |
+
+## Ledger codes
+
+Emitted by `revise.js` after a successful rewrite — the **fidelity ledger**, the
+account of what the round-trip changed beyond what you asked for. A pass
+re-measures text with the real fonts, repairs bindings and frame membership,
+re-centers bound labels onto their arrows, purges deleted elements and prunes
+image payloads nothing references any more. All of that used to happen in
+silence, so the only way to learn what a revise did was to diff JSON.
+
+None of these is a failure: the file was written. A pass that changed nothing
+the ledger tracks prints one line saying so — never silence, because a silent
+run reads exactly like a run that did nothing.
+
+| code | status | `elements` | extra fields | reports that |
+|---|---|---|---|---|
+| `text-metrics-recomputed` | live | [text, …] | — | a text's measured box moved by more than half a pixel — the fonts decided this, not you |
+| `binding-repaired` | live | [element, …] | — | an arrow's binding target or an element's `boundElements` back-reference changed: a dangling binding dropped, a one-sided one healed |
+| `frame-membership-repaired` | live | [element, …] | `moves` | an element's `frameId` changed — stale membership the geometry no longer supports, cleared and re-inferred |
+| `label-recentered` | live | [text, …] | `labels` | a bound label was re-centered onto its arrow's path, undoing a hand move |
+| `element-dropped` | live | [element, …] | `dropped` | an element the pass did not carry over — a deleted-but-tombstoned element, purged for good |
+| `image-payload-dropped` | live | (empty) | `payloads`, `bytes` | image bytes no element references any more, pruned from the files dictionary |
+
+The aggregate extras name the detail behind the ids:
+
+- `moves` — `[{ id, from, to }]`, the frame ids the element left and joined;
+  `null` on either side means no frame.
+- `labels` — `[{ id, containerId }]`, the label and the arrow it snapped back
+  onto. **Both** ids, because unbinding a label needs both: clear the text's
+  `containerId` and the arrow's `boundElements` entry.
+- `dropped` — `[{ id, type }]`, the element and what it was.
+- `payloads` — `[{ fileId, bytes }]` per pruned entry, and `bytes` on the entry
+  itself is their total. The count is what the file loses — the serialized
+  dictionary entry, data URL and all.
+
+`text-metrics-recomputed` uses a **half-pixel** floor: re-measuring the same
+string under the same font can shift a box by a rounding error, and that is not
+a repair worth reporting. `binding-repaired` reads only *what* a binding points
+at, never how it is aimed — `focus` and `gap` drift with every re-measurement.
+
+Two of these are genuinely lossy and worth reading closely:
+`image-payload-dropped` throws bytes away, and `element-dropped` ends a
+tombstone's chance of coming back. The rest restore what the pipeline
+guarantees.
 
 ## Invocation
 

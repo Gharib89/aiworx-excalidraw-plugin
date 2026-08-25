@@ -96,6 +96,23 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
     byCode(entries, "binding-repaired")?.elements[0] === "r1", codes(entries).join(", "));
 }
 {
+  // A bound label's containerId is a binding like any other, and restore clears
+  // one that points at nothing. Reported, or the pass silently unbinds a label.
+  const before = { elements: [text("t1", { containerId: "gone" })], files: {} };
+  const after = { elements: [text("t1", { containerId: null })], files: {} };
+  const { entries } = buildLedger({ before, after, recentered: [] });
+  check("a cleared containerId is a binding repair",
+    byCode(entries, "binding-repaired")?.elements[0] === "t1", codes(entries).join(", "));
+
+  const moved = buildLedger({
+    before: { elements: [text("t1", { containerId: "r1" })], files: {} },
+    after: { elements: [text("t1", { containerId: "r2" })], files: {} },
+    recentered: [],
+  });
+  check("a re-pointed containerId is a binding repair",
+    byCode(moved.entries, "binding-repaired")?.elements[0] === "t1", codes(moved.entries).join(", "));
+}
+{
   // A null in boundElements names no binding, so clearing one changes nothing a
   // binding points at — whether it sat alone or beside a real entry.
   const box = (over = {}) => ({ id: "r1", type: "rectangle", x: 0, y: 0, width: 10, height: 10, ...over });

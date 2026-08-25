@@ -80,9 +80,12 @@ export function buildLedger({ before, after, recentered = [] }) {
   // null in boundElements names nothing, so clearing one is not a repair either
   // — dropped on both sides, or it would read as a binding change alone but not
   // beside a real entry.
+  // A bound label's containerId counts: restore clears one pointing at nothing,
+  // and an unbind nobody asked for is exactly the silence this ledger removes.
   const bindingShape = (e) => [
     e.startBinding?.elementId ?? null,
     e.endBinding?.elementId ?? null,
+    e.containerId ?? null,
     (e.boundElements ?? []).map((b) => b?.id).filter(Boolean).sort().join("+"),
   ].join("|");
   const rebound = now

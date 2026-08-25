@@ -153,7 +153,7 @@ run reads exactly like a run that did nothing.
 | code | status | `elements` | extra fields | reports that |
 |---|---|---|---|---|
 | `text-metrics-recomputed` | live | [text, …] | — | a text's measured box moved by more than half a pixel — the fonts decided this, not you |
-| `binding-repaired` | live | [element, …] | — | an arrow's binding target or an element's `boundElements` back-reference changed: a dangling binding dropped, a one-sided one healed |
+| `binding-repaired` | live | [element, …] | — | what a binding points at changed — an arrow's start/end target, a bound label's `containerId`, or an element's `boundElements` back-reference: a dangling binding dropped, a one-sided one healed |
 | `frame-membership-repaired` | live | [element, …] | `moves` | an element's `frameId` changed — stale membership the geometry no longer supports, cleared and re-inferred |
 | `label-recentered` | live | [text, …] | `labels` | a bound label was re-centered onto its arrow's path, undoing a hand move |
 | `element-dropped` | live | [element, …] | `dropped` | an element the pass did not carry over — a deleted-but-tombstoned element, purged for good |
@@ -174,7 +174,8 @@ The aggregate extras name the detail behind the ids:
 `text-metrics-recomputed` uses a **half-pixel** floor: re-measuring the same
 string under the same font can shift a box by a rounding error, and that is not
 a repair worth reporting. `binding-repaired` reads only *what* a binding points
-at, never how it is aimed — `focus` and `gap` drift with every re-measurement.
+at, never how it is aimed — `focus` and `gap` drift with every re-measurement,
+and a `null` in `boundElements` names nothing, so clearing one is not a repair.
 
 Two of these are genuinely lossy and worth reading closely:
 `image-payload-dropped` throws bytes away, and `element-dropped` ends a

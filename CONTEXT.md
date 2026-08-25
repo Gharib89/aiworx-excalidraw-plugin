@@ -160,6 +160,26 @@ _Avoid_: elbow arrow, right-angle connector
 The per-diagram set of finish choices — roughness, stroke style, stroke width, fill style, arrowheads — held consistent across the whole picture. Set once via `register:` on the authoring call; a per-element value overrides it where the register must be broken deliberately.
 _Avoid_: theme, style preset
 
+**Output preset**:
+The named display surface a diagram is authored for — `fit`, `doc-inline`,
+`doc-wide`, `slide-16x9`, `social-og` — set once with `preset:` on the authoring
+call, the way a register sets finish. It fixes two things at once: the `surface`
+(width and height, in px) the build lays out into, and the type ramp. `fit` names
+no surface and is the default, so a build that asks for no preset is the build it
+always was. `render.js --preset` is the framing half on its own — it grows an
+export's canvas to the surface's aspect ratio and touches no text, because by
+then the type is already set.
+_Avoid_: size, format, layout preset
+
+**Type ramp**:
+The three text sizes a preset moves together — `title`, `label`, `sublabel` —
+handed to the build as `ramp`. Card and frame sizes come from measured text, so
+raising the ramp before anything is measured widens the cards that hold it and
+the layout follows; scaling a finished export instead enlarges the whitespace
+along with the words and lands back where it started. `sublabel` is the rung a
+bare-string arrow label takes.
+_Avoid_: font scale, text size preset
+
 **House pair**:
 The two permitted fonts: one for prose, one for code. Any other font family fails the gate.
 

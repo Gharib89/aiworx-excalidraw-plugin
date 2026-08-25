@@ -137,7 +137,16 @@ node tools/render.js d.excalidraw --frame 3          # re-render just frame 3, s
 node tools/render.js d.excalidraw --dark             # export with Excalidraw's dark theme
 node tools/render.js d.excalidraw --padding 40       # export padding in px
 node tools/render.js d.excalidraw --background "#0d1117"
+node tools/render.js d.excalidraw --preset slide-16x9  # frame every export to 16:9
 ```
+
+`--preset` grows the canvas around the picture until it matches the named
+surface's aspect ratio, centring the content. It never scales anything: the type
+size belongs to the preset the diagram was *authored* with (`preset:` on
+`authorDiagram`, which sets the font sizes before the text is measured, so the
+cards grow with it), and rescaling the finished export would undo exactly that.
+The names are shared by both — `fit` (the default, no target surface),
+`doc-inline`, `doc-wide`, `slide-16x9`, `social-og`.
 
 [`examples/example-dark.svg`](examples/example-dark.svg) is the committed `--dark`
 render of the example band.
@@ -169,7 +178,7 @@ directory — verification never touches tracked files.
 .claude-plugin/     plugin + marketplace manifests
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
-  author.js         authoring API: measured wrapping, frame binding, images, library splicing, diagram-level finish register, in-process gate, one-session batches, revise round-trip
+  author.js         authoring API: measured wrapping, frame binding, images, library splicing, diagram-level finish register and output preset, in-process gate, one-session batches, revise round-trip
   layout.js         layout composition: stack/row/column, padded boxes, arrows that own the gap, fans that spread their landings, graphs laid out in layers by ELK (anchored on geometry.js bounds)
   mermaid.js        mermaid flowchart ingestion: the official converter's parse tree, rebuilt as house nodes and edges for layout.js's graph()
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
@@ -178,7 +187,8 @@ tools/
   color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included
   page.js           browser-side Excalidraw entry (measure, convert, export, parse mermaid)
   browser.js        headless-Chromium driver around page.js; Chrome loads the bundle off disk via dist/index.html
-  render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background knobs
+  render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background/--preset knobs
+  presets.js        the output presets: each name's target surface and its type ramp, shared by author.js and render.js
   revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place
   library.js        find and download a community icon library, CLI face of library-index.js
   library-index.js  the libraries.excalidraw.com index: fetch, week-long disk cache, search by name/item/description, download

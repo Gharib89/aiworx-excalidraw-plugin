@@ -27,13 +27,12 @@
  */
 export const METRIC_EPSILON = 0.5;
 
-const list = (ids) => ids.join(", ");
 const plural = (n, one, many = `${one}s`) => (n === 1 ? one : many);
-/** `n elements (a, b)` — the count with the ids behind it, the shape every line shares. */
-const named = (ids, noun = "element") => `${ids.length} ${plural(ids.length, noun)} (${list(ids)})`;
+/** `n elements (a, b)` — a bare count would name nothing an author can act on. */
+const named = (ids, noun = "element") => `${ids.length} ${plural(ids.length, noun)} (${ids.join(", ")})`;
 
-/** Human-readable byte size: the file loses this much, so KB is the useful unit. */
-const bytes = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+/** Human-readable size: the file loses this much, so KB is the useful unit. */
+const sizeOf = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
 
 /**
  * The ledger for one revise pass.
@@ -59,15 +58,17 @@ export function buildLedger({ before, after, recentered = [] }) {
   const now = after.elements ?? [];
 
   // A text whose measured box moved: the fonts, not the author, decided this.
+  // A hand-written text often carries no box at all, or a broken one — that
+  // first measurement is the loudest metrics event there is, and subtracting
+  // against a missing number would silently swallow it.
+  const moved = (then, nowValue) =>
+    !Number.isFinite(then) || Math.abs(nowValue - then) > METRIC_EPSILON;
   const remeasured = now
     .filter((e) => e.type === "text")
     .filter((e) => {
       const was = wasById.get(e.id);
       if (!was) return false;
-      return (
-        Math.abs(e.width - was.width) > METRIC_EPSILON ||
-        Math.abs(e.height - was.height) > METRIC_EPSILON
-      );
+      return moved(was.width, e.width) || moved(was.height, e.height);
     })
     .map((e) => e.id);
   if (remeasured.length) {
@@ -75,11 +76,14 @@ export function buildLedger({ before, after, recentered = [] }) {
   }
 
   // What a binding points at, not how it is aimed: focus and gap drift with
-  // every re-measurement, and that drift is not a repair anyone needs told.
+  // every re-measurement, and that drift is not a repair anyone needs told. A
+  // null in boundElements names nothing, so clearing one is not a repair either
+  // — dropped on both sides, or it would read as a binding change alone but not
+  // beside a real entry.
   const bindingShape = (e) => [
     e.startBinding?.elementId ?? null,
     e.endBinding?.elementId ?? null,
-    (e.boundElements ?? []).map((b) => b?.id).sort().join("+"),
+    (e.boundElements ?? []).map((b) => b?.id).filter(Boolean).sort().join("+"),
   ].join("|");
   const rebound = now
     .filter((e) => {
@@ -142,7 +146,8 @@ export function buildLedger({ before, after, recentered = [] }) {
 
   // The files dictionary is append-only in the editor, so a payload no element
   // points at rides along in every future commit. `bytes` is what the file
-  // actually loses — the serialized entry, data URL and all.
+  // actually loses — the serialized entry, data URL and all. The entry is ASCII
+  // (a base64 data URL under JSON), so its string length is its byte count.
   const wasFiles = before.files ?? {};
   const nowFiles = after.files ?? {};
   const payloads = Object.keys(wasFiles)
@@ -152,7 +157,7 @@ export function buildLedger({ before, after, recentered = [] }) {
     const total = payloads.reduce((sum, p) => sum + p.bytes, 0);
     note(
       "image-payload-dropped",
-      `dropped ${payloads.length} orphaned image ${plural(payloads.length, "payload")}, ${bytes(total)} ` +
+      `dropped ${payloads.length} orphaned image ${plural(payloads.length, "payload")}, ${sizeOf(total)} ` +
         `(${payloads.map((p) => p.fileId).join(", ")})`,
       [],
       { payloads, bytes: total },

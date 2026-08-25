@@ -57,6 +57,25 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
   check("a sub-pixel remeasure is not a repair", entries.length === 0, codes(entries).join(", "));
 }
 
+// A hand-written text often carries no box at all, or a broken one. The pass
+// measures it for the first time, which is the loudest metrics event there is —
+// a subtraction against a missing number must not swallow it.
+{
+  const unmeasured = { id: "t1", type: "text", x: 0, y: 0, text: "hi" };
+  for (const [name, was] of [
+    ["absent", unmeasured],
+    ["NaN", { ...unmeasured, width: NaN, height: NaN }],
+  ]) {
+    const { entries } = buildLedger({
+      before: { elements: [was], files: {} },
+      after: { elements: [text("t1")], files: {} },
+      recentered: [],
+    });
+    check(`a first measurement over ${name} metrics is reported`,
+      codes(entries).includes("text-metrics-recomputed"), codes(entries).join(", "));
+  }
+}
+
 // ---- bindings: restore drops what points at nothing and syncs the back-references ----
 {
   const arrow = (over = {}) => ({ id: "a1", type: "arrow", x: 0, y: 0, width: 10, height: 0, ...over });
@@ -75,6 +94,23 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
   const { entries } = buildLedger({ before, after, recentered: [] });
   check("a repaired back-reference is reported",
     byCode(entries, "binding-repaired")?.elements[0] === "r1", codes(entries).join(", "));
+}
+{
+  // A null in boundElements names no binding, so clearing one changes nothing a
+  // binding points at — whether it sat alone or beside a real entry.
+  const box = (over = {}) => ({ id: "r1", type: "rectangle", x: 0, y: 0, width: 10, height: 10, ...over });
+  for (const [name, was] of [
+    ["alone", [null]],
+    ["beside a real entry", [{ id: "a1", type: "arrow" }, null]],
+  ]) {
+    const { entries } = buildLedger({
+      before: { elements: [box({ boundElements: was })], files: {} },
+      after: { elements: [box({ boundElements: was.filter(Boolean) })], files: {} },
+      recentered: [],
+    });
+    check(`a null boundElements entry cleared ${name} is not a binding repair`,
+      entries.length === 0, codes(entries).join(", "));
+  }
 }
 {
   // Focus and gap drift under re-measurement; only what a binding points at is
@@ -152,6 +188,11 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
 // ---- image payloads: the files dictionary is append-only, so an orphan is bytes forever ----
 {
   const entry = (n) => ({ mimeType: "image/png", id: "f1", dataURL: `data:image/png;base64,${"A".repeat(n)}` });
+  // Counted by hand rather than recomputed the way the code does, or the check
+  // could never disagree with it. The entry is ASCII, so its serialized JSON is
+  // the fixed 69-character envelope plus the base64 body:
+  //   {"mimeType":"image/png","id":"f1","dataURL":"data:image/png;base64,…"}
+  const ENVELOPE = 69;
   const before = { elements: [], files: { f1: entry(2000), f2: entry(10) } };
   const after = { elements: [], files: { f2: entry(10) } };
   const { entries } = buildLedger({ before, after, recentered: [] });
@@ -159,10 +200,9 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
   check("an orphaned payload is reported", e !== undefined, codes(entries).join(", "));
   check("the payload names no element", JSON.stringify(e?.elements) === "[]", JSON.stringify(e?.elements));
   check("the payload carries its fileId and byte count",
-    e?.payloads?.length === 1 && e.payloads[0].fileId === "f1" &&
-      e.payloads[0].bytes === JSON.stringify(before.files.f1).length,
+    JSON.stringify(e?.payloads) === JSON.stringify([{ fileId: "f1", bytes: ENVELOPE + 2000 }]),
     JSON.stringify(e?.payloads));
-  check("the payload line sizes the loss", /dropped 1 orphaned image payload, 2\.\d KB \(f1\)/.test(e?.message ?? ""),
+  check("the payload line sizes the loss", /dropped 1 orphaned image payload, 2\.0 KB \(f1\)/.test(e?.message ?? ""),
     e?.message);
 
   // Two orphans: the total has to add them up, which one payload could never show.
@@ -173,10 +213,10 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
   });
   const two = byCode(both.entries, "image-payload-dropped");
   check("the total is the sum of every payload dropped",
-    two?.payloads.length === 2 && two.bytes === two.payloads[0].bytes + two.payloads[1].bytes,
+    two?.payloads.length === 2 && two.bytes === ENVELOPE * 2 + 2010,
     `${two?.bytes} from ${JSON.stringify(two?.payloads.map((p) => p.bytes))}`);
   check("the payload line pluralizes and names them all",
-    /dropped 2 orphaned image payloads, 2\.\d KB \(f1, f2\)/.test(two?.message ?? ""), two?.message);
+    /dropped 2 orphaned image payloads, 2\.1 KB \(f1, f2\)/.test(two?.message ?? ""), two?.message);
 }
 
 // A pass with nothing to prune must not claim it pruned nothing — an absent

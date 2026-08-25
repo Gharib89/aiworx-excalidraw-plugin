@@ -26,7 +26,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { readExcalidrawDocument } from "./document.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
-import { buildLedger } from "./ledger.js";
+import { buildLedger, METRIC_EPSILON } from "./ledger.js";
 import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, flatten, resolveArrows, rampedLayout } from "./layout.js";
 import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "./presets.js";
@@ -908,10 +908,11 @@ export async function reviseDiagram({ file, svg = true, quiet = false }) {
     const restored = await ex.restore(data);
     const elements = restored.elements.filter((e) => !e.isDeleted);
     // Half a pixel: re-measuring the same label under the same font can shift it
-    // by a rounding error, and that is not a move anyone made.
+    // by a rounding error, and that is not a move anyone made. One floor for the
+    // whole pass — the ledger judges a remeasured box by the same number.
     const recentered = elements.flatMap((e) => {
       const was = labelsBefore.get(e.id);
-      if (!was || Math.hypot(e.x - was.x, e.y - was.y) <= 0.5) return [];
+      if (!was || Math.hypot(e.x - was.x, e.y - was.y) <= METRIC_EPSILON) return [];
       return [{ id: e.id, containerId: was.containerId }];
     });
     // A hand edit that moves an element out of its frame leaves a stale

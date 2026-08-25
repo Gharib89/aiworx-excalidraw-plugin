@@ -7,8 +7,9 @@
  *      UsageError, a file the pipeline cannot use exits 1 with a named
  *      DocumentError, so nothing is ever half-revised in silence
  *   2. one happy path — a hand-edited copy of the committed example fails the
- *      gate, the CLI revises it in place so the gate passes again, and the SVG
- *      is rewritten beside it unless --no-svg says otherwise
+ *      gate, the CLI revises it in place so the gate passes again, the SVG is
+ *      rewritten beside it unless --no-svg says otherwise, and a pass that
+ *      re-centered bound labels names them where a quiet pass says nothing
  *   3. the fidelity ledger — every successful pass accounts for what the
  *      round-trip recomputed, repaired or dropped, a pass that changed nothing
  *      says so in one line, and --json prints the same ledger as one document

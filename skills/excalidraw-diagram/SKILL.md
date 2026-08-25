@@ -198,13 +198,19 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" path/to/diagram.excalidraw
 
 `--no-svg` rewrites the `.excalidraw` alone. A file that isn't a parseable
 Excalidraw document is rejected with a `DocumentError`, a revision that would
-fail the gate with a `GateError`, and neither writes anything. Revise also drops
-image bytes no element references any more, so deleting an image by hand shrinks
-the file instead of carrying its data URL forever. A pass that re-centered bound
-labels onto their arrows names them — that is the house form, and
-[reference/authoring.md](reference/authoring.md) carries the recipe for a label
-that must sit off the line, plus the `reviseDiagram` call for use from inside a
-generator.
+fail the gate with a `GateError`, and neither writes anything.
+
+Every successful pass ends with its **fidelity ledger** — the account of what the
+round-trip changed beyond what you asked for: text remeasured with the real
+fonts, bindings and frame membership repaired, bound labels re-centered onto
+their arrows, deleted elements purged, image payloads nothing references any more
+pruned with the bytes they cost. Read it: two of those are lossy, and all of them
+used to happen in silence. A pass that changed nothing says so in one line.
+`--json` prints the same ledger as one document instead —
+[reference/problem-codes.md](reference/problem-codes.md) has every ledger code
+and the document shape. [reference/authoring.md](reference/authoring.md) carries
+the recipe for a label that must sit off the line, plus the `reviseDiagram` call
+for use from inside a generator.
 
 Done when the files the kind calls for are committed, no frame PNG is among them,
 and any hand-edited file has been back through `revise.js`.

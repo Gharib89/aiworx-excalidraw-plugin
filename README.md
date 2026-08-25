@@ -86,7 +86,7 @@ npm run bundle                    # rebuild dist/ (bundle + loader page) from no
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
-node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG
+node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG, ledger
 node tools/library.js aws         # search the community icon libraries; --json for the machine-readable form
 node tools/library.js --download childishgirl/aws-architecture-icons.excalidrawlib   # prints the cached path
 node tools/bump-version.js minor  # moves plugin.json + package.json + lockfile together
@@ -105,9 +105,20 @@ publishing its code.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,
-or failing the gate — writing nothing in either case. A round-trip re-centers
-every bound label onto its arrow, so a hand-moved one snaps back; the success
-output names the ones it moved, since that used to happen in silence.
+or failing the gate — writing nothing in either case.
+
+Every successful pass ends with its **fidelity ledger**: what the round-trip
+recomputed, repaired or dropped that you did not ask for — remeasured text,
+repaired bindings and frame membership, bound labels re-centered onto their
+arrows (a hand-moved one snaps back by design), purged elements, and image
+payloads nothing references any more, with the bytes they cost. All of it used to
+happen in silence, which read as a no-op; a pass that genuinely changed nothing
+now says so in one line. `--json` prints the same ledger as one document
+(`{ file, svg, elements, frames, changed, entries }`) instead of prose — a
+refusal prints no ledger, since there was no rewrite to account for. The ledger
+codes share the append-only contract and the entry shape of the gate's problem
+codes and are listed beside them in
+`skills/excalidraw-diagram/reference/problem-codes.md`.
 
 `render.js` follows the same two codes: 2 for a bad invocation, 1 for an input it
 cannot read, parse, or find any elements in. Both it and `revise.js` print every

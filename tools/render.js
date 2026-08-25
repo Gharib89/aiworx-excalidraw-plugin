@@ -54,21 +54,35 @@ const numeric = (name, raw, { min, integer = false } = {}) => {
  *
  * Done by nesting rather than by rewriting: the export becomes an inner `<svg>`
  * offset by `x`/`y` inside a new root that carries the framed size, so the
- * markup Excalidraw produced is passed through untouched and an upstream change
- * to it cannot silently mis-frame anything. The new root paints the canvas
- * colour itself, because a letterbox that exports transparent is one that prints
- * as a hole.
+ * markup Excalidraw produced is passed through untouched. The new root paints
+ * the canvas colour itself, because a letterbox that exports transparent is one
+ * that prints as a hole — and it copies the export's own `filter` onto that
+ * paint, which is what keeps `--dark` from framing a dark picture in a light
+ * border: the dark theme is a filter on the export's root, so anything painted
+ * outside it stays in the light theme unless it is filtered to match.
+ *
+ * A no-match on either rewrite would frame silently and wrongly — the picture
+ * pinned top-left in a grown canvas — so both are asserted rather than left to
+ * `replace`'s quiet pass-through.
  */
-function frameToSurface(svg, { width, height }, surface, background) {
+function frameToSurface({ svg, width, height }, surface, background) {
   const aspect = surface.width / surface.height;
   const w = Math.max(width, height * aspect);
   const h = Math.max(height, width / aspect);
   const num = (n) => String(Number(n.toFixed(4)));
+  const inner = svg.replace("<svg ", `<svg x="${num((w - width) / 2)}" y="${num((h - height) / 2)}" `);
+  if (inner === svg) {
+    throw new UsageError("cannot frame an export that does not open with an <svg> root", {
+      where: "--preset", next: "Drop --preset and frame the output yourself.",
+    });
+  }
+  const filter = svg.match(/^<svg[^>]*\sfilter="([^"]*)"/)?.[1];
   const framed =
     `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" ` +
     `viewBox="0 0 ${num(w)} ${num(h)}" width="${num(w)}" height="${num(h)}">` +
-    `<rect x="0" y="0" width="${num(w)}" height="${num(h)}" fill="${background}"></rect>` +
-    svg.replace("<svg ", `<svg x="${num((w - width) / 2)}" y="${num((h - height) / 2)}" `) +
+    `<rect x="0" y="0" width="${num(w)}" height="${num(h)}" fill="${background}"` +
+    `${filter ? ` filter="${filter}"` : ""}></rect>` +
+    inner +
     "</svg>";
   return { svg: framed, width: w, height: h };
 }
@@ -169,7 +183,7 @@ try {
     // every export this run writes goes through the same framing, so a deck
     // rendered at one preset comes out uniform: band, frames and all
     const framed = (out) =>
-      surface ? frameToSurface(out.svg, out, surface, base.appState.viewBackgroundColor) : out;
+      surface ? frameToSurface(out, surface, base.appState.viewBackgroundColor) : out;
 
     if (frameNo === undefined) {
       const whole = framed(await ex.exportSvg(base));

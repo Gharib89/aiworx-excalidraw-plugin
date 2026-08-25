@@ -23,15 +23,17 @@
  * an edge annotation or a caption. `sublabel` is what `arrowBetween` gives a
  * bare string label, so an author who names no size still gets the ramp.
  *
- * These numbers are public surface — the shipped skill publishes them — and
- * `fit`'s are load-bearing beyond that: every committed example was authored
- * under them, so moving `fit.ramp.label` rewrites artifacts that are supposed
- * to be reproducible.
+ * These numbers are public surface — the shipped skill publishes them, and
+ * `tests/presets-doc.js` holds that table to this module. One of them is
+ * load-bearing beyond that: `fit.ramp.sublabel` is the size every arrow label
+ * written before presets existed came out at, so moving it re-lays every
+ * committed example. The other two `fit` rungs are new affordances and bind
+ * nothing that already exists.
  */
 
 /** Every preset, keyed by the name `preset:` and `--preset` accept. */
 export const PRESETS = {
-  /** Today's behaviour: no target surface, the ramp the helpers have always used. */
+  /** Today's behaviour: no target surface, and the arrow-label size of old. */
   fit: {
     surface: null,
     ramp: { title: 28, label: 20, sublabel: 16 },

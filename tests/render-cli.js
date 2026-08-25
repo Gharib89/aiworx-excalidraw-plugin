@@ -14,7 +14,8 @@
  *      was written — a relative `--out` run from another cwd says where it
  *      really landed
  *   5. --preset frames an export to a named surface's aspect ratio by growing
- *      the canvas around the picture, never by scaling it
+ *      the canvas around the picture, never by scaling it — and the canvas it
+ *      grows darkens with the picture under --dark
  *
  * Exits non-zero on any mismatch.
  */
@@ -349,6 +350,20 @@ if (d.status === 0 && e.status === 0) {
   check("an unknown --preset exits 2 with a UsageError",
     bad.status === 2 && /UsageError/.test(bad.stderr) && /slide-16x9/.test(bad.stderr),
     bad.stderr.trim().split("\n")[0]);
+
+  // the dark theme is a filter on the export's root, so a letterbox painted
+  // outside it stays light — a dark picture in a white border
+  const dark = mkdtempSync(join(tmpdir(), "render-cli-preset-dark-"));
+  const darkRun = render(example, "--out", dark, "--no-frames", "--scale", "1", "--dark", "--preset", "slide-16x9");
+  check("--dark --preset exits 0", darkRun.status === 0, darkRun.stderr.trim());
+  const darkSvg = readFileSync(join(dark, "example.svg"), "utf8");
+  const innerFilter = darkSvg.match(/<svg x="[-\d.]+" y="[-\d.]+"[^>]*filter="([^"]*)"/);
+  const outerRect = darkSvg.match(/^<svg[^>]*><rect[^>]*fill="[^"]*"([^>]*)>/);
+  check("the dark letterbox carries the export's own filter, so it darkens with the picture",
+    innerFilter && outerRect && outerRect[1].includes(`filter="${innerFilter[1]}"`),
+    `${innerFilter?.[1]} vs ${outerRect?.[1]}`);
+  check("a light --preset render carries no filter at all",
+    !/^<svg[^>]*><rect[^>]*filter=/.test(after));
 
   // frames are exports too, and a slide deck wants each panel at slide shape
   const frames = mkdtempSync(join(tmpdir(), "render-cli-preset-frames-"));

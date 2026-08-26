@@ -219,3 +219,21 @@ Loading the fonts into the browser session before any text is measured; re-warmi
 **Fingerprint / stale bundle**:
 The hash stamped into the committed browser bundle over its exact inputs. A mismatch means the bundle is stale and every browser call refuses to run.
 _Avoid_: checksum, version stamp
+
+### Benchmark
+
+**Brief**:
+The user prompt a benchmark case is rendered from — a realistic paragraph naming the components, the audience and the target surface, and nothing about layout, pattern, colour or shape. Frozen once a baseline exists: a change is a new brief, never an edit.
+_Avoid_: prompt, scenario, test case
+
+**Benchmark corpus**:
+The fixed set of briefs a change to the skill or tools is judged on, before against after.
+_Avoid_: examples (the showcase), fixtures (planted defects)
+
+**Bench run**:
+One rendering of the whole corpus under one plugin version and one model. Run-to-run noise is expected, so a score that moves between versions is re-run once before it counts.
+_Avoid_: eval, benchmark (unqualified)
+
+**Baseline**:
+The bench run under the version the corpus was frozen at — what every later run is compared against.
+_Avoid_: before, golden

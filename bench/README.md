@@ -9,7 +9,6 @@ This directory holds the **benchmark corpus** (see `CONTEXT.md` › Benchmark): 
 ```
 bench/
   <slug>/prompt.md              # the brief, as a claude plugin eval case (frontmatter pins model, runs, max_turns)
-  <slug>/case.yaml              # scaffold: seeds the scratch dir with the accepted house palette
   run.sh                        # renders one brief or the whole corpus into runs/<version>/
   runs/<plugin-version>/<slug>/
       <slug>.excalidraw         # committed
@@ -18,7 +17,7 @@ bench/
       transcript.jsonl          # git-ignored
 ```
 
-No PNGs are committed — `node tools/render.js --out <dir> runs/<version>/<slug>/<slug>.excalidraw` reproduces every frame from the scene; scorers re-render locally.
+No PNGs are committed — `node tools/render.js --out <dir> bench/runs/<version>/<slug>/<slug>.excalidraw` reproduces every frame from the scene; scorers re-render locally.
 
 ## The briefs
 

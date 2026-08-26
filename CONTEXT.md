@@ -21,6 +21,15 @@ _Avoid_: slide, section
 **Frame**:
 The containment and verification unit. Every frame renders to its own PNG; elements must sit inside exactly one frame in a framed diagram.
 
+**Container**:
+A shape whose outline encloses another shape's outline — a boundary drawn around what it groups (an account, a VPC, a cluster). Arrows crossing it do so by design, so a measurement that reads "an arrow passing near an unrelated shape" reads past it. A container is still a node: enclosure is what it does to the arrows over it, not a different kind of thing.
+_Avoid_: group, boundary box, backdrop (that is a plate)
+_Not_: a **frame**, which is the containment unit the export crops to.
+
+**Plate**:
+A shape with no visible stroke, sitting under text as backing. It carries no meaning of its own, so no measurement counts it as a node — sizes, hues and node uniformity read past it.
+_Avoid_: background, backdrop, mask
+
 ### Verification
 
 **Gate**:
@@ -42,6 +51,17 @@ than a defect it refuses over. A pass that changed nothing says so in one line �
 silence would read as a no-op. `reviseDiagram` returns the ledger; only the CLI
 prints it.
 _Avoid_: change log, audit trail, diff report
+
+**Advisory**:
+A measurement the gate reports without refusing — how far the picture sits from
+a house rule (arrow–arrow crossings, aspect against the preset, clearance between
+arrows), never a taste judgment. Every advisory carries the number and the bound
+it was judged against, so an author revises against numbers rather than prose; a finding that reports a co-occurrence rather than a quantity — two arrows crossing, `pass` and `fail` on one canvas — names the elements instead, and invents no number.
+Same entry shape and append-only code contract as a problem, its own namespace: a
+diagram with advisories still passes, and the exit code never reads them.
+Thresholds are house constants, retuned by a change rather than a knob. The same
+measurement scores the benchmark corpus.
+_Avoid_: warning, hint, lint, finding (unqualified), advisory tier (*tier* is the rubric's word)
 
 **Kind**:
 The machine-readable file-level code a `DocumentError` carries — `unreadable`, `empty-file`, `invalid-json`, `not-excalidraw` — set by the one loader (`readExcalidrawDocument` in `tools/document.js`) and mapped by check.js into its `error.code` output contract. Named `kind`, not `code`, so it never collides with Node's own `err.code`.
@@ -237,3 +257,23 @@ _Avoid_: eval, benchmark (unqualified)
 **Baseline**:
 The bench run under the version the corpus was frozen at — what every later run is compared against.
 _Avoid_: before, golden
+
+**Rubric**:
+The ranked set of house rules the benchmark corpus is scored against, before
+against after. Tier A rules score pass/fail per brief; Tier B is prose the
+read-back judges without counting; Tier C is rejected or deferred with its reason.
+_Avoid_: checklist, style guide, criteria (unqualified)
+
+**House rule**:
+One checkable statement in the rubric, carrying its delivery channel — skill prose,
+an advisory, or a layout primitive. A rule may ride more than one channel.
+_Avoid_: guideline, best practice, anti-pattern (the retired catalogue's word)
+
+**Grade**:
+The judged half's verdict for one brief — the half no advisory measures. A
+grader that never authored the picture reads its rendered frames blind and
+names the claim it sees, then scores each judged Tier A rule pass/fail/n-a
+with a line of evidence and judges Tier B in prose. A grade is a pair, scene
+and rubric version, never a property of a bench run: the scenes are frozen, so
+either side is re-graded under a later rubric for cents.
+_Avoid_: score (unqualified), review, read-back (that is the in-run subagent)

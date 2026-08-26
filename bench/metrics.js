@@ -2,7 +2,9 @@
 // Prints JSON to stdout. A gate round is any Bash result carrying a gate verdict — the author's
 // write line or check.js's "clean" on a pass, a GateError / problem list on a refusal — since the
 // gate runs inside every generator run, not only in check.js. The final gate is check.js --json
-// on the committed scene, run here so it is independent of what the agent last saw.
+// on the committed scene, run here so it is independent of what the agent last saw. Task dispatches
+// are counted as read-backs: the skill dispatches a subagent for nothing else, and whether the
+// read-back ran at all is otherwise invisible to a bench run.
 import { readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
@@ -14,12 +16,13 @@ const lines = readFileSync(join(dir, "transcript.jsonl"), "utf8").split("\n").fi
 
 let model = null, result = null;
 const bashCalls = new Set();
-let passed = 0, refused = 0, deniedTools = 0;
+let passed = 0, refused = 0, deniedTools = 0, readBacks = 0;
 for (const e of lines) {
   if (e.type === "system" && e.subtype === "init") model = e.model;
   if (e.type === "result") result = e;
   for (const c of e.message?.content ?? []) {
     if (c.type === "tool_use" && c.name === "Bash") bashCalls.add(c.id);
+    if (c.type === "tool_use" && c.name === "Task") readBacks++;
     if (c.type === "tool_result") {
       const text = typeof c.content === "string" ? c.content : (c.content ?? []).map((p) => p.text ?? "").join("\n");
       if (bashCalls.has(c.tool_use_id)) {
@@ -55,6 +58,7 @@ console.log(JSON.stringify({
   gate_rounds: passed + refused,
   refused_rounds: refused,
   denied_tool_calls: deniedTools,
+  read_back_dispatched: readBacks,
   scene_written: existsSync(scene),
   svg_rendered: existsSync(join(dir, `${slug}.svg`)),
   final_gate: finalGate,

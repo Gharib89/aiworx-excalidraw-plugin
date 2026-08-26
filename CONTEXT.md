@@ -268,3 +268,12 @@ _Avoid_: checklist, style guide, criteria (unqualified)
 One checkable statement in the rubric, carrying its delivery channel — skill prose,
 an advisory, or a layout primitive. A rule may ride more than one channel.
 _Avoid_: guideline, best practice, anti-pattern (the retired catalogue's word)
+
+**Grade**:
+The judged half's verdict for one brief — the half no advisory measures. A
+grader that never authored the picture reads its rendered frames blind and
+names the claim it sees, then scores each judged Tier A rule pass/fail/n-a
+with a line of evidence and judges Tier B in prose. A grade is a pair, scene
+and rubric version, never a property of a bench run: the scenes are frozen, so
+either side is re-graded under a later rubric for cents.
+_Avoid_: score (unqualified), review, read-back (that is the in-run subagent)

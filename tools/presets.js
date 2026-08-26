@@ -64,11 +64,13 @@ export const PRESETS = deepFreeze({
   },
   /**
    * A projected 16:9 slide. Every rung clears the gate's 24px large-text
-   * threshold, so contrast is judged at the size the room actually sees.
+   * threshold, so contrast is judged at the size the room actually sees, and
+   * the sublabel sits on the slide's 30px `font-below-floor` advisory floor,
+   * so a diagram authored on this ramp is never advised against its own ramp.
    */
   "slide-16x9": {
     surface: { width: 1600, height: 900 },
-    ramp: { title: 48, label: 32, sublabel: 26 },
+    ramp: { title: 60, label: 40, sublabel: 30 },
   },
   /** An Open Graph card — 1200x630 is the size the platforms crop to. */
   "social-og": {

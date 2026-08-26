@@ -139,6 +139,44 @@ for (const c of CASES) {
   }
 }
 
+// ---- advisories: reported on stdout, never refused over ----
+//
+// One fixture proves the CLI face of tools/advise.js (its measurements are
+// tests/advisories.js's): the block after the stats line, the clean line that
+// counts them, the --json array beside problems, exit 0 throughout, and
+// --preset switching on the surface-relative codes.
+{
+  const run = (...args) => spawnSync(process.execPath, [gate, ...args], { encoding: "utf8" });
+  const ADVISED = fixture("advisories");
+  const r = run(ADVISED);
+  check("advisories: a file with advisories and no problems exits 0", r.status === 0, `exit ${r.status}`);
+  check("advisories: the block follows the stats line on stdout",
+    /\n1 advisory:\n  arrows ab and dc cross at 90°\n/.test(r.stdout) && r.stderr === "",
+    JSON.stringify({ stdout: r.stdout, stderr: r.stderr }));
+  check("advisories: the clean line counts them", r.stdout.includes("clean — no mechanical defects, 1 advisory"), r.stdout.trim().split("\n").pop());
+  const p = run("--preset", "slide-16x9", ADVISED);
+  check("advisories: --preset switches on the surface-relative codes",
+    p.status === 0 && p.stdout.includes("2 advisories:") && p.stdout.includes("under the slide-16x9 floor of 30px"),
+    p.stdout.trim());
+  const bad = run("--preset", "bogus", ADVISED);
+  check("advisories: an unknown preset is a usage error, exit 2",
+    bad.status === 2 && bad.stderr.includes("UsageError") && bad.stderr.includes("--preset"),
+    `exit ${bad.status}: ${bad.stderr.trim().split("\n")[0]}`);
+  let f = null;
+  try {
+    f = JSON.parse(run("--json", "--preset", "slide-16x9", ADVISED).stdout).files[0];
+  } catch {}
+  check("advisories: --json carries advisories beside problems, ok stays true",
+    f?.ok === true && f.problems.length === 0 &&
+      JSON.stringify(f.advisories.map((a) => a.code)) === JSON.stringify(["arrows-cross", "font-below-floor"]) &&
+      f.advisories[0].elements.join() === "ab,dc" && f.advisories[0].angle === 90,
+    JSON.stringify(f));
+  const refused = JSON.parse(run("--json", fixture("duplicate-id")).stdout).files[0];
+  check("advisories: a refused file still carries its advisories array", Array.isArray(refused.advisories), JSON.stringify(refused));
+  const unread = JSON.parse(run("--json", fixture("empty")).stdout).files[0];
+  check("advisories: a file that never reached the rules carries an empty array", Array.isArray(unread.advisories) && unread.advisories.length === 0, JSON.stringify(unread));
+}
+
 // ---- one gap is one stray problem ----
 //
 // The rule measures each element's nearest neighbour, so two elements far from

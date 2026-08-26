@@ -1,8 +1,9 @@
-// bench/metrics.js <run dir> <slug> — harvest one bench run's metrics.json from its transcript.
+// bench/metrics.js <run dir> <slug> [preset] — harvest one bench run's metrics.json from its transcript.
 // Prints JSON to stdout. A gate round is any Bash result carrying a gate verdict — the author's
 // write line or check.js's "clean" on a pass, a GateError / problem list on a refusal — since the
 // gate runs inside every generator run, not only in check.js. The final gate is check.js --json
-// on the committed scene, run here so it is independent of what the agent last saw. Task dispatches
+// on the committed scene, run here so it is independent of what the agent last saw; `preset`
+// is the brief's surface, passed through so the advisories can score aspect and font floors. Task dispatches
 // are counted as read-backs: the skill dispatches a subagent for nothing else, and whether the
 // read-back ran at all is otherwise invisible to a bench run.
 import { readFileSync, existsSync } from "node:fs";
@@ -10,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const [dir, slug] = process.argv.slice(2);
+const [dir, slug, preset] = process.argv.slice(2);
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const lines = readFileSync(join(dir, "transcript.jsonl"), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
 
@@ -38,7 +39,8 @@ const scene = join(dir, `${slug}.excalidraw`);
 let finalGate = null;
 if (existsSync(scene)) {
   try {
-    finalGate = JSON.parse(execFileSync("node", [join(repo, "tools/check.js"), "--json", scene], { encoding: "utf8" })).files[0];
+    const args = [join(repo, "tools/check.js"), "--json", ...(preset ? ["--preset", preset] : []), scene];
+    finalGate = JSON.parse(execFileSync("node", args, { encoding: "utf8" })).files[0];
   } catch (err) {
     finalGate = JSON.parse(err.stdout).files[0];
   }

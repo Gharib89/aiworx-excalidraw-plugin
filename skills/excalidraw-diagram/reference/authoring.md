@@ -221,7 +221,7 @@ await authorDiagram({
 | `fit` (default) | none — the picture is whatever size its content came out | 28 | 20 | 16 |
 | `doc-inline` | 720 × 480 | 22 | 16 | 13 |
 | `doc-wide` | 1200 × 675 | 28 | 20 | 16 |
-| `slide-16x9` | 1600 × 900 | 48 | 32 | 26 |
+| `slide-16x9` | 1600 × 900 | 60 | 40 | 30 |
 | `social-og` | 1200 × 630 | 44 | 30 | 24 |
 
 The build reads both halves off its context:

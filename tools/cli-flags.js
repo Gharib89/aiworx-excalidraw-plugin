@@ -16,8 +16,11 @@
  */
 import { UsageError } from "./errors.js";
 
-/** check.js selects output only — verification takes no options. */
-export const CHECK_FLAGS = { bool: new Set(["json"]), value: new Set() };
+/**
+ * check.js: `--json` selects output; `--preset` names the surface the diagram
+ * was authored for, which only the advisories read — verification takes no options.
+ */
+export const CHECK_FLAGS = { bool: new Set(["json"]), value: new Set(["preset"]) };
 export const RENDER_FLAGS = {
   bool: new Set(["no-frames", "dark"]),
   value: new Set(["out", "scale", "frame", "padding", "background", "preset"]),

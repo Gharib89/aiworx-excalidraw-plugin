@@ -23,6 +23,9 @@ for slug in "${SLUGS[@]}"; do
   model=$(frontmatter "$prompt" model)
   max_turns=$(frontmatter "$prompt" max_turns)
   tools=$(frontmatter "$prompt" allowed_tools | tr -d '[]",')
+  # the surface the brief asks for — check.js's advisories score aspect and font
+  # floors against it, and nothing in a written scene records it
+  preset=$(frontmatter "$prompt" preset)
   out="$BENCH/runs/$VERSION/$slug"
   scratch=$(mktemp -d)
 
@@ -53,7 +56,7 @@ Write the diagram to $scratch/$slug.excalidraw."
   else
     echo "  no scene written at $scratch/$slug.excalidraw" >&2
   fi
-  node "$BENCH/metrics.js" "$out" "$slug" > "$out/metrics.json"
+  node "$BENCH/metrics.js" "$out" "$slug" "$preset" > "$out/metrics.json"
   rm -rf "$scratch"
   echo "  done: $(node -p "const m=require('$out/metrics.json');\`\$\${m.cost_usd?.toFixed(2)}, \${m.turns} turns, \${m.gate_rounds} gate rounds (\${m.refused_rounds} refused), final gate: \${m.final_gate?.ok ?? 'no scene'}\`")"
 done

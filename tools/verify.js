@@ -96,6 +96,21 @@ export function verifyDocument(data) {
       const b = bounds(e);
       if (!Array.isArray(e.points) || e.points.length < 2 || (b.x2 - b.x1 < 0.5 && b.y2 - b.y1 < 0.5)) {
         note("degenerate", `${e.type} ${e.id} is degenerate (zero length)`, [e.id]);
+      } else {
+        // A polyline that draws a fraction of the size it declares: the shape a
+        // collapsed arrow takes (#197). Measured on the raw points, which are
+        // unrotated exactly as width/height are, so the comparison holds at any
+        // angle. Reported only when the zero-length arm passed — that message is
+        // the more precise one for an arrow with no span at all.
+        const span = pointSpan(e);
+        const declared = Math.hypot(e.width ?? 0, e.height ?? 0);
+        if (declared >= DEGENERATE_SPAN_FLOOR && span < declared * DEGENERATE_SPAN_RATIO) {
+          note(
+            "degenerate",
+            `${e.type} ${e.id} is degenerate (points span ${round(span)} of a declared ${round(declared)}, under the ${DEGENERATE_SPAN_RATIO * 100}% minimum): it draws a fraction of the ink its size claims`,
+            [e.id],
+          );
+        }
       }
     } else if (!((e.width ?? 0) > 0) || !((e.height ?? 0) > 0)) {
       note("degenerate", `${e.type} ${e.id} is degenerate (zero size: ${round(e.width)}x${round(e.height)})`, [e.id]);
@@ -496,6 +511,21 @@ export const TEXT_ARROW_CLEARANCE = 6;
 export const STRAY_GAP = 1000;
 
 /**
+ * How much of its declared size a linear element's polyline must actually span
+ * before the `degenerate` rule calls it collapsed, and the declared size below
+ * which the ratio is not asked at all.
+ *
+ * A ratio alone would fire on a genuinely short element — every healthy arrow
+ * loses 0.5px at each end to the arrowhead inset, which costs a 40px arrow 2.5%
+ * of its span and a 2px one all of it. An absolute floor alone would miss the
+ * defect this catches, where the declared size is large. Both together leave a
+ * wide margin: the worst ratio among the committed scenes is 0.975, four times
+ * the threshold, on the shortest arrow in them.
+ */
+export const DEGENERATE_SPAN_RATIO = 0.25;
+export const DEGENERATE_SPAN_FLOOR = 8;
+
+/**
  * The box the app actually wraps bound text into — Excalidraw's
  * getBoundTextMaxWidth/Height with BOUND_TEXT_PADDING = 5. Smaller than the
  * container's own box: padding all round, and for ellipse and diamond only the
@@ -522,6 +552,12 @@ function preview(s) {
 }
 function round(n) {
   return Math.round(Number(n ?? 0));
+}
+/** The diagonal of a linear element's own point list — unrotated, as width/height are. */
+function pointSpan(e) {
+  const xs = e.points.map((p) => p[0]);
+  const ys = e.points.map((p) => p[1]);
+  return Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
 }
 function roundBox(b) {
   return { x1: round(b.x1), y1: round(b.y1), x2: round(b.x2), y2: round(b.y2) };

@@ -1,0 +1,10 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "aiworx-excalidraw gate fixture — planted defect: arrow declaring 950px of width whose points span 1px",
+  "elements": [
+    { "id": "arr-4", "type": "arrow", "x": 100, "y": 100, "width": 950, "height": 0, "points": [[-0.5, 0], [0.5, 0]] }
+  ],
+  "appState": {},
+  "files": {}
+}

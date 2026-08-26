@@ -593,9 +593,10 @@ function validateRegister(register) {
  * `startArrowhead: null` or `roughness: 0` is a choice, not an absence. Spliced
  * library items carry their author's finish as own properties and so keep it.
  *
- * This is the one pass that replaces elements instead of mutating them, so it
- * has to stay upstream of planBindingStitches — which mutates the array it is
- * handed and would otherwise write to objects that never reach the converter.
+ * This pass replaces elements instead of mutating them, as rebaseArrowPoints
+ * does, so it has to stay upstream of planBindingStitches — which mutates the
+ * array it is handed and would otherwise write to objects that never reach the
+ * converter.
  */
 function applyRegister(skeleton, register) {
   if (register == null) return skeleton;
@@ -603,6 +604,50 @@ function applyRegister(skeleton, register) {
   return skeleton.map((el) => {
     const fill = set.filter(([key]) => REGISTER[key].governs.has(el.type) && !Object.hasOwn(el, key));
     return fill.length ? { ...el, ...Object.fromEntries(fill) } : el;
+  });
+}
+
+/**
+ * Put every arrow on Excalidraw's `points[0] === [0, 0]` convention before the
+ * converter sees it: shift the element's origin by the first point and subtract
+ * that point from all of them.
+ *
+ * The converter's arrow path assumes the convention and collapses the polyline
+ * to a 1px stub when it is violated — `x: 100, points: [[300, 0], [0, 0]]`
+ * comes out `[[-0.5, 0], [0.5, 0]]` with the declared width intact, a label
+ * with no arrow under it (#197). The same happens on the y axis; `line` is not
+ * affected, so this stays arrow-only.
+ *
+ * The rebase is lossless — every point keeps the absolute position the author
+ * gave it — and a no-op on an arrow already on the convention, which is what
+ * keeps the 0.5px arrowhead inset, bindings and bound labels exactly where they
+ * are today. Like applyRegister it replaces rather than mutates: the skeleton
+ * objects still belong to the build that returned them.
+ *
+ * It has to run before the convert, which is what does the collapsing, and —
+ * being a replacing pass — upstream of planBindingStitches for the same reason
+ * applyRegister is.
+ */
+function rebaseArrowPoints(skeleton) {
+  return skeleton.map((el) => {
+    if (el.type !== "arrow" || !Array.isArray(el.points) || el.points.length === 0) return el;
+    // All or nothing: moving the origin while leaving one malformed point
+    // unshifted would displace that point silently, and shifting a one-number
+    // point would manufacture the non-finite geometry the gate then refuses.
+    // A list this pass cannot rebase whole is left exactly as the author wrote
+    // it, for the gate to describe in its own words.
+    const shiftable = el.points.every(
+      (p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]),
+    );
+    if (!shiftable) return el;
+    const [dx, dy] = el.points[0];
+    if (dx === 0 && dy === 0) return el;
+    return {
+      ...el,
+      x: (el.x ?? 0) + dx,
+      y: (el.y ?? 0) + dy,
+      points: el.points.map((p) => [p[0] - dx, p[1] - dy]),
+    };
   });
 }
 
@@ -794,7 +839,7 @@ async function authorInto(ex, options) {
   // just flattened its groups, so this is the first and only moment at which
   // every deferred arrow can read its endpoints where they finally stand
   const built = resolveArrows(validateSkeleton(await build(buildContext(ex, files, chosen))));
-  const skeleton = applyRegister(built, register);
+  const skeleton = rebaseArrowPoints(applyRegister(built, register));
   const stitches = planBindingStitches(skeleton);
   // regenerateIds: false — gate errors then name the author's own ids, and the
   // stitches can find their arrows again; validateSkeleton enforced uniqueness

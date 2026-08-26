@@ -24,16 +24,22 @@
  *      *and* absent from the registry — a silent pass in both directions.
  *      Counting call sites against literal matches is what closes that hole.
  *   4. the thresholds the registry's prose quotes for `frame-edge-crowding`,
- *      `text-struck-by-arrow` and `stray` match the gate's own constants — a
- *      retuned constant would otherwise leave the shipped prose lying about
- *      the number the gate actually enforces.
+ *      `text-struck-by-arrow`, `stray` and `degenerate` match the gate's own
+ *      constants — a retuned constant would otherwise leave the shipped prose
+ *      lying about the number the gate actually enforces.
  *
  * Exits non-zero on any mismatch, naming the codes on each side.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FRAME_EDGE_INSET, TEXT_ARROW_CLEARANCE, STRAY_GAP } from "../tools/verify.js";
+import {
+  FRAME_EDGE_INSET,
+  TEXT_ARROW_CLEARANCE,
+  STRAY_GAP,
+  DEGENERATE_SPAN_RATIO,
+  DEGENERATE_SPAN_FLOOR,
+} from "../tools/verify.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(root, p), "utf8");
@@ -165,6 +171,29 @@ check(
   "the registry's stray gap matches STRAY_GAP",
   quotedStrayGap === STRAY_GAP,
   `doc says ${quotedStrayGap}px, verify.js says ${STRAY_GAP}px`,
+);
+
+// degenerate's collapsed-polyline arm carries two numbers, and the table cell
+// restates the ratio — the same half-stale hazard the inset and clearance have
+const quotedSpanRatio = quoted(/minimum is \*\*(\d+)%\*\* of the declared size/, "the degenerate span ratio");
+check(
+  "the registry's degenerate span ratio matches DEGENERATE_SPAN_RATIO",
+  quotedSpanRatio === DEGENERATE_SPAN_RATIO * 100,
+  `doc says ${quotedSpanRatio}%, verify.js says ${DEGENERATE_SPAN_RATIO * 100}%`,
+);
+
+const tableSpanRatio = quoted(/spans under (\d+)% of the size it declares/, "the degenerate span ratio (table cell)");
+check(
+  "the registry table's degenerate span ratio matches DEGENERATE_SPAN_RATIO",
+  tableSpanRatio === DEGENERATE_SPAN_RATIO * 100,
+  `doc says ${tableSpanRatio}%, verify.js says ${DEGENERATE_SPAN_RATIO * 100}%`,
+);
+
+const quotedSpanFloor = quoted(/declaring at least \*\*(\d+)px\*\*/, "the degenerate span floor");
+check(
+  "the registry's degenerate span floor matches DEGENERATE_SPAN_FLOOR",
+  quotedSpanFloor === DEGENERATE_SPAN_FLOOR,
+  `doc says ${quotedSpanFloor}px, verify.js says ${DEGENERATE_SPAN_FLOOR}px`,
 );
 
 console.log(

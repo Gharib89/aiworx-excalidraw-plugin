@@ -606,6 +606,44 @@ function applyRegister(skeleton, register) {
   });
 }
 
+/**
+ * Put every arrow on Excalidraw's `points[0] === [0, 0]` convention before the
+ * converter sees it: shift the element's origin by the first point and subtract
+ * that point from all of them.
+ *
+ * The converter's arrow path assumes the convention and collapses the polyline
+ * to a 1px stub when it is violated — `x: 100, points: [[300, 0], [0, 0]]`
+ * comes out `[[-0.5, 0], [0.5, 0]]` with the declared width intact, a label
+ * with no arrow under it (#197). The same happens on the y axis; `line` is not
+ * affected, so this stays arrow-only.
+ *
+ * The rebase is lossless — every point keeps the absolute position the author
+ * gave it — and a no-op on an arrow already on the convention, which is what
+ * keeps the 0.5px arrowhead inset, bindings and bound labels exactly where they
+ * are today. Like applyRegister it replaces rather than mutates: the skeleton
+ * objects still belong to the build that returned them.
+ *
+ * It has to run upstream of planBindingStitches, which measures a binding gap
+ * from the arrow's endpoint and would otherwise measure it from the wrong place.
+ */
+function rebaseArrowPoints(skeleton) {
+  return skeleton.map((el) => {
+    if (el.type !== "arrow" || !Array.isArray(el.points) || el.points.length === 0) return el;
+    const first = el.points[0];
+    if (!Array.isArray(first)) return el;
+    const [dx, dy] = first;
+    // a non-finite or malformed first point is not something to rebase onto —
+    // leave it for the gate, which names non-finite geometry in its own words
+    if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return el;
+    return {
+      ...el,
+      x: (el.x ?? 0) + dx,
+      y: (el.y ?? 0) + dy,
+      points: el.points.map((p) => (Array.isArray(p) ? [p[0] - dx, p[1] - dy] : p)),
+    };
+  });
+}
+
 /** What the skeleton converter can bind an arrow to (transform.ts, 0.18.1). */
 const CONVERTER_BINDABLE = new Set(["rectangle", "ellipse", "diamond"]);
 
@@ -794,7 +832,7 @@ async function authorInto(ex, options) {
   // just flattened its groups, so this is the first and only moment at which
   // every deferred arrow can read its endpoints where they finally stand
   const built = resolveArrows(validateSkeleton(await build(buildContext(ex, files, chosen))));
-  const skeleton = applyRegister(built, register);
+  const skeleton = rebaseArrowPoints(applyRegister(built, register));
   const stitches = planBindingStitches(skeleton);
   // regenerateIds: false — gate errors then name the author's own ids, and the
   // stitches can find their arrows again; validateSkeleton enforced uniqueness

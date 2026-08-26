@@ -34,6 +34,40 @@ jobs:
         shell: bash
         run: test -z "$(git status --porcelain)"
 
+  plugin:
+    # Whether an install would ever see this change, and whether the marketplace
+    # manifest it arrives through still parses. Both read manifests, so they are
+    # OS-independent — a 3-OS matrix here would buy three identical answers.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gate diffs against the base ref's merge base, which a shallow
+          # clone does not contain.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # An installed plugin is a cached copy that refreshes when the version
+      # moves: plugin content merged under the version an install already has
+      # never reaches it. PR-only — the gate compares two refs.
+      #
+      # Both SHAs are named explicitly. A pull_request checkout is the *merge*
+      # commit, which already carries whatever landed on the base branch since
+      # the fork point; diffing from it would blame this PR for those files and
+      # demand a bump it does not owe.
+      - name: plugin content requires a version bump
+        if: github.event_name == 'pull_request'
+        run: >-
+          node tools/version-gate.js
+          --base ${{ github.event.pull_request.base.sha }}
+          --head ${{ github.event.pull_request.head.sha }}
+      # Resolves .claude-plugin/marketplace.json — the manifest an install comes
+      # through. Pinned: an unpinned CLI would let a release of Claude Code turn
+      # this leg red without a change here.
+      - run: npm i -g @anthropic-ai/claude-code@2.1.245
+      - run: claude plugin validate . --strict
+
   bundle:
     # The committed bundle is what ships, but `npm run bundle` must stay able
     # to reproduce it: rebuild from the locked toolchain, then run the

@@ -26,6 +26,7 @@ The containment and verification unit. Every frame renders to its own PNG; eleme
 **Gate**:
 The mechanical check that accepts or refuses a diagram before it ships. Refusal is per problem, never taste.
 _Avoid_: linter, validator
+_Not_: the **version gate** (`tools/version-gate.js`), which judges the plugin package rather than a diagram — always spell that one out in full.
 
 **Problem code**:
 The stable kebab-case identifier the gate attaches to one kind of defect (e.g. `frame-escape`). The set is append-only; codes are a public contract.

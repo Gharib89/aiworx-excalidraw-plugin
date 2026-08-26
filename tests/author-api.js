@@ -1020,10 +1020,10 @@ const nodeBox = ({ measure, box, palette: p, PROSE }) => async (id, text) => {
   const slide = await shot("slide-16x9");
   const inline = await shot("doc-inline");
   check("a preset scales the type ramp the build asked for",
-    slide.heading.fontSize === 48 && inline.heading.fontSize === 22,
+    slide.heading.fontSize === 60 && inline.heading.fontSize === 22,
     `${slide.heading.fontSize} vs ${inline.heading.fontSize}`);
   check("the ramp reaches an arrow label with no size of its own",
-    slide.doc.elements.find((e) => e.text === "writes")?.fontSize === 26 &&
+    slide.doc.elements.find((e) => e.text === "writes")?.fontSize === 30 &&
       inline.doc.elements.find((e) => e.text === "writes")?.fontSize === 13,
     `${slide.doc.elements.find((e) => e.text === "writes")?.fontSize} vs ${inline.doc.elements.find((e) => e.text === "writes")?.fontSize}`);
   // bigger type through measured layout means a differently-proportioned

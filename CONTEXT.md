@@ -43,6 +43,17 @@ silence would read as a no-op. `reviseDiagram` returns the ledger; only the CLI
 prints it.
 _Avoid_: change log, audit trail, diff report
 
+**Advisory**:
+A measurement the gate reports without refusing — how far the picture sits from
+a house rule (arrow–arrow crossings, aspect against the preset, clearance between
+arrows), never a taste judgment. Every advisory carries the number and the bound
+it was judged against, so an author revises against numbers rather than prose.
+Same entry shape and append-only code contract as a problem, its own namespace: a
+diagram with advisories still passes, and the exit code never reads them.
+Thresholds are house constants, retuned by a change rather than a knob. The same
+measurement scores the benchmark corpus.
+_Avoid_: warning, hint, lint, finding (unqualified), advisory tier (*tier* is the rubric's word)
+
 **Kind**:
 The machine-readable file-level code a `DocumentError` carries — `unreadable`, `empty-file`, `invalid-json`, `not-excalidraw` — set by the one loader (`readExcalidrawDocument` in `tools/document.js`) and mapped by check.js into its `error.code` output contract. Named `kind`, not `code`, so it never collides with Node's own `err.code`.
 _Avoid_: error code (that is check's output field), category
@@ -237,3 +248,14 @@ _Avoid_: eval, benchmark (unqualified)
 **Baseline**:
 The bench run under the version the corpus was frozen at — what every later run is compared against.
 _Avoid_: before, golden
+
+**Rubric**:
+The ranked set of house rules the benchmark corpus is scored against, before
+against after. Tier A rules score pass/fail per brief; Tier B is prose the
+read-back judges without counting; Tier C is rejected or deferred with its reason.
+_Avoid_: checklist, style guide, criteria (unqualified)
+
+**House rule**:
+One checkable statement in the rubric, carrying its delivery channel — skill prose,
+an advisory, or a layout primitive. A rule may ride more than one channel.
+_Avoid_: guideline, best practice, anti-pattern (the retired catalogue's word)

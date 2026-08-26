@@ -21,6 +21,7 @@ import { bounds, outline, outlineContains, outlinesOverlap, segmentGap, segments
 import { normalizeHex } from "./color.js";
 import { loadBrandPalette } from "./brand.js";
 import { PRESETS } from "./presets.js";
+import { SOLID, preview } from "./verify.js";
 
 /** The picture's aspect must sit within this band of the preset surface's aspect (as a ratio). */
 export const ASPECT_BAND = Object.freeze({ low: 0.75, high: 1.33 });
@@ -40,9 +41,6 @@ export const HUE_FAMILY_SPAN = 30;
 export const GREY_CHROMA = 0.05;
 /** Widest ÷ narrowest frame width a band may hold. */
 export const MAX_PANEL_WIDTH_DRIFT = 1.25;
-
-// shapes with area: what an arrow can crowd, what a text can sit on
-const SOLID = new Set(["rectangle", "ellipse", "diamond", "image"]);
 
 // Loaded on first use, as verify.js does: check.js must survive this module's
 // import under an invalid brand override so it can map the refusal itself.
@@ -139,8 +137,9 @@ export function adviseDocument(data, { preset } = {}) {
   // 4. an arrow squeezing past something it is not bound to reads as a
   //    connection that isn't there. Only an arrow bound at both ends is
   //    measured — "unrelated" is undecidable without a binding — and it reads
-  //    past its own label, its targets' labels, containers (an arrow crosses a
-  //    boundary by design) and plates (backing under a text, not a node).
+  //    past its own label, its targets' labels, containers and their titles (an
+  //    arrow crosses a boundary by design) and plates (backing under a text,
+  //    not a node — the text itself is still content, and still measured).
   const containers = new Set(shapes.filter((o) => shapes.some((i) => i !== o && outlineContains(o, i))).map((o) => o.id));
   const plates = new Set(
     shapes
@@ -148,12 +147,13 @@ export function adviseDocument(data, { preset } = {}) {
       .map((s) => s.id),
   );
   for (const a of arrows) {
-    const related = new Set(bindings(a));
-    if (bindings(a).length < 2) continue;
+    const bound = bindings(a);
+    if (bound.length < 2) continue;
+    const related = new Set(bound);
     const pts = outline(a);
     const candidates = [
       ...shapes.filter((s) => !related.has(s.id) && !containers.has(s.id) && !plates.has(s.id)),
-      ...texts.filter((t) => t.containerId !== a.id && !related.has(t.containerId)),
+      ...texts.filter((t) => t.containerId !== a.id && !related.has(t.containerId) && !containers.has(t.containerId)),
     ];
     for (const c of candidates) {
       let clear = Infinity;
@@ -228,7 +228,7 @@ export function adviseDocument(data, { preset } = {}) {
     note(
       "hue-only-pass-fail",
       `${where(p)} tells pass from fail by hue alone: ${pass.length} pass and ${fail.length} fail element(s) with no second cue`,
-      [...named(p), ...pass.map((e) => e.id), ...fail.map((e) => e.id)],
+      [...named(p), ...new Set([...pass, ...fail].map((e) => e.id))],
     );
   }
 
@@ -320,7 +320,3 @@ const hueGap = (a, b) => {
   const d = Math.abs(a - b) % 360;
   return Math.min(d, 360 - d);
 };
-
-function preview(s) {
-  return String(s ?? "").split("\n")[0].slice(0, 40);
-}

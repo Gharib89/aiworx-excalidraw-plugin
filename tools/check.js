@@ -85,10 +85,9 @@ function inspect(file) {
   }
   // The rules name a malformed document rather than throwing on it, but a batch
   // owes every other file its report whatever this one turns out to contain.
-  let result, advisories;
+  let result;
   try {
     result = verifyDocument(data);
-    advisories = adviseDocument(data, { preset });
   } catch (err) {
     // a brand override that fails its schema or a contrast claim refuses the
     // run: the fix is the override file, not the diagram, hence exit 2 like an
@@ -99,6 +98,15 @@ function inspect(file) {
     return { file, ok: false, code: 1, error: { code: "check-crashed", message: `cannot be checked — ${err.name}: ${err.message}` } };
   }
   const { problems, stats } = result;
+  // An advisory never moves the exit code (ADR-0002 §1) — so neither may a bug
+  // in measuring one: a throw here costs the file its advisories, said out loud,
+  // and nothing else.
+  let advisories = [];
+  try {
+    advisories = adviseDocument(data, { preset });
+  } catch (err) {
+    console.error(`${file}: advisories unavailable — ${err.name}: ${err.message}`);
+  }
   return { file, ok: problems.length === 0, code: problems.length ? 1 : 0, problems, stats, advisories };
 }
 

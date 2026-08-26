@@ -31,7 +31,11 @@ const check = (name, cond, detail) => {
 };
 
 // the brief's surface, from its frontmatter — the one place the preset is stated
-const presetOf = (slug) => readFileSync(join(root, "bench", slug, "prompt.md"), "utf8").match(/^preset:\s*(\S+)/m)?.[1];
+// a retired brief keeps its runs, so a missing prompt.md is a failed check, not a crash
+const presetOf = (slug) => {
+  const brief = join(root, "bench", slug, "prompt.md");
+  return existsSync(brief) ? readFileSync(brief, "utf8").match(/^preset:\s*(\S+)/m)?.[1] : undefined;
+};
 
 const strip = ({ message, ...rest }) => rest;
 

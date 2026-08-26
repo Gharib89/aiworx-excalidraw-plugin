@@ -188,6 +188,7 @@ const detail = (list) => JSON.stringify(list.map((a) => a.code));
   const r = adviseDocument(
     doc([
       shape("zone", -50, -50, 700, 200, { backgroundColor: "transparent" }),
+      text("zone-title", 150, 56, 120, 20, { containerId: "zone" }),
       shape("a", 0, 0, 100, 100),
       shape("b", 500, 0, 100, 100),
       text("a-label", 10, 40, 80, 20, { containerId: "a" }),
@@ -199,7 +200,20 @@ const detail = (list) => JSON.stringify(list.map((a) => a.code));
       arrow("loose", 100, 350, [[0, 0], [0, -250]]),
     ]),
   );
-  check("labels, containers, plates and unbound arrows are read past", r.length === 0, detail(r));
+  check("labels, containers and their titles, plates and unbound arrows are read past", r.length === 0, detail(r));
+}
+{
+  // a plate is backing, not content: the text it backs is still measured
+  const r = adviseDocument(
+    doc([
+      shape("a", 0, 0, 100, 100),
+      shape("b", 500, 0, 100, 100),
+      arrow("ab", 100, 50, [[0, 0], [400, 0]], { startBinding: bind("a"), endBinding: bind("b") }),
+      shape("plate", 200, 52, 200, 40, { strokeColor: "transparent", backgroundColor: "#ffffff" }),
+      text("plated", 210, 56, 180, 20),
+    ]),
+  );
+  check("the text a plate backs is still crowded, the plate itself is not", only(r, "arrow-crowding") && r[0].elements.join() === "ab,plated" && r[0].clearance === 6, detail(r));
 }
 
 // ---- 6. too-many-bends: more than two direction changes on one arrow ----
@@ -256,6 +270,8 @@ const role = (name, extra = {}) => ({ strokeColor: ROLES[name].stroke, backgroun
   const a = find(r, "hue-only-pass-fail");
   check("pass and fail together is hue-only-pass-fail", only(r, "hue-only-pass-fail"), detail(r));
   check("a presence finding: it names the carriers and no number", a?.elements.join() === "ok,bad" && !("needs" in a), JSON.stringify(a));
+  const both = adviseDocument(doc([shape("x", 0, 0, 200, 100, { strokeColor: ROLES.pass.stroke, backgroundColor: ROLES.fail.fill }), shape("plain", 400, 240, 200, 100)]));
+  check("an element carrying both roles is named once", only(both, "hue-only-pass-fail") && both[0].elements.join() === "x", detail(both));
   const one = adviseDocument(doc([shape("ok", 0, 0, 200, 100, role("pass")), shape("plain", 400, 240, 200, 100)]));
   check("one of the two roles alone is fine", one.length === 0, detail(one));
 }

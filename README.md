@@ -231,7 +231,7 @@ tools/
   browser.js        headless-Chromium driver around page.js; Chrome loads the bundle off disk via dist/index.html
   render.js         .excalidraw → SVG + per-frame PNGs; --frame/--dark/--padding/--background/--preset knobs
   presets.js        the output presets: each name's target surface and its type ramp, shared by author.js and render.js
-  revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place
+  revise.js         revise round-trip, CLI face of author.js: metrics, bindings, gate, file + SVG in place, fidelity ledger
   library.js        find and download a community icon library, CLI face of library-index.js
   library-index.js  the libraries.excalidraw.com index: fetch, week-long disk cache, search by name/item/description, download
   smoke.js          browser smoke suite proving measurement, conversion, export and raster survival

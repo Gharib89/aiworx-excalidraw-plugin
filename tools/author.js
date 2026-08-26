@@ -27,7 +27,8 @@ import { withExcalidraw } from "./browser.js";
 import { readExcalidrawDocument } from "./document.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
 import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
-import { stack, row, column, box, arrowBetween, fanOut, graph, flatten, resolveArrows } from "./layout.js";
+import { stack, row, column, box, flatten, resolveArrows, rampedLayout } from "./layout.js";
+import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "./presets.js";
 import { makeFromMermaid } from "./mermaid.js";
 import { NamedError, DocumentError } from "./errors.js";
 import { loadBrandPalette } from "./brand.js";
@@ -480,7 +481,7 @@ const REGISTER = {
 };
 
 /** The per-diagram options; authorDiagram additionally accepts the driver seam. */
-const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register"]);
+const AUTHOR_OPTIONS = new Set(["out", "build", "svg", "register", "preset"]);
 /**
  * The single-shot entry point additionally accepts a `driver` override — a test
  * seam, not part of a session's per-diagram options. A session cannot honor a
@@ -533,6 +534,22 @@ function validateDriver(driver) {
       where: "options.driver", next: "Pass a function like withExcalidraw, or omit it for the real browser.",
     });
   }
+}
+
+/**
+ * Reject an output preset that names no surface, before `build` spends a
+ * browser on measuring. The valid set is small and closed, so a misspelling is
+ * the whole failure mode worth catching: it would otherwise fall back to `fit`
+ * and produce a doc-sized picture for a slide, silently.
+ */
+function validatePreset(preset) {
+  if (preset === undefined) return DEFAULT_PRESET;
+  if (typeof preset !== "string" || !Object.hasOwn(PRESETS, preset)) {
+    throw new SkeletonError(`is ${JSON.stringify(preset)}`, {
+      where: "preset", next: `Use one of: ${PRESET_NAMES.join(", ")}.`,
+    });
+  }
+  return preset;
 }
 
 /**
@@ -747,20 +764,20 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
 
 // Exported for the inventory guard (tests/build-context.js), which reads this
 // factory's real surface via Object.keys — not part of the authoring API.
-export const buildContext = (ex, files) => ({
+export const buildContext = (ex, files, preset = DEFAULT_PRESET) => ({
   measure: ex.measureText,
   wrap: makeWrap(ex.measureText),
   palette,
   PROSE,
   CODE,
+  surface: PRESETS[preset].surface,
+  ramp: PRESETS[preset].ramp,
   stack,
   row,
   column,
   box,
-  arrowBetween,
-  fanOut,
-  graph,
   flatten,
+  ...rampedLayout(PRESETS[preset].ramp),
   fromMermaid: makeFromMermaid(ex),
   image: makeImage(ex, files),
   spliceLibraryItem,
@@ -769,13 +786,14 @@ export const buildContext = (ex, files) => ({
 /** One diagram, built and written inside an already-open browser session. */
 async function authorInto(ex, options) {
   validateAuthorOptions(options);
-  const { out, build, svg = true, register } = options;
+  const { out, build, svg = true, register, preset } = options;
   validateRegister(register);
+  const chosen = validatePreset(preset);
   const files = {};
   // the build is the last thing that can move a shape and validateSkeleton has
   // just flattened its groups, so this is the first and only moment at which
   // every deferred arrow can read its endpoints where they finally stand
-  const built = resolveArrows(validateSkeleton(await build(buildContext(ex, files))));
+  const built = resolveArrows(validateSkeleton(await build(buildContext(ex, files, chosen))));
   const skeleton = applyRegister(built, register);
   const stitches = planBindingStitches(skeleton);
   // regenerateIds: false — gate errors then name the author's own ids, and the

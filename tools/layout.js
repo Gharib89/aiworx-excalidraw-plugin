@@ -16,6 +16,7 @@
 import { NamedError, loadDependency } from "./errors.js";
 import { bounds } from "./geometry.js";
 import { loadBrandPalette } from "./brand.js";
+import { PRESETS, DEFAULT_PRESET } from "./presets.js";
 
 const palette = loadBrandPalette();
 
@@ -285,8 +286,12 @@ const shown = (value) => {
   }
 };
 
-/** One step below body prose: an edge annotation, not a heading. */
-const LABEL_FONT_SIZE = 16;
+/**
+ * The ramp these helpers use when nobody binds one: `fit`, which is today's
+ * sizing and the reason an unpresetted build is byte-identical to one authored
+ * before presets existed. `rampedLayout` is how a preset replaces it.
+ */
+const FIT_RAMP = PRESETS[DEFAULT_PRESET].ramp;
 
 /**
  * Turn the `label` shorthand into the skeleton's bound-text form. A string is the
@@ -294,15 +299,19 @@ const LABEL_FONT_SIZE = 16;
  * converter accepts). The house prose font is the default because the gate rejects
  * text outside the house pair, and the converter measures the text itself — the
  * label is real bound text, not a decoration.
+ *
+ * A bare string takes the ramp's `sublabel` rung — an edge annotation, one step
+ * below the words inside a node — so raising the preset raises it too, while an
+ * author who named a `fontSize` keeps the more specific statement.
  */
-function labelSpec(label) {
+function labelSpec(label, ramp) {
   const spec = typeof label === "string" ? { text: label } : label;
   if (!spec || typeof spec.text !== "string" || spec.text === "") {
     throw new LayoutError(`label needs text, got ${JSON.stringify(label)}`, {
       where: "arrowBetween", next: 'Pass a string or { text: "…" } for label.',
     });
   }
-  return { fontSize: LABEL_FONT_SIZE, fontFamily: palette.fontFamily.prose, ...spec };
+  return { fontSize: ramp.sublabel, fontFamily: palette.fontFamily.prose, ...spec };
 }
 
 /**
@@ -343,7 +352,8 @@ const DEFERRED = Symbol("deferred arrow endpoints");
  * arrows into one box at `landAt: 0.28` and `0.72` land apart instead of both
  * on the centre.
  */
-export function arrowBetween(a, b, { standoff = 10, via = [], route, label, originAt, landAt, ...style } = {}) {
+export function arrowBetween(a, b, opts = {}, ramp = FIT_RAMP) {
+  const { standoff = 10, via = [], route, label, originAt, landAt, ...style } = opts;
   const edge = () => `${bindId(a) ?? a?.type} and ${bindId(b) ?? b?.type}`;
   if (route !== undefined && route !== "orthogonal") {
     throw new LayoutError(
@@ -393,7 +403,7 @@ export function arrowBetween(a, b, { standoff = 10, via = [], route, label, orig
   requireBindable(b, "target");
   const arrow = {
     type: "arrow",
-    ...(label !== undefined ? { label: labelSpec(label) } : {}),
+    ...(label !== undefined ? { label: labelSpec(label, ramp) } : {}),
     ...style,
   };
   const startId = bindId(a);
@@ -497,7 +507,7 @@ export function resolveArrows(elements) {
  * different origin there too. An `originAt` or `landAt` of your own in `opts`
  * lands last and holds, the same ownership rule `roundness` follows.
  */
-export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
+export function fanOut(source, targets, { spread = 0.6, ...opts } = {}, ramp = FIT_RAMP) {
   // named for the source, because two fans in one build otherwise refuse in
   // byte-identical words — the same reason `arrowBetween` names its own edge
   const from = () => `fan from ${bindId(source) ?? source?.type}`;
@@ -516,8 +526,24 @@ export function fanOut(source, targets, { spread = 0.6, ...opts } = {}) {
     originAt: 0.5,
     landAt: n === 1 ? 0.5 : 0.5 + spread * (i / (n - 1) - 0.5),
     ...opts,
-  }));
+  }, ramp));
 }
+
+/**
+ * The three arrow-drawing helpers, bound to one preset's type ramp.
+ *
+ * Only these three write text of their own — everything else in this module
+ * places shapes an author already measured, so a ramp reaches those through the
+ * sizes the author asked `measure` for. `authorDiagram` builds one of these per
+ * diagram and hands it to the build in place of the bare helpers, which is why
+ * a preset needs no new option on any call: the same `label: "writes"` comes
+ * out at the preset's own size.
+ */
+export const rampedLayout = (ramp) => ({
+  arrowBetween: (a, b, opts) => arrowBetween(a, b, opts, ramp),
+  fanOut: (source, targets, opts) => fanOut(source, targets, opts, ramp),
+  graph: (nodes, edges, opts) => graph(nodes, edges, opts, ramp),
+});
 
 /**
  * ELK's engine, built on first use. Constructing one costs ~100ms, and the
@@ -563,7 +589,7 @@ const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
  * themselves. Flat graphs only, and `layered` only; nested children and the
  * other ELK algorithms are out of scope by design.
  */
-export async function graph(nodes, edges = [], { direction = "down", gap = 40, layerGap = 60, ...arrowDefaults } = {}) {
+export async function graph(nodes, edges = [], { direction = "down", gap = 40, layerGap = 60, ...arrowDefaults } = {}, ramp = FIT_RAMP) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     throw new LayoutError(`nodes must be a non-empty array, got ${shown(nodes)}`, {
       where: "graph", next: "Pass at least one measured shape as a node.",
@@ -662,6 +688,6 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       height: Math.max(...nodes.map((node, i) => node.y + sizes[i].height)),
       children: nodes,
     },
-    arrows: wired.map(({ source, target, opts }) => arrowBetween(source, target, { ...arrowDefaults, ...opts })),
+    arrows: wired.map(({ source, target, opts }) => arrowBetween(source, target, { ...arrowDefaults, ...opts }, ramp)),
   };
 }

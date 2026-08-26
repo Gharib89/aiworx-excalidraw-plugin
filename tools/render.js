@@ -10,6 +10,7 @@
  *     [--dark]             export with Excalidraw's dark theme filter
  *     [--padding N]        export padding in px
  *     [--background COLOR] override the canvas colour (e.g. "#121212", "transparent")
+ *     [--preset NAME]      frame every export to a named surface's aspect ratio
  *     [--]                 end of flags: the next argument is the file even if it
  *                          starts with a dash
  *
@@ -22,12 +23,13 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, dirname, extname, resolve } from "node:path";
 import { withExcalidraw } from "./browser.js";
 import { RENDER_FLAGS, parseFlags } from "./cli-flags.js";
+import { PRESETS, PRESET_NAMES } from "./presets.js";
 import { readExcalidrawDocument } from "./document.js";
 import { NamedError, UsageError, DocumentError } from "./errors.js";
 
 const USAGE =
   "usage: render.js [--out DIR] [--scale N] [--no-frames] [--frame N] [--dark] " +
-  "[--padding N] [--background COLOR] [--] <file.excalidraw>";
+  "[--padding N] [--background COLOR] [--preset NAME] [--] <file.excalidraw>";
 
 const numeric = (name, raw, { min, integer = false } = {}) => {
   if (raw === undefined) return undefined;
@@ -40,6 +42,50 @@ const numeric = (name, raw, { min, integer = false } = {}) => {
   }
   return n;
 };
+
+/**
+ * Grow an exported SVG's canvas until it matches `surface`'s aspect ratio,
+ * leaving every drawn element exactly where it is.
+ *
+ * Framing, never scaling: a slide wants the picture at slide *shape*, and
+ * shrinking it to fit would undo the whole reason a preset raises the type ramp
+ * at authoring time. So the shorter axis gains canvas — half at each end, so the
+ * picture stays centred.
+ *
+ * Done by nesting rather than by rewriting: the export becomes an inner `<svg>`
+ * offset by `x`/`y` inside a new root that carries the framed size, so the
+ * markup Excalidraw produced is passed through untouched. The new root paints
+ * the canvas colour itself, because a letterbox that exports transparent is one
+ * that prints as a hole — and it copies the export's own `filter` onto that
+ * paint, which is what keeps `--dark` from framing a dark picture in a light
+ * border: the dark theme is a filter on the export's root, so anything painted
+ * outside it stays in the light theme unless it is filtered to match.
+ *
+ * A no-match on either rewrite would frame silently and wrongly — the picture
+ * pinned top-left in a grown canvas — so both are asserted rather than left to
+ * `replace`'s quiet pass-through.
+ */
+function frameToSurface({ svg, width, height }, surface, background) {
+  const aspect = surface.width / surface.height;
+  const w = Math.max(width, height * aspect);
+  const h = Math.max(height, width / aspect);
+  const num = (n) => String(Number(n.toFixed(4)));
+  const inner = svg.replace("<svg ", `<svg x="${num((w - width) / 2)}" y="${num((h - height) / 2)}" `);
+  if (inner === svg) {
+    throw new UsageError("cannot frame an export that does not open with an <svg> root", {
+      where: "--preset", next: "Drop --preset and frame the output yourself.",
+    });
+  }
+  const filter = svg.match(/^<svg[^>]*\sfilter="([^"]*)"/)?.[1];
+  const framed =
+    `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" ` +
+    `viewBox="0 0 ${num(w)} ${num(h)}" width="${num(w)}" height="${num(h)}">` +
+    `<rect x="0" y="0" width="${num(w)}" height="${num(h)}" fill="${background}"` +
+    `${filter ? ` filter="${filter}"` : ""}></rect>` +
+    inner +
+    "</svg>";
+  return { svg: framed, width: w, height: h };
+}
 
 /**
  * Frames in reading order: rows top to bottom, left to right within a row.
@@ -90,6 +136,15 @@ try {
       where: "--background", next: "Pass a hex colour like #121212 or a CSS colour name.",
     });
   }
+  // Framing only: the file was authored at one surface's type ramp and this
+  // cannot change that, so a preset here shapes the export and nothing else.
+  // `fit` names no surface, which is why passing it is the same as passing none.
+  if (flags.preset !== undefined && !Object.hasOwn(PRESETS, flags.preset)) {
+    throw new UsageError(`must name an output preset, got "${flags.preset}"`, {
+      where: "--preset", next: `Use one of: ${PRESET_NAMES.join(", ")}.`,
+    });
+  }
+  const surface = flags.preset ? PRESETS[flags.preset].surface : null;
   const stem = basename(input, extname(input));
 
   const data = readExcalidrawDocument(input);
@@ -125,8 +180,13 @@ try {
       ...(padding !== undefined ? { exportPadding: padding } : {}),
     };
 
+    // every export this run writes goes through the same framing, so a deck
+    // rendered at one preset comes out uniform: band, frames and all
+    const framed = (out) =>
+      surface ? frameToSurface(out, surface, base.appState.viewBackgroundColor) : out;
+
     if (frameNo === undefined) {
-      const whole = await ex.exportSvg(base);
+      const whole = framed(await ex.exportSvg(base));
       const svgPath = join(outDir, `${stem}.svg`);
       writeFileSync(svgPath, whole.svg);
       console.log(`${svgPath}  ${whole.width}x${whole.height}`);
@@ -140,13 +200,13 @@ try {
       .map((frame, i) => ({ frame, n: i + 1 }))
       .filter(({ n }) => frameNo === undefined || n === frameNo);
     for (const { frame, n } of targets) {
-      const out = await ex.exportSvg({ ...base, exportingFrame: frame });
+      const out = framed(await ex.exportSvg({ ...base, exportingFrame: frame }));
       const png = join(outDir, `${stem}-frame${String(n).padStart(2, "0")}.png`);
       await ex.svgToPng(out.svg, png);
       console.log(`${png}  ${out.width}x${out.height}  ${frame.name ?? "(unnamed)"}`);
     }
     if (frames.length === 0) {
-      const whole = await ex.exportSvg(base);
+      const whole = framed(await ex.exportSvg(base));
       const png = join(outDir, `${stem}.png`);
       await ex.svgToPng(whole.svg, png);
       console.log(`${png}  (no frames — whole canvas)`);

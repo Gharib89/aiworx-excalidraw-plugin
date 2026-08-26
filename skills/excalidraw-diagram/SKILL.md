@@ -69,6 +69,14 @@ rebuilds by hand what already exists — the first three live under
 - A frame lists its `children` by id and then sizes itself around them. One
   without that list is a `SkeletonError` at the door.
 
+Name the **surface** too when the diagram has one — a projected slide, a doc
+figure, a social card. `preset: "slide-16x9"` on the authoring call hands the
+build a **type ramp** (`ramp.title` / `ramp.label` / `ramp.sublabel`) and the
+`surface` to lay out into, so the type is sized before the text is measured and
+the cards grow with it. The preset table and both context members are under
+[Output presets](reference/authoring.md#output-presets). Omit it and you get
+`fit`, which is what this pipeline has always done.
+
 Done when the `.excalidraw` file exists and every card, column and frame size
 traces to a measurement or an explicit constant — with no character-width factors.
 
@@ -109,7 +117,13 @@ crowding; the picture shows them.
 
 When iterating on one frame, re-render just it instead of the whole band:
 `--frame 3`. Other knobs: `--dark` (dark-theme export), `--padding N`,
-`--background COLOR`. Invalid values fail loudly with a `UsageError`.
+`--background COLOR`, `--preset NAME`. Invalid values fail loudly with a
+`UsageError`.
+
+`--preset` takes the same names step 3 authors with and frames every image this
+run writes — the band SVG and each frame PNG — to that surface's aspect ratio,
+growing the canvas around the picture. It never resizes text: by render time the
+type ramp is already in the file, and scaling here would undo it.
 
 `--padding` pads the whole-picture SVG only: Excalidraw zeroes padding when
 exporting a frame, so every frame PNG crops exactly at the frame border. Content

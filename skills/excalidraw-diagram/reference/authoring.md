@@ -13,6 +13,8 @@ use. This table is the whole surface; the sections below detail each one.
 | `palette` | constant | the brand palette: `roles`, `grey`, `ink`, `canvas`, `fontFamily` | [palette.md](palette.md) |
 | `PROSE` | constant | the `fontFamily` of the house prose face | [palette.md](palette.md) |
 | `CODE` | constant | the `fontFamily` of the house code face | [palette.md](palette.md) |
+| `surface` | constant | `{ width, height }` the preset targets, in px — `null` under `fit` | [Output presets](#output-presets) |
+| `ramp` | constant | `{ title, label, sublabel }` font sizes for this preset | [Output presets](#output-presets) |
 | `stack` | `stack(items, { direction, gap, align, x, y })` | a group placing its items along one axis | [Composing layout](#composing-layout) |
 | `column` | `column(items, opts)` | `stack` fixed to `direction: "column"` | [Composing layout](#composing-layout) |
 | `row` | `row(items, opts)` | `stack` fixed to `direction: "row"` | [Composing layout](#composing-layout) |
@@ -195,11 +197,63 @@ Three things to know:
   value and the accepted set, before any browser work — `register: { stroke_width: 2 }`
   fails loudly rather than silently changing nothing. The options object holds
   itself to the same rule: `regster:` or any other unknown key is refused with
-  the accepted set (`out`, `build`, `svg`, `register`) rather than dropped.
+  the accepted set (`out`, `build`, `svg`, `register`, `preset`) rather than dropped.
 
 Omit `register` and every element keeps whatever it set for itself, exactly as
 before. `withAuthoring`'s `author()` takes it too, per diagram — a band whose
 panels share one finish passes the same register to each.
+
+## Output presets
+
+Size is chosen once per diagram too. `preset:` names the surface the diagram is
+destined for, and every text size follows from it:
+
+```js
+await authorDiagram({
+  out: "docs/diagrams/thing.excalidraw",
+  preset: "slide-16x9",
+  build: async ({ ramp, surface, measure, box, column }) => [ /* … */ ],
+});
+```
+
+| preset | surface | `title` | `label` | `sublabel` |
+|---|---|---|---|---|
+| `fit` (default) | none — the picture is whatever size its content came out | 28 | 20 | 16 |
+| `doc-inline` | 720 × 480 | 22 | 16 | 13 |
+| `doc-wide` | 1200 × 675 | 28 | 20 | 16 |
+| `slide-16x9` | 1600 × 900 | 48 | 32 | 26 |
+| `social-og` | 1200 × 630 | 44 | 30 | 24 |
+
+The build reads both halves off its context:
+
+- **`ramp`** is the three sizes, by the role the text plays: `title` for a panel
+  or diagram heading, `label` for the words inside a node, `sublabel` for an edge
+  annotation or a caption. Pass `ramp.label` to `measure` and `wrap` the way you
+  would pass a constant, and the cards grow with the words — which is the whole
+  point of choosing the size *before* anything is measured. A projected slide
+  needs bigger type, not a bigger image: scaling a finished export enlarges the
+  whitespace along with the words and lands back where it started.
+- **`surface`** is `{ width, height }` in px, or `null` under `fit`. A target,
+  not a clamp — nothing crops or scales a build that overruns it. Read it for the
+  widths you wrap to and the number of panels you fit, and read `surface === null`
+  to tell `fit` from the rest.
+
+`arrowBetween` already reads the ramp: a bare-string `label: "writes"` comes out
+at `sublabel`, so an arrow label tracks the preset with nothing said. A `label:
+{ text, fontSize }` is the more specific statement and still wins.
+
+Two things to know:
+
+- **`fit` is the default and changes nothing.** Omitting `preset` and passing
+  `"fit"` are the same run, and every diagram authored before presets existed
+  lays out identically under it.
+- **An unknown name is an error, not a fallback.** `preset: "slide-4x3"` throws a
+  `SkeletonError` naming the valid set, before any browser work — a misspelling
+  that quietly produced a doc-sized picture for a slide is the failure worth
+  catching. `withAuthoring`'s `author()` takes `preset` too, per diagram.
+
+Rendering has its own `--preset NAME`, which frames an export and nothing else —
+see step 5 of [SKILL.md](../SKILL.md).
 
 ## Many diagrams in one run
 

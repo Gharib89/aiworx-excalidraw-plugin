@@ -10,7 +10,9 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   column, row, stack, box, arrowBetween as deferArrow, fanOut, graph, resolveArrows, flatten, LayoutError,
+  rampedLayout,
 } from "../tools/layout.js";
+import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "../tools/presets.js";
 
 // a measured shape, the only kind graph() lays out — sized as a build would
 // have sized it, so the engine sees the widths the gate will later check
@@ -869,6 +871,68 @@ const rejectsLayoutError = async (fn) => {
   const g = box({ type: "text", width: 10, height: 10 }, { padding: 5 });
   const els = flatten([t, g]);
   check("flatten expands groups in place", els.length === 3 && els[0] === t && els[1] === g.shape);
+}
+
+// ---- output presets: one vocabulary, and a ramp the layout helpers read ----
+{
+  check("every preset names a surface and a full type ramp",
+    PRESET_NAMES.every((name) => {
+      const p = PRESETS[name];
+      const surfaceOk = name === "fit"
+        ? p.surface === null
+        : Number.isFinite(p.surface?.width) && Number.isFinite(p.surface?.height);
+      return surfaceOk && ["title", "label", "sublabel"].every((rung) => Number.isFinite(p.ramp[rung]));
+    }),
+    PRESET_NAMES.join(", "));
+  // fit is the default and must not move today's numbers: the byte-identity
+  // claim for every committed example rests on this one value
+  check("fit is the default and keeps the 16px arrow-label size",
+    DEFAULT_PRESET === "fit" && PRESETS.fit.ramp.sublabel === 16,
+    `${DEFAULT_PRESET} / ${PRESETS.fit.ramp.sublabel}`);
+  // a ramp reads title > label > sublabel, and a projected preset outsizes an
+  // inline one at every rung — that is what "the sizes scale together" means
+  check("each ramp descends title > label > sublabel",
+    PRESET_NAMES.every((name) => {
+      const r = PRESETS[name].ramp;
+      return r.title > r.label && r.label > r.sublabel;
+    }));
+  check("slide-16x9 outsizes doc-inline at every rung",
+    ["title", "label", "sublabel"].every(
+      (rung) => PRESETS["slide-16x9"].ramp[rung] > PRESETS["doc-inline"].ramp[rung]));
+  // a build receives surface and ramp by reference, and withAuthoring runs many
+  // diagrams in one process — an assignment here would resize every later one
+  check("a preset's surface and ramp are frozen against a build that assigns to them",
+    PRESET_NAMES.every((name) => Object.isFrozen(PRESETS[name].ramp) &&
+      (PRESETS[name].surface === null || Object.isFrozen(PRESETS[name].surface))));
+  check("slide-16x9 is 16:9 and social-og is the OG card",
+    PRESETS["slide-16x9"].surface.width / PRESETS["slide-16x9"].surface.height === 16 / 9 &&
+      PRESETS["social-og"].surface.width === 1200 && PRESETS["social-og"].surface.height === 630);
+}
+
+// ---- rampedLayout: the ramp reaches an arrow label without a new option ----
+{
+  const a = { type: "rectangle", id: "a", x: 0, y: 0, width: 100, height: 60 };
+  const b = { type: "rectangle", id: "b", x: 300, y: 0, width: 100, height: 60 };
+  const slide = rampedLayout(PRESETS["slide-16x9"].ramp);
+  const [ramped] = resolveArrows([slide.arrowBetween(a, b, { label: "writes" })]);
+  check("a ramped string label takes the preset's sublabel size",
+    ramped.label.fontSize === PRESETS["slide-16x9"].ramp.sublabel &&
+      ramped.label.fontFamily === PROSE,
+    JSON.stringify(ramped.label));
+  const [plainRamp] = resolveArrows([deferArrow(a, b, { label: "writes" })]);
+  check("the bare helper still takes the fit ramp",
+    plainRamp.label.fontSize === PRESETS.fit.ramp.sublabel, plainRamp.label.fontSize);
+  // an explicit size is the more specific statement and outranks the ramp
+  const [override] = resolveArrows([slide.arrowBetween(a, b, { label: { text: "12 ms", fontSize: 11 } })]);
+  check("an explicit label fontSize still outranks the ramp", override.label.fontSize === 11);
+  // fanOut and graph draw arrows too, so the ramp has to reach them as well
+  const [fanned] = rampedLayout(PRESETS["slide-16x9"].ramp)
+    .fanOut(a, [b], { label: "writes" }).map(resolveOne);
+  check("fanOut's arrows carry the ramp",
+    fanned.label.fontSize === PRESETS["slide-16x9"].ramp.sublabel, fanned.label.fontSize);
+  check("rampedLayout exposes exactly the arrow-drawing helpers",
+    JSON.stringify(Object.keys(slide).sort()) === JSON.stringify(["arrowBetween", "fanOut", "graph"]),
+    Object.keys(slide).join(", "));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nlayout helpers behave");

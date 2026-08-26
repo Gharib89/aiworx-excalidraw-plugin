@@ -30,6 +30,9 @@
  *  15. the driver seam: a session's per-diagram author() cannot override the
  *      driver, and a misspelled driver key is a SkeletonError rather than a
  *      silent fallback to the real browser, on both authorDiagram and withAuthoring
+ *  16. an output preset scales the type ramp and the proportions the build
+ *      comes out at, `fit` is the unchanged default, and an unknown name is
+ *      refused before anything is written
  */
 import { spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync,
@@ -973,6 +976,89 @@ const nodeBox = ({ measure, box, palette: p, PROSE }) => async (id, text) => {
     kept.detail);
   check("the refused default splice wrote nothing",
     !existsSync(join(outDir, "spliced-kept.excalidraw")));
+}
+
+// ---- 16. output presets: one build, two surfaces, two type ramps ----
+{
+  // The same build twice, differing only in `preset`. It reads `ramp` for its
+  // own text and `surface` for the width it wraps to, which is the whole
+  // mechanism: the ramp is chosen before anything is measured, so the cards
+  // grow with the words instead of the picture being scaled afterwards.
+  const build = async ({ measure, wrap, palette, PROSE: prose, ramp, surface, box, column, arrowBetween }) => {
+    const width = surface ? surface.width / 3 : 320;
+    const heading = { type: "text", id: "heading", text: "Gate", fontSize: ramp.title, fontFamily: prose,
+      strokeColor: palette.ink };
+    const [m] = await measure([{ text: heading.text, fontSize: ramp.title, fontFamily: prose }]);
+    Object.assign(heading, m);
+    const wrapped = await wrap("Measured text, then the gate refuses per problem.", width,
+      { fontSize: ramp.label, fontFamily: prose });
+    const body = { type: "text", id: "body", fontSize: ramp.label, fontFamily: prose,
+      strokeColor: palette.ink, ...wrapped };
+    const card = box(column([heading, body], { gap: 12 }), {
+      id: "card", padding: 20, strokeColor: palette.grey.stroke, backgroundColor: palette.grey.fill,
+    });
+    const sink = box({ type: "text", id: "sink-text", text: "ship", fontSize: ramp.label,
+      fontFamily: prose, strokeColor: palette.ink,
+      ...(await measure([{ text: "ship", fontSize: ramp.label, fontFamily: prose }]))[0] },
+      { id: "sink", padding: 20, strokeColor: palette.grey.stroke, backgroundColor: palette.grey.fill });
+    column([card, sink], { gap: 120 });
+    return [card, sink, arrowBetween(card, sink, { label: "writes", strokeColor: palette.grey.stroke })];
+  };
+
+  const shot = async (preset) => {
+    const out = join(outDir, `preset-${preset}.excalidraw`);
+    const r = await authorDiagram({ out, build, preset });
+    const doc = JSON.parse(readFileSync(out, "utf8"));
+    const size = (els) => {
+      const xs = els.flatMap((e) => [e.x, e.x + e.width]);
+      const ys = els.flatMap((e) => [e.y, e.y + e.height]);
+      return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    };
+    return { out, doc, r, ...size(doc.elements), heading: doc.elements.find((e) => e.id === "heading") };
+  };
+
+  const slide = await shot("slide-16x9");
+  const inline = await shot("doc-inline");
+  check("a preset scales the type ramp the build asked for",
+    slide.heading.fontSize === 48 && inline.heading.fontSize === 22,
+    `${slide.heading.fontSize} vs ${inline.heading.fontSize}`);
+  check("the ramp reaches an arrow label with no size of its own",
+    slide.doc.elements.find((e) => e.text === "writes")?.fontSize === 26 &&
+      inline.doc.elements.find((e) => e.text === "writes")?.fontSize === 13,
+    `${slide.doc.elements.find((e) => e.text === "writes")?.fontSize} vs ${inline.doc.elements.find((e) => e.text === "writes")?.fontSize}`);
+  // bigger type through measured layout means a differently-proportioned
+  // picture, not the same picture at another zoom
+  check("the two presets come out at different canvas proportions",
+    Math.abs(slide.w / slide.h - inline.w / inline.h) > 0.05,
+    `${(slide.w / slide.h).toFixed(3)} vs ${(inline.w / inline.h).toFixed(3)}`);
+  for (const [name, shotResult] of [["slide-16x9", slide], ["doc-inline", inline]]) {
+    const gate = spawnSync(process.execPath, [join(root, "tools/check.js"), shotResult.out], { encoding: "utf8" });
+    check(`the ${name} diagram passes the CLI gate`, gate.status === 0,
+      (gate.stdout + gate.stderr).trim().split("\n").pop());
+  }
+
+  // fit is the default, and naming it changes nothing. Compared on placement
+  // and type rather than on bytes, because every run mints fresh element ids
+  // and seeds; the byte-for-byte claim is the committed examples' own, proved
+  // by regenerating them (examples/*.excalidraw stay clean in the tree).
+  const omitted = join(outDir, "preset-omitted.excalidraw");
+  const named = join(outDir, "preset-fit.excalidraw");
+  await authorDiagram({ out: omitted, build, svg: false });
+  await authorDiagram({ out: named, build, preset: "fit", svg: false });
+  const placement = (file) => JSON.stringify(JSON.parse(readFileSync(file, "utf8")).elements
+    .map(({ type, x, y, width, height, fontSize, text }) => ({ type, x, y, width, height, fontSize, text })));
+  check("omitting the preset and naming fit lay out identically",
+    placement(omitted) === placement(named));
+
+  const unknown = join(outDir, "preset-unknown.excalidraw");
+  const bad = await rejectsWith("SkeletonError",
+    authorDiagram({ out: unknown, build, preset: "slide-4x3" }));
+  check("an unknown preset is a SkeletonError naming the valid set",
+    bad.ok && /slide-16x9/.test(bad.message) && /social-og/.test(bad.message), bad.detail);
+  check("an unknown preset writes nothing", !existsSync(unknown));
+  const notAName = await rejectsWith("SkeletonError",
+    authorDiagram({ out: join(outDir, "preset-nonstring.excalidraw"), build, preset: 16 }));
+  check("a preset that is not a name is a SkeletonError too", notAName.ok, notAName.detail);
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nauthor API behaves");

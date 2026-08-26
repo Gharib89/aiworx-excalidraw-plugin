@@ -248,8 +248,9 @@ export function adviseDocument(data, { preset } = {}) {
   if (sized.length >= 2) {
     const widest = sized[0];
     const narrowest = sized[sized.length - 1];
-    const drift = round(widest.width / narrowest.width, 2);
-    if (drift > MAX_PANEL_WIDTH_DRIFT) {
+    const ratio = widest.width / narrowest.width;
+    if (ratio > MAX_PANEL_WIDTH_DRIFT) {
+      const drift = round(ratio, 2);
       note(
         "panel-width-drift",
         `frame "${widest.name ?? widest.id}" is ${drift}× as wide as frame "${narrowest.name ?? narrowest.id}" (needs within ${MAX_PANEL_WIDTH_DRIFT}×): per-frame export frames without scaling, so one label size projects at two sizes`,

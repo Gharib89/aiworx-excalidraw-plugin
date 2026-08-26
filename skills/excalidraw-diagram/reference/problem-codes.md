@@ -215,8 +215,8 @@ stroke sitting under a text — backing, not a node.
 `--preset <name>` names the surface the diagram was authored for; nothing in a
 written file records it, so without the flag `aspect-off-preset` and
 `font-below-floor` stay silent. Thresholds are constants exported by
-`tools/advise.js`, quoted in the rows below and held equal by
-`tests/problem-codes.js`; a retune is one diff to both.
+`tools/advise.js`, quoted in the rows below and held equal by the repo's test
+suite; a retune is one diff to both.
 
 | code | status | shape | `elements` | extra fields | reports when |
 |---|---|---|---|---|---|

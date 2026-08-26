@@ -338,6 +338,8 @@ const role = (name, extra = {}) => ({ strokeColor: ROLES[name].stroke, backgroun
   check("it names the widest then the narrowest frame, with the drift and the bound", a?.elements.join() === "p2,p1" && a.drift === 2.31 && a.needs === 1.25, JSON.stringify(a));
   const even = adviseDocument(doc([frame("p1", 0, 0, 500, 300), frame("p2", 700, 0, 600, 200)]));
   check("widths within 1.25× pass, heights free", even.length === 0, detail(even));
+  const hair = adviseDocument(doc([frame("p1", 0, 0, 1252, 300), frame("p2", 1400, 0, 1000, 300)]));
+  check("a 1.252× spread is judged raw, not after rounding to 1.25", find(hair, "panel-width-drift")?.drift === 1.25, detail(hair));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall advisory cases pass");

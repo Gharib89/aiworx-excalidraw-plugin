@@ -109,8 +109,10 @@ Beside the problems, every file that reaches the rules carries its
 arrow–arrow crossings, aspect against the preset, arrow clearance, bends, font
 floors, stroke weight, hue count, `pass`/`fail` by hue alone, panel width drift
 across a band — reported on stdout after the stats line and never refused over,
-so the exit code never reads them. Each carries the value it measured and the
-bound it was judged against. `--preset <name>` names the surface the diagram was
+so the exit code never reads them. A quantity finding carries the value it
+measured and the bound it was judged against; a presence finding (a crossing, a
+`pass`/`fail` told apart by hue alone, an arrow thinner than its shape) names
+the elements involved. `--preset <name>` names the surface the diagram was
 authored for; nothing in a written scene records it, so without the flag the
 aspect and font-floor measurements stay silent. The same measurement scores the
 benchmark corpus: `tests/advisories-baseline.js` pins `check.js --json` over

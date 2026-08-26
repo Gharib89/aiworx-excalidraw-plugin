@@ -32,6 +32,14 @@ export const ARROW_CLEARANCE = 10;
 export const MAX_BENDS = 2;
 /** A heading change above this many degrees is a bend; below it is the router's jog. */
 export const BEND_ANGLE = 10;
+/** Most non-grey hue families one picture may use. */
+export const MAX_HUES = 4;
+/** Two hues within this many degrees of each other (HSL hue) are one family — a role's stroke and its fill. */
+export const HUE_FAMILY_SPAN = 30;
+/** HSL chroma (max − min of the RGB channels, 0–1) under which a colour is grey and counts for no hue. */
+export const GREY_CHROMA = 0.05;
+/** Widest ÷ narrowest frame width a band may hold. */
+export const MAX_PANEL_WIDTH_DRIFT = 1.25;
 
 // shapes with area: what an arrow can crowd, what a text can sit on
 const SOLID = new Set(["rectangle", "ellipse", "diamond", "image"]);
@@ -203,6 +211,54 @@ export function adviseDocument(data, { preset } = {}) {
     }
   }
 
+  // 7. pass and fail told apart by hue alone is lost on a colour-blind reader
+  //    and on a greyscale print; both roles on one picture need a second cue.
+  //    A presence finding: the carriers are named, no number is invented.
+  const palette = getBrandPalette();
+  const roleColours = (role) => new Set([palette.roles[role].stroke, palette.roles[role].fill].map(normalizeHex));
+  const passColours = roleColours("pass");
+  const failColours = roleColours("fail");
+  const carries = (e, set) => set.has(normalizeHex(e.strokeColor)) || set.has(normalizeHex(e.backgroundColor));
+  // what carries colour on a picture: not the frame itself, and not a plate
+  const inked = (p) => p.members.filter((e) => e.type !== "frame" && !plates.has(e.id));
+  for (const p of pictures) {
+    const pass = inked(p).filter((e) => carries(e, passColours));
+    const fail = inked(p).filter((e) => carries(e, failColours));
+    if (!pass.length || !fail.length) continue;
+    note(
+      "hue-only-pass-fail",
+      `${where(p)} tells pass from fail by hue alone: ${pass.length} pass and ${fail.length} fail element(s) with no second cue`,
+      [...named(p), ...pass.map((e) => e.id), ...fail.map((e) => e.id)],
+    );
+  }
+
+  // 8. more hue families than a reader can hold as a legend. A family is a hue
+  //    angle, not a hex — a role's stroke and its fill are one family — and a
+  //    grey is no hue at all.
+  for (const p of pictures) {
+    const hexes = new Set(inked(p).flatMap((e) => [e.strokeColor, e.backgroundColor]).map(normalizeHex).filter(Boolean));
+    const hues = hueFamilies([...hexes]);
+    if (hues > MAX_HUES) note("too-many-hues", `${where(p)} uses ${hues} hue families (needs at most ${MAX_HUES})`, named(p), { hues, needs: MAX_HUES });
+  }
+
+  // 9. a band's panels are exported frame by frame without scaling, so the
+  //    same label projects at different sizes from a wide panel and a narrow
+  //    one — the type ramp survives the panel and not the band.
+  const sized = frames.filter((f) => f.width > 0).sort((a, b) => b.width - a.width);
+  if (sized.length >= 2) {
+    const widest = sized[0];
+    const narrowest = sized[sized.length - 1];
+    const drift = round(widest.width / narrowest.width, 2);
+    if (drift > MAX_PANEL_WIDTH_DRIFT) {
+      note(
+        "panel-width-drift",
+        `frame "${widest.name ?? widest.id}" is ${drift}× as wide as frame "${narrowest.name ?? narrowest.id}" (needs within ${MAX_PANEL_WIDTH_DRIFT}×): per-frame export frames without scaling, so one label size projects at two sizes`,
+        [widest.id, narrowest.id],
+        { drift, needs: MAX_PANEL_WIDTH_DRIFT },
+      );
+    }
+  }
+
   return advisories;
 }
 
@@ -228,6 +284,42 @@ function angleBetween([px, py], [qx, qy], [ax, ay], [bx, by]) {
   const m = t % 180;
   return Math.min(m, 180 - m);
 }
+
+/**
+ * How many hue families a set of colours spans. Colours are read in HSL: chroma
+ * under GREY_CHROMA is grey and dropped; the rest seed families from the most
+ * saturated down, and a colour within HUE_FAMILY_SPAN of an existing seed joins
+ * it. Seeding by saturation keeps a pale fill from bridging two roles' strokes.
+ */
+function hueFamilies(hexes) {
+  const seeds = [];
+  const colours = hexes.map(hueChroma).filter((c) => c.chroma >= GREY_CHROMA).sort((a, b) => b.chroma - a.chroma);
+  for (const c of colours) {
+    if (!seeds.some((h) => hueGap(h, c.hue) <= HUE_FAMILY_SPAN)) seeds.push(c.hue);
+  }
+  return seeds.length;
+}
+
+/** HSL hue (degrees) and chroma (max − min, 0–1) of a normalized #RRGGBB. */
+function hueChroma(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  let hue = 0;
+  if (chroma > 0) {
+    if (max === r) hue = ((g - b) / chroma + 6) % 6;
+    else if (max === g) hue = (b - r) / chroma + 2;
+    else hue = (r - g) / chroma + 4;
+    hue *= 60;
+  }
+  return { hue, chroma };
+}
+
+const hueGap = (a, b) => {
+  const d = Math.abs(a - b) % 360;
+  return Math.min(d, 360 - d);
+};
 
 function preview(s) {
   return String(s ?? "").split("\n")[0].slice(0, 40);

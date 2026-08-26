@@ -240,5 +240,89 @@ const detail = (list) => JSON.stringify(list.map((a) => a.code));
   check("it names the arrow and the shape with both widths", a?.elements.join() === "ab,a" && a.arrowWidth === 2 && a.shapeWidth === 2, JSON.stringify(a));
 }
 
+// house roles, read the way the rule reads them
+const ROLES = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../brand/palette.json"), "utf8")).roles;
+const role = (name, extra = {}) => ({ strokeColor: ROLES[name].stroke, backgroundColor: ROLES[name].fill, ...extra });
+
+// ---- 8. hue-only-pass-fail: the pass and fail roles on one picture ----
+{
+  const r = adviseDocument(
+    doc([
+      shape("ok", 0, 0, 200, 100, role("pass")),
+      shape("bad", 400, 240, 200, 100, role("fail")),
+      shape("plain", 800, 0, 200, 100),
+    ]),
+  );
+  const a = find(r, "hue-only-pass-fail");
+  check("pass and fail together is hue-only-pass-fail", only(r, "hue-only-pass-fail"), detail(r));
+  check("a presence finding: it names the carriers and no number", a?.elements.join() === "ok,bad" && !("needs" in a), JSON.stringify(a));
+  const one = adviseDocument(doc([shape("ok", 0, 0, 200, 100, role("pass")), shape("plain", 400, 240, 200, 100)]));
+  check("one of the two roles alone is fine", one.length === 0, detail(one));
+}
+
+// ---- 9. too-many-hues: more than four non-grey hue families ----
+{
+  // the six house roles are six families; a role's fill folds into its stroke's
+  // family and greys count for nothing
+  const r = adviseDocument(
+    doc([
+      shape("s1", 0, 0, 100, 100, role("local")),
+      shape("s2", 200, 0, 100, 100, role("artifact")),
+      shape("s3", 400, 0, 100, 100, role("remote")),
+      shape("s4", 600, 0, 100, 100, role("decision")),
+      shape("s5", 800, 0, 100, 100, role("pass")),
+      shape("s6", 0, 300, 100, 100, { strokeColor: "#5B5B58", backgroundColor: "#F1F1EF" }),
+      text("t", 200, 340, 100, 20, { strokeColor: "#1A1A19" }),
+    ]),
+  );
+  const a = find(r, "too-many-hues");
+  check("five roles is too-many-hues", only(r, "too-many-hues"), detail(r));
+  check("it carries the count and the bound; a whole-picture finding names no elements", a?.hues === 5 && a.needs === 4 && a.elements.length === 0, JSON.stringify(a));
+  const four = adviseDocument(
+    doc([
+      shape("s1", 0, 0, 100, 100, role("local")),
+      shape("s2", 200, 0, 100, 100, role("artifact")),
+      shape("s3", 400, 0, 100, 100, role("remote")),
+      shape("s4", 600, 0, 100, 100, role("decision")),
+      // a plate's tint is backing, not a hue
+      shape("plate", 0, 300, 300, 40, { strokeColor: "transparent", backgroundColor: ROLES.fail.fill }),
+      text("plated", 10, 310, 280, 20),
+    ]),
+  );
+  check("four roles plus a plate's tint pass", four.length === 0, detail(four));
+}
+
+// ---- 10. the frame is the picture: aspect and hues per frame, never for the file ----
+{
+  // two panels of a band: a square one under doc-wide, and a landscape one that
+  // holds five roles; a caption clear of both frames is scored with no picture
+  const r = adviseDocument(
+    doc([
+      frame("p1", 0, 0, 400, 400),
+      shape("a", 20, 20, 360, 360, { frameId: "p1" }),
+      frame("p2", 500, 0, 800, 450),
+      shape("s1", 520, 20, 100, 100, { frameId: "p2", ...role("local") }),
+      shape("s2", 640, 20, 100, 100, { frameId: "p2", ...role("artifact") }),
+      shape("s3", 760, 20, 100, 100, { frameId: "p2", ...role("remote") }),
+      shape("s4", 880, 20, 100, 100, { frameId: "p2", ...role("decision") }),
+      shape("s5", 1000, 20, 100, 100, { frameId: "p2", ...role("pass") }),
+      text("caption", 0, 500, 1300, 20, role("fail")),
+    ]),
+    { preset: "doc-wide" },
+  );
+  check("each frame is scored as its own picture and the row is not", only(r, "aspect-off-preset", "too-many-hues", "panel-width-drift"), detail(r));
+  check("a per-panel finding names its frame first", find(r, "aspect-off-preset")?.elements.join() === "p1" && find(r, "too-many-hues")?.elements[0] === "p2", detail(r));
+}
+
+// ---- 11. panel-width-drift: the widest and narrowest frame of a band ----
+{
+  const r = adviseDocument(doc([frame("p1", 0, 0, 529, 300), frame("p2", 700, 0, 1224, 300), frame("p3", 2100, 0, 600, 300)]));
+  const a = find(r, "panel-width-drift");
+  check("a 2.31× width spread is panel-width-drift", only(r, "panel-width-drift"), detail(r));
+  check("it names the widest then the narrowest frame, with the drift and the bound", a?.elements.join() === "p2,p1" && a.drift === 2.31 && a.needs === 1.25, JSON.stringify(a));
+  const even = adviseDocument(doc([frame("p1", 0, 0, 500, 300), frame("p2", 700, 0, 600, 200)]));
+  check("widths within 1.25× pass, heights free", even.length === 0, detail(even));
+}
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall advisory cases pass");
 process.exit(fail.length ? 1 : 0);

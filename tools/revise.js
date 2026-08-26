@@ -6,7 +6,13 @@
  * CLI face of reviseDiagram in tools/author.js.
  *
  * Usage:
- *   node tools/revise.js [--no-svg] [--] diagram.excalidraw
+ *   node tools/revise.js [--no-svg] [--json] [--] diagram.excalidraw
+ *
+ * Every successful pass ends with its fidelity ledger — what the round-trip
+ * recomputed, repaired or dropped, since all of it used to happen in silence.
+ * A pass that changed nothing says so in one line rather than saying nothing.
+ * `--json` prints the ledger as one document instead, the machine-readable face;
+ * it takes over stdout, so the human summary the library would print is withheld.
  *
  * `--` ends the flags: the next argument is the file even if it starts with a
  * dash. Any other dash-prefixed argument is rejected as a typo rather than read
@@ -14,13 +20,15 @@
  *
  * Exit codes match the other CLIs: 2 for an invocation that never named a file
  * to revise, 1 for a document the pipeline refuses — unparseable, foreign, or
- * failing the gate — with nothing written in either case.
+ * failing the gate — with nothing written in either case. A refusal prints no
+ * ledger: there is no rewrite to account for.
  */
 import { reviseDiagram } from "./author.js";
 import { REVISE_FLAGS, parseFlags } from "./cli-flags.js";
 import { NamedError, UsageError } from "./errors.js";
+import { formatLedger } from "./ledger.js";
 
-const USAGE = "usage: revise.js [--no-svg] [--] <file.excalidraw>";
+const USAGE = "usage: revise.js [--no-svg] [--json] [--] <file.excalidraw>";
 
 try {
   const { positionals, flags } = parseFlags(process.argv.slice(2), { ...REVISE_FLAGS, usage: USAGE });
@@ -29,7 +37,32 @@ try {
     throw new UsageError(`one file at a time, got ${positionals.length}`, { where: "input", next: USAGE });
   }
 
-  await reviseDiagram({ file: positionals[0], svg: !flags["no-svg"] });
+  const json = Boolean(flags.json);
+  const written = await reviseDiagram({ file: positionals[0], svg: !flags["no-svg"], quiet: json });
+  const { entries } = written.ledger;
+  if (json) {
+    // One document, the same shape whatever the pass did — `changed` says
+    // whether anything the ledger tracks moved, so a consumer needs no
+    // heuristic on an empty list.
+    console.log(
+      JSON.stringify(
+        {
+          file: written.out,
+          svg: written.svgOut,
+          elements: written.elements.length,
+          frames: written.frames.length,
+          changed: entries.length > 0,
+          entries,
+        },
+        null,
+        2,
+      ),
+    );
+  } else {
+    // After the artifacts the library already named — the ledger accounts for
+    // what those artifacts contain, so it reads in that order.
+    console.log(formatLedger(entries).join("\n"));
+  }
 } catch (err) {
   if (err instanceof UsageError) {
     console.error(`UsageError: ${err.message}`);

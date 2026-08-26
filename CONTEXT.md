@@ -32,6 +32,17 @@ _Not_: the **version gate** (`tools/version-gate.js`), which judges the plugin p
 The stable kebab-case identifier the gate attaches to one kind of defect (e.g. `frame-escape`). The set is append-only; codes are a public contract.
 _Avoid_: error code, rule id
 
+**Fidelity ledger**:
+The account `revise.js` prints of what a round-trip changed beyond what was asked
+— text remeasured, bindings and frame membership repaired, bound labels
+re-centered, elements purged, image payloads pruned. Its codes are a third
+namespace beside the gate's element-level and file-level ones: same append-only
+contract, same entry shape, but an entry reports a repair the pass made rather
+than a defect it refuses over. A pass that changed nothing says so in one line —
+silence would read as a no-op. `reviseDiagram` returns the ledger; only the CLI
+prints it.
+_Avoid_: change log, audit trail, diff report
+
 **Kind**:
 The machine-readable file-level code a `DocumentError` carries — `unreadable`, `empty-file`, `invalid-json`, `not-excalidraw` — set by the one loader (`readExcalidrawDocument` in `tools/document.js`) and mapped by check.js into its `error.code` output contract. Named `kind`, not `code`, so it never collides with Node's own `err.code`.
 _Avoid_: error code (that is check's output field), category

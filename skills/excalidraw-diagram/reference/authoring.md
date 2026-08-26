@@ -767,7 +767,7 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 ## Round-tripping a human-edited file
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" docs/diagrams/thing.excalidraw   # [--no-svg]
+node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" docs/diagrams/thing.excalidraw   # [--no-svg] [--json]
 ```
 
 One command re-enters the pipeline: the file is restored with `refreshDimensions`
@@ -780,13 +780,23 @@ place. A file that isn't a parseable Excalidraw document is rejected with a
 `DocumentError`; a revision that would fail the gate throws a `GateError`. Both
 exit 1 and write nothing; a bad invocation exits 2 with a `UsageError`.
 
-A pass that re-centered bound labels names them, after the artifacts:
+Every repair in that list lands in the **fidelity ledger**, printed after the
+artifacts it accounts for:
 
 ```
 /home/you/repo/docs/diagrams/thing.excalidraw  24 elements, 3 frames
 /home/you/repo/docs/diagrams/thing.svg
+recomputed text metrics on 2 elements (t-title, t-caption)
 re-centered 1 bound label (t-writes on a-writes)
+dropped 1 orphaned image payload, 98.4 KB (f-logo)
 ```
+
+A pass that changed nothing prints `no repairs — the file was already current`,
+because a silent run reads exactly like a run that did nothing. `--json` prints
+the same ledger as one document — every code, extra field, and the document
+shape are in [problem-codes.md](problem-codes.md#ledger-codes). Two entries are
+genuinely lossy: `image-payload-dropped` throws bytes away and `element-dropped`
+ends a tombstone's chance of coming back.
 
 Re-centering is by design: a bound label rides its arrow's path and the renderer
 masks the path behind it, so every pass places it afresh — a hand-moved one goes
@@ -810,6 +820,11 @@ import { pathToFileURL } from "node:url";
 const root = process.env.CLAUDE_PLUGIN_ROOT ?? process.argv[2];   // guarded as in Measuring
 const { reviseDiagram } = await import(pathToFileURL(join(root, "tools/author.js")).href);
 
-const { recentered } = await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
-// [{ id: "t-writes", containerId: "a-writes" }, …] — empty when the pass moved none
+const { recentered, ledger } = await reviseDiagram({ file: "docs/diagrams/thing.excalidraw" });
+// recentered: [{ id: "t-writes", containerId: "a-writes" }, …] — empty when the pass moved none
+// ledger.entries: [{ code: "label-recentered", message, elements, … }, …] — empty when nothing changed
 ```
+
+The call never prints the ledger — `revise.js` formats it, so a generator that
+wants it on stdout writes its own line from `ledger.entries`. `quiet: true`
+withholds the artifact summary too, for a generator that owns its output.

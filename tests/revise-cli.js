@@ -7,9 +7,12 @@
  *      UsageError, a file the pipeline cannot use exits 1 with a named
  *      DocumentError, so nothing is ever half-revised in silence
  *   2. one happy path — a hand-edited copy of the committed example fails the
- *      gate, the CLI revises it in place so the gate passes again, and the SVG
- *      is rewritten beside it unless --no-svg says otherwise, and a pass that
+ *      gate, the CLI revises it in place so the gate passes again, the SVG is
+ *      rewritten beside it unless --no-svg says otherwise, and a pass that
  *      re-centered bound labels names them where a quiet pass says nothing
+ *   3. the fidelity ledger — every successful pass accounts for what the
+ *      round-trip recomputed, repaired or dropped, a pass that changed nothing
+ *      says so in one line, and --json prints the same ledger as one document
  *
  * Exits non-zero on any mismatch.
  */
@@ -186,6 +189,78 @@ function mangledCopy(dir) {
   check("--no-svg exits 0", r.status === 0, r.stderr.trim().split("\n").pop());
   check("--no-svg writes no SVG", !existsSync(join(dir, "example.svg")));
   check("--no-svg still revises the file", gate(copy).status === 0);
+}
+
+// ---- 3. the fidelity ledger: a pass accounts for what it changed ----
+
+// A round-trip does more than the author asked — it re-measures, repairs and
+// prunes — and all of it used to happen in silence, so the only way to learn
+// what a revise did was to diff JSON. The ledger is that account.
+{
+  const dir = mkdtempSync(join(tmpdir(), "revise-cli-ledger-"));
+  const copy = mangledCopy(dir);
+  const r = revise(copy, "--no-svg");
+  check("a hand-edited file revises cleanly", r.status === 0, firstErrorLine(r));
+  // The mangled copy drags the title out of its frame, so the pass has to clear
+  // the stale membership the geometry no longer supports.
+  check("the ledger names the frame membership it repaired",
+    /repaired frame membership on \d+ elements? \(/.test(r.stdout),
+    r.stdout.trim().split("\n").join(" | "));
+  check("the ledger comes after the artifacts it accounts for",
+    r.stdout.indexOf(copy) < r.stdout.search(/repaired frame membership/),
+    r.stdout.trim().split("\n").join(" | "));
+
+  // Second pass over the file the first one just wrote: nothing left to repair,
+  // and a run that says nothing reads exactly like a run that did nothing.
+  const again = revise(copy, "--no-svg");
+  check("an already-current file revises cleanly", again.status === 0, firstErrorLine(again));
+  check("a pass with nothing to report says so in one line",
+    /no repairs — the file was already current/.test(again.stdout),
+    again.stdout.trim().split("\n").join(" | "));
+}
+
+// The machine-readable face. It takes over stdout, so the whole stream has to
+// parse — a consumer piping this into jq gets a document, not prose plus a document.
+{
+  const dir = mkdtempSync(join(tmpdir(), "revise-cli-json-"));
+  const copy = mangledCopy(dir);
+  const r = revise(copy, "--no-svg", "--json");
+  check("--json exits 0", r.status === 0, firstErrorLine(r));
+  let doc = null;
+  try {
+    doc = JSON.parse(r.stdout);
+  } catch (err) {
+    check("--json prints one parseable document", false, `${err.message} — ${r.stdout.slice(0, 160)}`);
+  }
+  if (doc) {
+    check("--json prints one parseable document", true);
+    check("--json names the file it rewrote", doc.file === copy, `${doc.file}`);
+    check("--json reports no SVG under --no-svg", doc.svg === null, `${doc.svg}`);
+    check("--json counts the elements written", doc.elements > 0 && doc.frames > 0,
+      `${doc.elements} elements, ${doc.frames} frames`);
+    check("--json flags that the pass changed something", doc.changed === true, `${doc.changed}`);
+    check("--json keys every entry on a machine code",
+      Array.isArray(doc.entries) && doc.entries.length > 0 &&
+        doc.entries.every((e) => /^[a-z][a-z-]*$/.test(e.code) && typeof e.message === "string" &&
+          Array.isArray(e.elements)),
+      JSON.stringify(doc.entries?.map((e) => e.code)));
+  }
+
+  // A clean pass keeps the shape: an empty entry list and `changed: false`, so a
+  // consumer needs no heuristic for "nothing happened".
+  const again = revise(copy, "--no-svg", "--json");
+  const quiet = JSON.parse(again.stdout);
+  check("--json reports an unchanged pass as changed: false",
+    quiet.changed === false && quiet.entries.length === 0, JSON.stringify(quiet.entries));
+}
+
+// A refused document has no rewrite to account for, so it gets no ledger — the
+// error keeps stderr and the exit code to itself, under --json too.
+{
+  const r = revise(foreign, "--json");
+  check("a refused document exits 1 under --json", r.status === 1, `got ${r.status}`);
+  check("a refused document prints no ledger", r.stdout.trim() === "", r.stdout.slice(0, 120));
+  check("a refused document still names DocumentError", /DocumentError/.test(r.stderr), firstErrorLine(r));
 }
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nrevise CLI behaves");

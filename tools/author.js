@@ -26,6 +26,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { withExcalidraw } from "./browser.js";
 import { readExcalidrawDocument } from "./document.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
+import { buildLedger, METRIC_EPSILON } from "./ledger.js";
 import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, flatten, resolveArrows, rampedLayout } from "./layout.js";
 import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "./presets.js";
@@ -726,8 +727,11 @@ function writeTogether(pairs) {
  * and both are staged then renamed into place, so a failing export — or a
  * failing write — leaves both files as they were instead of dropping a fresh
  * .excalidraw next to a stale or missing .svg.
+ *
+ * `quiet` withholds the success report so a caller can own stdout — what
+ * `revise.js --json` needs to emit one parseable document.
  */
-async function gateAndWrite(ex, { out, elements, appState, files, svg, recentered = [] }) {
+async function gateAndWrite(ex, { out, elements, appState, files, svg, recentered = [], quiet = false }) {
   const doc = { type: "excalidraw", version: 2, source: "aiworx-excalidraw", elements, appState, files };
   const { problems } = verifyDocument(doc);
   if (problems.length) {
@@ -751,14 +755,10 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
   const frames = elements.filter((e) => e.type === "frame");
   const lines = [`${outPath}  ${elements.length} elements, ${frames.length} frames`];
   if (svgOut) lines.push(svgOut);
-  // Part of the success report, not a warning — the file is written either way.
-  // Both ids, because unbinding a label needs both: clear the text's containerId
-  // and the arrow's boundElements entry.
-  if (recentered.length) {
-    lines.push(`re-centered ${recentered.length} bound label${recentered.length === 1 ? "" : "s"} ` +
-      `(${recentered.map((r) => `${r.id} on ${r.containerId}`).join(", ")})`);
-  }
-  console.log(lines.join("\n"));
+  // The re-centered labels used to be named here. They are a fidelity-ledger
+  // entry now (tools/ledger.js), printed by the CLI beside every other repair —
+  // one report instead of one line here and the rest nowhere.
+  if (!quiet) console.log(lines.join("\n"));
   return { elements, frames, out: outPath, svgOut, recentered };
 }
 
@@ -882,10 +882,13 @@ export async function withAuthoring(fn, options = {}) {
  * text metrics and repairs bindings, frame membership is re-inferred, and the
  * same gate runs before the file is rewritten in place.
  *
- * Bound labels restore re-centered onto their arrows come back in `.recentered`
- * and are named in the success output; a pass that moved none stays quiet.
+ * Bound labels restore re-centered onto their arrows come back in `.recentered`.
+ * Every repair the pass made — those labels, remeasured text, repaired bindings
+ * and frame membership, purged elements, pruned image payloads — comes back in
+ * `.ledger` as the fidelity ledger (tools/ledger.js). This function never prints
+ * the ledger; the CLI formats it, which is what lets `--json` own stdout.
  */
-export async function reviseDiagram({ file, svg = true }) {
+export async function reviseDiagram({ file, svg = true, quiet = false }) {
   const data = readExcalidrawDocument(file);
   return withExcalidraw(async (ex) => {
     // Where every bound arrow label sat before the round-trip. restore re-centers
@@ -905,10 +908,11 @@ export async function reviseDiagram({ file, svg = true }) {
     const restored = await ex.restore(data);
     const elements = restored.elements.filter((e) => !e.isDeleted);
     // Half a pixel: re-measuring the same label under the same font can shift it
-    // by a rounding error, and that is not a move anyone made.
+    // by a rounding error, and that is not a move anyone made. One floor for the
+    // whole pass — the ledger judges a remeasured box by the same number.
     const recentered = elements.flatMap((e) => {
       const was = labelsBefore.get(e.id);
-      if (!was || Math.hypot(e.x - was.x, e.y - was.y) <= 0.5) return [];
+      if (!was || Math.hypot(e.x - was.x, e.y - was.y) <= METRIC_EPSILON) return [];
       return [{ id: e.id, containerId: was.containerId }];
     });
     // A hand edit that moves an element out of its frame leaves a stale
@@ -938,6 +942,9 @@ export async function reviseDiagram({ file, svg = true }) {
       gridSize: 20,
       ...data.appState,
     };
-    return gateAndWrite(ex, { out: file, elements, appState, files, svg, recentered });
+    const written = await gateAndWrite(ex, { out: file, elements, appState, files, svg, recentered, quiet });
+    // Built from the document as it was read against the one just written, so
+    // every entry names a change that really reached disk.
+    return { ...written, ledger: buildLedger({ before: data, after: { elements, files }, recentered }) };
   });
 }

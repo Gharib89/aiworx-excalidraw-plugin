@@ -22,7 +22,8 @@ export const RENDER_FLAGS = {
   bool: new Set(["no-frames", "dark"]),
   value: new Set(["out", "scale", "frame", "padding", "background", "preset"]),
 };
-export const REVISE_FLAGS = { bool: new Set(["no-svg"]), value: new Set() };
+/** revise.js: `--json` prints the fidelity ledger as one document instead of prose. */
+export const REVISE_FLAGS = { bool: new Set(["no-svg", "json"]), value: new Set() };
 /** library.js: `--download` consumes the next argument, the rest stand alone. */
 export const LIBRARY_FLAGS = {
   bool: new Set(["json", "refresh", "stale"]),

@@ -8,10 +8,11 @@
  * skills/excalidraw-diagram/reference/problem-codes.md — and a hand-written
  * registry rots the first time a rule lands without it. The invariants:
  *
- *   1. every code tools/verify.js emits appears in the element-level section, and
- *      every code tools/check.js emits appears in the file-level one — a new rule
- *      that skips the registry fails here, which is the only thing standing
- *      between "public contract" and "read the source". `deprecated` counts as
+ *   1. every code tools/verify.js emits appears in the element-level section,
+ *      every code tools/check.js emits appears in the file-level one, and every
+ *      code tools/ledger.js emits appears in the ledger one — a new rule or
+ *      ledger entry that skips the registry fails here, which is the only thing
+ *      standing between "public contract" and "read the source". `deprecated` counts as
  *      listed: under add-new-plus-deprecate the old code keeps coming out beside
  *      its replacement while consumers migrate, so forbidding that overlap would
  *      forbid the only migration path the append-only rule allows;
@@ -45,10 +46,12 @@ const check = (name, cond, detail) => {
 };
 
 // The element-level codes all reach the report through verify.js's `note`
-// helper; the file-level ones are the `error: { code }` a file that never
-// reached the rules carries instead of a problem list.
+// helper, and the ledger codes through ledger.js's namesake — same helper shape,
+// so the same regexes read both. The file-level ones are the `error: { code }` a
+// file that never reached the rules carries instead of a problem list.
 const verify = read("tools/verify.js");
 const checkCli = read("tools/check.js");
+const ledger = read("tools/ledger.js");
 const literal = (src, re) => [...src.matchAll(re)].map((m) => m[1]);
 
 const NOTE_CALL = /\bnote\(/g;
@@ -59,6 +62,7 @@ const ERROR_CODE = /error:\s*\{\s*code:\s*"([a-z][a-z-]*)"/g;
 const emitted = {
   element: new Set(literal(verify, NOTE_CODE)),
   file: new Set(literal(checkCli, ERROR_CODE)),
+  ledger: new Set(literal(ledger, NOTE_CODE)),
 };
 
 // Invariant 3 — every site the regexes below scan must carry a literal code.
@@ -72,6 +76,11 @@ check(
   "every check.js error object names a literal code",
   count(checkCli, ERROR_SITE) === count(checkCli, ERROR_CODE),
   `${count(checkCli, ERROR_CODE)} literal of ${count(checkCli, ERROR_SITE)} sites`,
+);
+check(
+  "every ledger.js note() names a literal code",
+  count(ledger, NOTE_CALL) === count(ledger, NOTE_CODE),
+  `${count(ledger, NOTE_CODE)} literal of ${count(ledger, NOTE_CALL)} call sites`,
 );
 
 const registry = read("skills/excalidraw-diagram/reference/problem-codes.md");
@@ -89,7 +98,11 @@ function rows(heading) {
   );
 }
 
-const SECTIONS = { element: "Element-level codes", file: "File-level codes" };
+const SECTIONS = {
+  element: "Element-level codes",
+  file: "File-level codes",
+  ledger: "Ledger codes",
+};
 
 for (const [level, heading] of Object.entries(SECTIONS)) {
   const listed = rows(heading);
@@ -157,6 +170,7 @@ check(
 console.log(
   fail.length
     ? `\n${fail.length} FAILED: ${fail.join(", ")}`
-    : `\nthe registry matches the gate — ${emitted.element.size} element-level and ${emitted.file.size} file-level codes`,
+    : `\nthe registry matches the gate — ${emitted.element.size} element-level, ${emitted.file.size} file-level ` +
+      `and ${emitted.ledger.size} ledger codes`,
 );
 process.exit(fail.length ? 1 : 0);

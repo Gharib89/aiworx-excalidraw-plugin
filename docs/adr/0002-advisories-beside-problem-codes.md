@@ -29,9 +29,14 @@ element-level problems, the file-level errors and the fidelity ledger.
    `ok` still means "no problems". A diagram with advisories passes.
 2. **Own array, same entry shape.** `check.js --json` gains `advisories: [...]` per
    file beside `problems`, each entry `{ code, message, elements, ...fields }` as
-   problems and ledger entries are. Every advisory carries the measured value
-   **and** the bound it was judged against (the `low-contrast` `ratio`/`needs`
-   pattern), so an agent revises against numbers without reading the registry. A
+   problems and ledger entries are. Every advisory that measures a **quantity**
+   carries the measured value **and** the bound it was judged against (the
+   `low-contrast` `ratio`/`needs` pattern), so an agent revises against numbers
+   without reading the registry. A **presence** finding — one that reports a
+   co-occurrence rather than a quantity, such as two arrows crossing or the `pass`
+   and `fail` roles on one canvas — has no number to carry: it names the elements
+   involved and invents neither a value nor a bound (amended by #193, whose first
+   two findings have this shape). A
    per-panel finding names the frame first in `elements`; a whole-picture finding
    has an empty `elements`. No new `frame` or `severity` field.
 3. **Human output on stdout**, after the stats line — `N advisories:` and one
@@ -96,3 +101,6 @@ element-level problems, the file-level errors and the fidelity ledger.
   the read-back prose as a taste question.
 - `CONTEXT.md` gains **Advisory**, **Rubric** and **House rule**; *tier* stays the
   rubric's word, and "advisory tier" retires.
+- Two finding shapes exist, so the registry table states which each code is; a
+  quantity finding is the default and a presence finding is the exception that has
+  to justify itself.

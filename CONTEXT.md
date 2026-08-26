@@ -21,6 +21,15 @@ _Avoid_: slide, section
 **Frame**:
 The containment and verification unit. Every frame renders to its own PNG; elements must sit inside exactly one frame in a framed diagram.
 
+**Container**:
+A shape whose outline encloses another shape's outline — a boundary drawn around what it groups (an account, a VPC, a cluster). Arrows crossing it do so by design, so a measurement that reads "an arrow passing near an unrelated shape" reads past it. A container is still a node: enclosure is what it does to the arrows over it, not a different kind of thing.
+_Avoid_: group, boundary box, backdrop (that is a plate)
+_Not_: a **frame**, which is the containment unit the export crops to.
+
+**Plate**:
+A shape with no visible stroke, sitting under text as backing. It carries no meaning of its own, so no measurement counts it as a node — sizes, hues and node uniformity read past it.
+_Avoid_: background, backdrop, mask
+
 ### Verification
 
 **Gate**:
@@ -47,7 +56,7 @@ _Avoid_: change log, audit trail, diff report
 A measurement the gate reports without refusing — how far the picture sits from
 a house rule (arrow–arrow crossings, aspect against the preset, clearance between
 arrows), never a taste judgment. Every advisory carries the number and the bound
-it was judged against, so an author revises against numbers rather than prose.
+it was judged against, so an author revises against numbers rather than prose; a finding that reports a co-occurrence rather than a quantity — two arrows crossing, `pass` and `fail` on one canvas — names the elements instead, and invents no number.
 Same entry shape and append-only code contract as a problem, its own namespace: a
 diagram with advisories still passes, and the exit code never reads them.
 Thresholds are house constants, retuned by a change rather than a knob. The same

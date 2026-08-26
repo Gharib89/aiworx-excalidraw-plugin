@@ -1,0 +1,26 @@
+{
+  "slug": "ingest-pipeline",
+  "plugin_version": "0.7.0",
+  "model": "claude-sonnet-5",
+  "cli_version": "2.1.246",
+  "date": "2026-08-26",
+  "cost_usd": 0.9150498000000001,
+  "turns": 22,
+  "duration_s": 323,
+  "exit": "success",
+  "gate_rounds": 2,
+  "refused_rounds": 0,
+  "denied_tool_calls": 0,
+  "scene_written": true,
+  "svg_rendered": true,
+  "final_gate": {
+    "ok": true,
+    "problems": [],
+    "stats": {
+      "elements": 62,
+      "frames": 1,
+      "texts": 37,
+      "outsideAll": 0
+    }
+  }
+}

@@ -11,3 +11,6 @@ node_modules/
 !dist/index.html
 !dist/fonts/**
 .DS_Store
+
+# bench runs commit the scene, SVG and metrics; the transcript is review output
+bench/**/transcript.jsonl

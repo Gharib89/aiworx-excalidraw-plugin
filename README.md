@@ -85,6 +85,7 @@ npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/ (bundle + loader page) from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect
 node tools/check.js a.excalidraw b.excalidraw --json   # many files at once; --json for hooks and CI
+node tools/check.js d.excalidraw --preset slide-16x9   # score the advisories against the surface it was authored for
 node tools/render.js d.excalidraw # writes d.svg + one PNG per frame, numbered in reading order
 node tools/revise.js d.excalidraw # round-trips a hand-edited file: metrics, bindings, gate, file + SVG, ledger
 node tools/library.js aws         # search the community icon libraries; --json for the machine-readable form
@@ -96,12 +97,24 @@ node tools/version-gate.js --base origin/main   # what CI asks: did plugin conte
 `check.js` takes any number of files: each is reported, and the exit code is the
 worst one seen — 2 if an input could not be read at all, 1 if any file failed the
 rules, 0 if every file is clean. `--json` replaces the human output with one
-document (`{ ok, files: [{ file, ok, error?, problems, stats }] }`) covering
-every file, for pre-commit hooks and CI aggregation; the exit codes are the same
-either way. Every problem code, with its `elements` order and per-code fields, is
-listed in `skills/excalidraw-diagram/reference/problem-codes.md` — the vocabulary
-is append-only and `tests/problem-codes.js` fails when a rule lands without
-publishing its code.
+document (`{ ok, files: [{ file, ok, error?, problems, advisories, stats }] }`)
+covering every file, for pre-commit hooks and CI aggregation; the exit codes are
+the same either way. Every problem code, with its `elements` order and per-code
+fields, is listed in `skills/excalidraw-diagram/reference/problem-codes.md` — the
+vocabulary is append-only and `tests/problem-codes.js` fails when a rule lands
+without publishing its code.
+
+Beside the problems, every file that reaches the rules carries its
+**advisories** (`tools/advise.js`): measurements against the house rules —
+arrow–arrow crossings, aspect against the preset, arrow clearance, bends, font
+floors, stroke weight, hue count, `pass`/`fail` by hue alone, panel width drift
+across a band — reported on stdout after the stats line and never refused over,
+so the exit code never reads them. Each carries the value it measured and the
+bound it was judged against. `--preset <name>` names the surface the diagram was
+authored for; nothing in a written scene records it, so without the flag the
+aspect and font-floor measurements stay silent. The same measurement scores the
+benchmark corpus: `tests/advisories-baseline.js` pins `check.js --json` over
+`bench/runs/<version>/` as a snapshot, so a retuned threshold shows as a diff.
 
 `revise.js` takes `--no-svg` to rewrite the `.excalidraw` alone. It exits 2 on a
 bad invocation and 1 on a document the pipeline refuses — unparseable, foreign,
@@ -180,8 +193,10 @@ surface's aspect ratio, centring the content. It never scales anything: the type
 size belongs to the preset the diagram was *authored* with (`preset:` on
 `authorDiagram`, which sets the font sizes before the text is measured, so the
 cards grow with it), and rescaling the finished export would undo exactly that.
-The names are shared by both — `fit` (the default, no target surface),
-`doc-inline`, `doc-wide`, `slide-16x9`, `social-og`.
+The names are shared by all three — `preset:` on `authorDiagram`, `render.js
+--preset`, and `check.js --preset`, which scores the advisories against the
+surface — `fit` (the default, no target surface), `doc-inline`, `doc-wide`,
+`slide-16x9`, `social-og`.
 
 [`examples/example-dark.svg`](examples/example-dark.svg) is the committed `--dark`
 render of the example band.

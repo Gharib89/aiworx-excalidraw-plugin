@@ -11,6 +11,7 @@
   "gate_rounds": 14,
   "refused_rounds": 8,
   "denied_tool_calls": 0,
+  "read_back_dispatched": 0,
   "scene_written": true,
   "svg_rendered": true,
   "final_gate": {

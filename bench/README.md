@@ -13,7 +13,7 @@ bench/
   runs/<plugin-version>/<slug>/
       <slug>.excalidraw         # committed
       <slug>.svg                # committed
-      metrics.json              # committed — model, CLI version, date, cost, turns, gate rounds, refusals by code
+      metrics.json              # committed — model, CLI version, date, cost, turns, gate rounds, refusals by code, read-backs dispatched
       transcript.jsonl          # git-ignored
 ```
 

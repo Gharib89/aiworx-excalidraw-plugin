@@ -195,6 +195,10 @@ _Avoid_: default palette, base palette
 A project's own strokes-only palette file, `.excalidraw-brand.json`, discovered by walking up from the working directory. The full palette is derived from it in memory on every read — fills by the house OKLCH rule, grey neutralized — and verified against the same contrast claims; a file that fails refuses the run (`invalid-brand-override`), never falls back silently. `{ "defaults": "accepted" }` records the explicit decision to keep the house palette.
 _Avoid_: custom palette, theme override
 
+**Brand onboarding**:
+The once-per-project exchange that produces a brand override: the skill's first step finds no `.excalidraw-brand.json`, asks the user whether to adopt a brand, mines colors from the source they name, maps them onto the six roles hue-nearest with red/green/blue pinned by convention, and validates the written file with `tools/palette.js`. The agent is the extraction engine; the contrast rules are the arbiter. The file's existence ends the ask — a declined onboarding writes `{ "defaults": "accepted" }`.
+_Avoid_: brand setup, palette wizard, first-run prompt
+
 ### Rendering session
 
 **Warm / re-warm**:

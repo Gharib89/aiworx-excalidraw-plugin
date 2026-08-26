@@ -160,6 +160,13 @@ same contrast claims on every read; an override that fails them refuses the run
 `node tools/palette.js <file>` preflights a candidate override. Fonts stay the
 house pair — they sit under bundle discipline.
 
+Nothing adopts a brand silently either way: the skill's first step checks for the
+file and, when a project has none, asks once whether to onboard a brand (from a
+URL, from local token files, or from pasted hexes) or keep the house colours.
+Either answer writes `.excalidraw-brand.json` — the declined one as
+`{ "defaults": "accepted" }` — so the file's existence is the whole record and
+the question is asked once per project, not once per session.
+
 Dark exports are gated, not assumed. Excalidraw's dark theme is one CSS filter
 chain on the root `<svg>` — `invert(93%) hue-rotate(180deg)` — so every dark
 colour is a pure function of its light one. `tools/palette.js` therefore runs

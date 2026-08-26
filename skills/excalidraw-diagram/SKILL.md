@@ -17,6 +17,37 @@ Two kinds of work, and naming which one you are doing decides everything after:
   frames each explaining one idea. A generator script is the source of truth and
   the `.excalidraw` is its build artifact.
 
+## Step 0 — adopt the project's palette
+
+Once per project, ahead of its first diagram: walk up from the working directory
+looking for `.excalidraw-brand.json`.
+
+**A file exists** — a brand's strokes, or a recorded
+`{ "defaults": "accepted" }` — so the palette question is already settled for
+this project. Go to step 1.
+
+**No file** — ask the user once, and act on the answer:
+
+| the user offers | where the colours come from |
+|---|---|
+| a URL — "match our website" | fetch the page and mine its colours |
+| local token files — "they're in `src/tokens.css`" | read the files they name and mine those |
+| pasted hex values | the paste itself |
+| "the house colours are fine" | nowhere — write `{ "defaults": "accepted" }` and go to step 1 |
+
+For the first three, map the mined colours onto the roles, confirm the mapping
+with the user, then write the file. Every path ends in a
+`.excalidraw-brand.json`, the declined one included, so the file's existence is
+the whole record of the answer.
+
+[reference/palette.md](reference/palette.md)'s **Brand onboarding** carries the
+procedure: what to mine, how brand colours land on the six roles, the diff table
+to confirm, and the validate-and-iterate loop that decides whether the mapping
+holds.
+
+Done when the walk-up finds a `.excalidraw-brand.json` and
+`node "${CLAUDE_PLUGIN_ROOT}/tools/palette.js" <that file>` exits 0.
+
 ## Step 1 — name the kind, list the panels
 
 Say which kind this is. For a **band**, write the panel list first: one line per

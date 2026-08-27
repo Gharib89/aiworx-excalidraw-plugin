@@ -4,10 +4,11 @@ The gate's complete vocabulary, plus the fidelity ledger that shares its
 conventions. Machine handling keys on `code` — the `message` prose carries no
 contract and may be reworded at any time.
 
-Three code namespaces, each with its own table below: **element-level** and
-**file-level** codes are defects the gate refuses a document over, and **ledger**
-codes are repairs `revise.js` made and is telling you about. A ledger code never
-means failure.
+Four code namespaces, each with its own table below: **element-level** and
+**file-level** codes are defects the gate refuses a document over, **ledger**
+codes are repairs `revise.js` made and is telling you about, and **advisory**
+codes are measurements against the house rules that `check.js` reports without
+refusing. A ledger code or an advisory never means failure.
 
 The set is **append-only**: a code is added, never renamed or repurposed. A code
 that has to change ships as a new code alongside the old one. The old code is
@@ -30,6 +31,7 @@ Two documents share one entry shape: `check.js --json` reports defects,
     "file": "diagram.excalidraw",
     "ok": false,
     "problems": [ /* problem objects, below */ ],
+    "advisories": [ /* advisory objects, same shape */ ],
     "stats": { "elements": 42, "frames": 3, "texts": 12, "outsideAll": 1 },
     "error": { "code": "invalid-json", "message": "…" }  // instead of problems
   }]
@@ -37,6 +39,8 @@ Two documents share one entry shape: `check.js --json` reports defects,
 ```
 
 - `problems` — one object per defect. Empty when the file passed.
+- `advisories` — one object per measurement against a house rule. Never moves
+  `ok` or the exit code; empty when the file never reached the rules.
 - `stats` — counts for the file, or `null` when it never reached the rules.
   `outsideAll` counts elements that belong to no frame **and** touch no frame.
   That is legal (titles, legends and captions sit outside the band); the count is
@@ -58,8 +62,8 @@ actually rewrote the file — a refusal prints the error on stderr and nothing h
 }
 ```
 
-Every problem **and** ledger object carries the same three fields, plus the
-per-code fields in the tables:
+Every problem, ledger **and** advisory object carries the same three fields,
+plus the per-code fields in the tables:
 
 | field | type | meaning |
 |---|---|---|
@@ -197,6 +201,50 @@ Two of these are genuinely lossy and worth reading closely:
 `image-payload-dropped` throws bytes away, and `element-dropped` ends a
 tombstone's chance of coming back. The rest restore what the pipeline
 guarantees.
+
+## Advisory codes
+
+Emitted by `adviseDocument` (`tools/advise.js`) and reported by `check.js` for
+every file that reaches the rules — a refused file gets its advisories too. An
+advisory is a **measurement against a house rule**, never a refusal: `ok` and
+the exit code ignore it, so a diagram with advisories passes. Nothing silences
+one; the cost of a deliberate advisory is a line you have already dispositioned.
+They print on stdout after the stats line, and the clean line counts them.
+
+Two shapes. A **quantity** finding carries the value it measured and the bound
+it missed as `needs`, so a revision works from numbers. A **presence** finding
+reports a co-occurrence — two arrows crossing, `pass` beside `fail` — and names
+the elements instead of inventing a number.
+
+**The frame is the picture.** Where a file holds frames, `aspect-off-preset`,
+`too-many-hues` and `hue-only-pass-fail` are measured per frame, name the frame
+first in `elements`, and the file's own row shape is never judged — a band's
+aspect is an artifact of panel count, not a design choice. On an unframed file
+the picture is everything and `elements` is empty. Elements clear of every frame
+are scored with no picture.
+
+Two structural facts are read past where the table says so. A **container** is a
+shape whose outline encloses another shape's — a boundary drawn around what it
+groups, which arrows cross by design. A **plate** is a shape with a transparent
+stroke sitting under a text — backing, not a node.
+
+`--preset <name>` names the surface the diagram was authored for; nothing in a
+written file records it, so without the flag `aspect-off-preset` and
+`font-below-floor` stay silent. Thresholds are constants exported by
+`tools/advise.js`, quoted in the rows below and held equal by the repo's test
+suite; a retune is one diff to both.
+
+| code | status | shape | `elements` | extra fields | reports when |
+|---|---|---|---|---|---|
+| `arrows-cross` | live | presence | [arrow, arrow] | `angle` | two arrows' polylines cross properly and the arrows share no bound endpoint — every crossing, whatever its angle; `angle` (degrees) is carried, not judged |
+| `aspect-off-preset` | live | quantity | (empty), or [frame] | `aspect`, `needs`, `preset` | the picture's width ÷ height is outside 0.75–1.33× the preset surface's aspect; `needs` is the surface's aspect. Silent without `--preset` and under `fit`, which names no surface |
+| `arrow-crowding` | live | quantity | [arrow, element] | `clearance`, `needs` | an arrow bound at both ends passes within 10px of a shape, a text or another arrow's label it is not bound to. It reads past its own label, its targets' labels, containers and their bound titles, and plates — the text a plate backs is content and is still measured; an arrow lacking a binding is skipped — "unrelated" is undecidable without one |
+| `too-many-bends` | live | quantity | [arrow] | `bends`, `needs` | more than 2 direction changes on one arrow — a heading change over 10°, so a router's sub-degree jog is not a bend |
+| `font-below-floor` | live | quantity | [text] | `size`, `needs`, `preset` | a text's `fontSize` is under the surface's floor — 13px `doc-inline`, 16px `doc-wide`, 24px `social-og`, 30px `slide-16x9`; `fit` has no floor. Silent without `--preset` |
+| `flat-stroke-weight` | live | presence | [arrow, shape] | `arrowWidth`, `shapeWidth` | an arrow's `strokeWidth` is not under that of a shape it binds — both widths are carried and there is no `needs`, because the bound is the shape's own width — once per arrow, naming the first such shape. The baseline corpus is uniformly flat, so every scene in it with bound arrows scores this; that is the honest reading, not noise |
+| `hue-only-pass-fail` | live | presence | the carriers — frame first on a panel, pass before fail | — | elements carrying the `pass` role and elements carrying the `fail` role (stroke or fill) both appear on one picture, told apart by hue alone |
+| `too-many-hues` | live | quantity | (empty), or [frame] | `hues`, `needs` | one picture uses more than 4 non-grey hue families. A family is a hue angle in HSL, not a hex — a role's stroke and its fill are one; a colour whose chroma is under 0.05 is grey and counts for nothing; plates are read past. Scores nothing on the baseline corpus and rides as a regression guard |
+| `panel-width-drift` | live | quantity | [frame, frame] — widest, narrowest | `drift`, `needs` | a framed file's widest ÷ narrowest frame width above 1.25×: per-frame export frames without scaling, so one label size projects at two sizes across the band |
 
 ## Invocation
 

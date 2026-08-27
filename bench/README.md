@@ -1,6 +1,6 @@
 # Benchmark corpus
 
-**Frozen.** Once a baseline run exists for a brief, its `prompt.md` is never edited — a needed change is a new slug, and the old one is retired with a note here. Editing a brief in place silently invalidates every earlier run.
+**Frozen.** Once a baseline run exists for a brief, its `prompt.md` body is never edited — a needed change is a new slug, and the old one is retired with a note here. Editing a brief in place silently invalidates every earlier run. The frontmatter is harness configuration (model, turns, tools, the brief's `preset`) and may move.
 
 This directory holds the **benchmark corpus** (see `CONTEXT.md` › Benchmark): the fixed set of **briefs** every change to the skill or tools is judged on, before against after. It is not a plugin surface and not part of CI — a **bench run** is manual, local, needs an API key, Chrome, and roughly $10–20.
 
@@ -8,14 +8,17 @@ This directory holds the **benchmark corpus** (see `CONTEXT.md` › Benchmark): 
 
 ```
 bench/
-  <slug>/prompt.md              # the brief, as a claude plugin eval case (frontmatter pins model, runs, max_turns)
+  <slug>/prompt.md              # the brief, as a claude plugin eval case (frontmatter pins model, runs, max_turns, preset)
   run.sh                        # renders one brief or the whole corpus into runs/<version>/
   runs/<plugin-version>/<slug>/
       <slug>.excalidraw         # committed
       <slug>.svg                # committed
       metrics.json              # committed — model, CLI version, date, cost, turns, gate rounds, refusals by code, read-backs dispatched
       transcript.jsonl          # git-ignored
+  runs/<plugin-version>/advisories.json   # committed — the corpus score: check.js --json --preset over every scene, messages dropped
 ```
+
+`advisories.json` is the **advisory score** (ADR-0002 §7): the same measurement the author sees, pinned by `tests/advisories-baseline.js` in `test:fast`. A changed measurement or a retuned threshold fails that test and is re-pinned with `node tests/advisories-baseline.js --update` — the diff is the review.
 
 No PNGs are committed — `node tools/render.js --out <dir> bench/runs/<version>/<slug>/<slug>.excalidraw` reproduces every frame from the scene; scorers re-render locally.
 

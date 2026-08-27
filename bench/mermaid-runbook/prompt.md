@@ -4,6 +4,7 @@ runs: 1
 max_turns: 150
 timeout_seconds: 2700
 allowed_tools: ["Bash(node:*)", "Bash(mkdir:*)", "Read", "Write", "Edit", "Glob", "Grep", "Skill", "Task"]
+preset: doc-inline
 ---
 We have this flowchart in our incident-response runbook as Mermaid and it renders badly. Redraw it as a proper diagram for the docs page (doc-inline), same content:
 ```mermaid

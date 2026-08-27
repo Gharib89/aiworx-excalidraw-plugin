@@ -1,0 +1,153 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "tests/fixtures",
+  "appState": {
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {},
+  "elements": [
+    {
+      "id": "a",
+      "type": "rectangle",
+      "x": 0,
+      "y": 0,
+      "width": 100,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#ffffff",
+      "strokeWidth": 2,
+      "fillStyle": "solid",
+      "opacity": 100
+    },
+    {
+      "id": "b",
+      "type": "rectangle",
+      "x": 900,
+      "y": 0,
+      "width": 100,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#ffffff",
+      "strokeWidth": 2,
+      "fillStyle": "solid",
+      "opacity": 100
+    },
+    {
+      "id": "c",
+      "type": "rectangle",
+      "x": 450,
+      "y": 200,
+      "width": 100,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#ffffff",
+      "strokeWidth": 2,
+      "fillStyle": "solid",
+      "opacity": 100
+    },
+    {
+      "id": "d",
+      "type": "rectangle",
+      "x": 450,
+      "y": -200,
+      "width": 100,
+      "height": 100,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "#ffffff",
+      "strokeWidth": 2,
+      "fillStyle": "solid",
+      "opacity": 100
+    },
+    {
+      "id": "ab",
+      "type": "arrow",
+      "x": 100,
+      "y": 50,
+      "width": 0,
+      "height": 0,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "strokeWidth": 1,
+      "fillStyle": "solid",
+      "opacity": 100,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          800,
+          0
+        ]
+      ],
+      "startBinding": {
+        "elementId": "a",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "b",
+        "focus": 0,
+        "gap": 1
+      }
+    },
+    {
+      "id": "dc",
+      "type": "arrow",
+      "x": 500,
+      "y": -100,
+      "width": 0,
+      "height": 0,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "strokeWidth": 1,
+      "fillStyle": "solid",
+      "opacity": 100,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          300
+        ]
+      ],
+      "startBinding": {
+        "elementId": "d",
+        "focus": 0,
+        "gap": 1
+      },
+      "endBinding": {
+        "elementId": "c",
+        "focus": 0,
+        "gap": 1
+      }
+    },
+    {
+      "id": "t",
+      "type": "text",
+      "x": 20,
+      "y": 40,
+      "width": 60,
+      "height": 18,
+      "angle": 0,
+      "strokeColor": "#000000",
+      "backgroundColor": "transparent",
+      "strokeWidth": 2,
+      "fillStyle": "solid",
+      "opacity": 100,
+      "text": "small",
+      "fontSize": 14,
+      "fontFamily": 6,
+      "containerId": "a"
+    }
+  ]
+}

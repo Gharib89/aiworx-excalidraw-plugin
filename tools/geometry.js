@@ -273,8 +273,13 @@ function pointInPolygon([px, py], poly) {
   return inside;
 }
 
-/** Whether segments p→q and a→b cross properly (touching at an endpoint isn't a cross, but the point-distance below is 0 either way). */
-function segmentsCross([px, py], [qx, qy], [ax, ay], [bx, by]) {
+/**
+ * Whether segments p→q and a→b cross properly — each segment has the other's
+ * endpoints on opposite sides. Touching at an endpoint isn't a cross (the
+ * point-distance below is 0 either way). Exported for the `arrows-cross`
+ * advisory, which counts exactly these.
+ */
+export function segmentsCross([px, py], [qx, qy], [ax, ay], [bx, by]) {
   const cross = (ox, oy, ux, uy, vx, vy) => (ux - ox) * (vy - oy) - (uy - oy) * (vx - ox);
   const d1 = cross(ax, ay, bx, by, px, py);
   const d2 = cross(ax, ay, bx, by, qx, qy);

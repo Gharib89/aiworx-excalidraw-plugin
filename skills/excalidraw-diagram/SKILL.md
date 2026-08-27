@@ -117,6 +117,7 @@ traces to a measurement or an explicit constant — with no character-width fact
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" path/to/diagram.excalidraw
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw b.excalidraw   # batch: worst exit code wins
 node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --json         # one machine-readable report
+node "${CLAUDE_PLUGIN_ROOT}/tools/check.js" a.excalidraw --preset slide-16x9   # the surface step 3 authored for
 ```
 
 The gate refuses per problem, never per taste. Its rules cover file integrity,
@@ -128,11 +129,25 @@ and the argument and exit-code conventions the CLIs share. Codes are
 append-only, so machine handling keys on `code` and the `message` prose carries
 no contract.
 
+Beside the problems, the same run prints the **advisories** — how far the
+picture sits from a house rule, measured and never refused over: arrows
+crossing, the picture off its surface's aspect, an arrow crowding something it
+is not bound to, an arrow with too many bends, text under the surface's floor,
+arrows as heavy as the shapes they join, `pass` and `fail` told apart by hue
+alone, too many hues, panel widths drifting across a band. They follow the
+stats line on stdout, and sit in `--json` as `advisories` beside `problems`,
+each with the number it measured and the bound it missed. Pass `--preset` with
+the surface step 3 authored for: the file does not record it, and without it
+the aspect and font-floor measurements stay silent. The advisory table in
+[reference/problem-codes.md](reference/problem-codes.md#advisory-codes) is the
+vocabulary, thresholds included.
+
 `authorDiagram` and `reviseDiagram` already run these rules in-process and
 refuse to write a failing file, so a generator's output arrives pre-gated; the
 CLI is for files that got here another way, and as the proof after hand edits.
 
-Done when it exits 0.
+Done when it exits 0 and every advisory is either fixed or named as a
+deliberate choice.
 
 ## Step 5 — look at every frame
 
@@ -168,18 +183,20 @@ defects there are legal geometry the gate cannot see.
 
 You have been staring at the coordinates, so you will see what you meant, not
 what renders. **Four or more frames: dispatch a fresh subagent for the
-read-back** — hand it the PNGs and the step 1 panel list: *"For each frame, name
-the claim you read from the picture alone, then list mechanical defects —
-overlap, clipping, crowding, arrows missing their target."* For three frames or
-fewer, your own pass above is the read-back.
+read-back** — hand it the PNGs, the step 1 panel list and step 4's advisory
+list: *"For each frame, name the claim you read from the picture alone, then
+list mechanical defects — overlap, clipping, crowding, arrows missing their
+target — and confirm or dismiss each advisory from the picture."* For three
+frames or fewer, your own pass above is the read-back.
 
 A frame whose read-back claim differs from the panel list has failed the
 isomorphism test — send it back to step 2, where the pattern is chosen, rather
 than nudging its geometry here.
 
-Done when every frame has been viewed, each defect found is either fixed or
-named as a deliberate choice, any fix has re-passed the step 4 gate, and, at
-four or more frames, a fresh subagent has read every frame back.
+Done when every frame has been viewed, each defect found and each advisory the
+read-back confirmed is either fixed or named as a deliberate choice, any fix has
+re-passed the step 4 gate, and, at four or more frames, a fresh subagent has
+read every frame back.
 
 ## Step 6 — ship the right files
 

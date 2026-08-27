@@ -1,6 +1,6 @@
 {
   "name": "aiworx-excalidraw-plugin",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "private": true,
   "description": "Claude Code plugin: author Excalidraw diagrams with real text metrics and headless visual verification",
   "license": "MIT",
@@ -13,7 +13,7 @@
     "setup": "npm install --omit=dev",
     "dev": "npm install && npm run bundle",
     "smoke": "node tools/smoke.js",
-    "test:fast": "node tests/test-targets.js && node tests/error-classes.js && node tests/error-messages.js && node tests/document.js && node tests/geometry.js && node tests/verify.js && node tests/layout.js && node tests/wrap.js && node tests/splice.js && node tests/library.js && node tests/gate.js && node tests/brand.js && node tests/problem-codes.js && node tests/ledger.js && node tests/palette-doc.js && node tests/presets-doc.js && node tests/build-context.js && node tests/dark.js && node tests/vendored-fonts.js && node tests/fingerprint.js && node tests/plugin-version.js && node tests/cli-flags.js && node tests/parse-flags.js && node tests/drawn-commands.js && node tools/palette.js",
+    "test:fast": "node tests/test-targets.js && node tests/error-classes.js && node tests/error-messages.js && node tests/document.js && node tests/geometry.js && node tests/verify.js && node tests/advisories.js && node tests/advisories-baseline.js && node tests/layout.js && node tests/wrap.js && node tests/splice.js && node tests/library.js && node tests/gate.js && node tests/brand.js && node tests/problem-codes.js && node tests/ledger.js && node tests/palette-doc.js && node tests/presets-doc.js && node tests/build-context.js && node tests/dark.js && node tests/vendored-fonts.js && node tests/fingerprint.js && node tests/plugin-version.js && node tests/cli-flags.js && node tests/parse-flags.js && node tests/drawn-commands.js && node tools/palette.js",
     "test:browser": "node tests/chromeless.js && node tests/pipeline-errors.js && node tests/font-warm.js && node tests/render-cli.js && node tests/revise-cli.js && node tests/author-api.js && node tests/converter-contract.js && node tests/mermaid.js && node tests/assets.js && node tests/example-paths.js && npm run smoke",
     "test": "npm run test:fast && npm run test:browser"
   },

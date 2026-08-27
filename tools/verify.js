@@ -18,8 +18,9 @@ let brandPalette;
 const getBrandPalette = () => (brandPalette ??= loadBrandPalette());
 
 const LINEAR = new Set(["arrow", "line", "freedraw"]);
-// shapes with area: what an arrow can cross, what a text can sit on
-const SOLID = new Set(["rectangle", "ellipse", "diamond", "image"]);
+// shapes with area: what an arrow can cross, what a text can sit on — exported
+// so the advisories (tools/advise.js) measure the same set instead of a copy
+export const SOLID = new Set(["rectangle", "ellipse", "diamond", "image"]);
 // only what this toolchain authors and renders — anything else is a typo or an import artefact
 export const KNOWN = new Set([...LINEAR, ...SOLID, "text", "frame"]);
 
@@ -547,7 +548,8 @@ function boundTextFit(c) {
   return { width: w - BOUND_TEXT_PADDING * 2, height: h - BOUND_TEXT_PADDING * 2 };
 }
 
-function preview(s) {
+/** The first line of a text, capped, as every message quotes it. */
+export function preview(s) {
   return String(s ?? "").split("\n")[0].slice(0, 40);
 }
 function round(n) {

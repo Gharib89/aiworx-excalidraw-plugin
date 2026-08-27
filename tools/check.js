@@ -5,29 +5,44 @@
  * loader's file-level refusals (tools/document.js) to its code contract and
  * adds the output.
  *
- * Usage: node tools/check.js [--json] [--] diagram.excalidraw [more.excalidraw ...]
+ * Usage: node tools/check.js [--json] [--preset <name>] [--] diagram.excalidraw [more.excalidraw ...]
  *
  * Every file is checked and reported; the exit code is the worst one seen, so a
  * clean run of many files still exits 0 and one bad file still fails the batch.
  * `--json` prints one document covering every file instead, for pre-commit hooks
  * and CI aggregation — the exit codes are the same either way.
  *
+ * Beside the problems, every file that reaches the rules gets its advisories
+ * (tools/advise.js): measurements against the house rules that are reported
+ * and never refused over. They print on stdout after the stats line, because
+ * they are not failures, and never move the exit code. `--preset <name>` names
+ * the surface the diagram was authored for; without it the two surface-relative
+ * measurements stay silent, since a written scene does not record its preset.
+ *
  * Contrast is scored against both themes on every run — each low-contrast
  * problem carries the theme it failed under. Render tools keep their dark
  * flags; that is output selection, not verification.
  */
+import { adviseDocument } from "./advise.js";
 import { CHECK_FLAGS, parseFlags } from "./cli-flags.js";
 import { readExcalidrawDocument } from "./document.js";
 import { BrandOverrideError, DocumentError, UsageError } from "./errors.js";
+import { PRESETS, PRESET_NAMES } from "./presets.js";
 import { verifyDocument } from "./verify.js";
 
-const USAGE = "usage: check.js [--json] [--] <file.excalidraw> [more.excalidraw ...]";
+const USAGE = "usage: check.js [--json] [--preset <name>] [--] <file.excalidraw> [more.excalidraw ...]";
 
-let inputs, json;
+let inputs, json, preset;
 try {
   const parsed = parseFlags(process.argv.slice(2), { ...CHECK_FLAGS, usage: USAGE });
   inputs = parsed.positionals;
   json = Boolean(parsed.flags.json);
+  preset = parsed.flags.preset;
+  if (preset !== undefined && !Object.hasOwn(PRESETS, preset)) {
+    throw new UsageError(`must name an output preset, got "${preset}"`, {
+      where: "--preset", next: `Use one of: ${PRESET_NAMES.join(", ")}.`,
+    });
+  }
   if (inputs.length === 0) throw new UsageError("no input file given", { where: "input", next: USAGE });
 } catch (err) {
   if (!(err instanceof UsageError)) throw err;
@@ -83,10 +98,21 @@ function inspect(file) {
     return { file, ok: false, code: 1, error: { code: "check-crashed", message: `cannot be checked — ${err.name}: ${err.message}` } };
   }
   const { problems, stats } = result;
-  return { file, ok: problems.length === 0, code: problems.length ? 1 : 0, problems, stats };
+  // An advisory never moves the exit code (ADR-0002 §1) — so neither may a bug
+  // in measuring one: a throw here costs the file its advisories, said out loud,
+  // and nothing else.
+  let advisories = [];
+  try {
+    advisories = adviseDocument(data, { preset });
+  } catch (err) {
+    console.error(`${file}: advisories unavailable — ${err.name}: ${err.message}`);
+  }
+  return { file, ok: problems.length === 0, code: problems.length ? 1 : 0, problems, stats, advisories };
 }
 
-/** One file's human report: summary on stdout, defects on stderr. */
+const advisoryCount = (n) => `${n} advisor${n === 1 ? "y" : "ies"}`;
+
+/** One file's human report: summary and advisories on stdout, defects on stderr. */
 function report(r) {
   if (r.error) {
     console.error(`${r.file}: ${r.error.message}`);
@@ -97,28 +123,37 @@ function report(r) {
       `${r.stats.texts} text` +
       (r.stats.outsideAll ? `, ${r.stats.outsideAll} outside every frame` : ""),
   );
+  // advisories are not failures: stdout, and before the verdict either way, so
+  // one run shows everything there is to fix
+  if (r.advisories.length) {
+    console.log(`\n${advisoryCount(r.advisories.length)}:`);
+    r.advisories.forEach((a) => console.log("  " + a.message));
+  }
   if (r.problems.length) {
     console.error(`\n${r.problems.length} problem(s):`);
     r.problems.forEach((p) => console.error("  " + p.message));
     return;
   }
-  console.log("clean — no mechanical defects");
+  // the count rides on the clean line so a scrolled-past list leaves a trace
+  console.log("clean — no mechanical defects" + (r.advisories.length ? `, ${advisoryCount(r.advisories.length)}` : ""));
 }
 
 const results = inputs.map(inspect);
 
 if (json) {
   // one document, whatever the file count: a consumer parses the same shape for
-  // one file as for fifty. stats is null for a file that never reached the rules.
+  // one file as for fifty. stats is null and both lists are empty for a file
+  // that never reached the rules.
   console.log(
     JSON.stringify(
       {
         ok: results.every((r) => r.ok),
-        files: results.map(({ file, ok, error, problems = [], stats = null }) => ({
+        files: results.map(({ file, ok, error, problems = [], advisories = [], stats = null }) => ({
           file,
           ok,
           ...(error ? { error } : {}),
           problems,
+          advisories,
           stats,
         })),
       },

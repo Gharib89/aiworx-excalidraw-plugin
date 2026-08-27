@@ -542,10 +542,12 @@ return [g, ...arrows];                     // g places like any group; spread th
     told the labels exist: `graph` takes nodes already measured but a label as
     text. So a labelled fan can still put one arrow through a neighbour's label.
     Give that leg its own `originAt` / `landAt`, or label only one direction.
-  - **A fraction takes the whole path back.** An `originAt` / `landAt` (or a
-    `via`) revokes that edge's engine route and leaves it the straight run,
-    because the corridor was cut for the engine's ports. So a fraction is picked
-    against a straight line, exactly as before `graph` had routes. Both fractions
+  - **A fraction takes the whole path back.** An `originAt` / `landAt` revokes
+    that edge's engine route and leaves it the straight run, because the corridor
+    was cut for the engine's ports. So a fraction is picked against a straight
+    line, exactly as before `graph` had routes. (A `via` revokes the route too,
+    but keeps its own waypoints — the straight run is what a revocation with no
+    waypoints behind it falls to.) Both fractions
     run along whichever edge **faces** the other node, so the gap they open is a
     fraction of *that* edge's length — and which edge faces turns with
     `direction`. Re-pick them per layout: numbers that clear a label along the

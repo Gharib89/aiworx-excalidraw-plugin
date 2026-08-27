@@ -16,10 +16,11 @@
  * The machine is drawn honestly, cycles included. `agent-working` hands back to
  * `needs-triage`, and `needs-triage` ↔ `needs-info` is a two-way pair — see the
  * note above `transitions` for which legs the triage-labels doc states and which
- * are read off it — the shape that piles both arrows onto one line and strikes
- * the forward leg's label. The legs around that pair still carry `originAt` /
- * `landAt`, and the reason is worth reading: ELK spaced its ports for the
- * *arrows*, never having been told the labels exist.
+ * are read off it. The engine gives the pair its own two ports, so the arrows
+ * never share a line; what it cannot do is keep the forward leg off a
+ * neighbour's *label*, because ELK spaced those ports for the arrows and was
+ * never told the labels exist. That, and nothing else, is what the `originAt` /
+ * `landAt` on the legs around the pair are for.
  *
  * One thing the pictures show that no option controls: the engine breaks the
  * cycle by reversing an edge, so `ready-for-agent` lands in the top layer even
@@ -136,9 +137,10 @@ const LAYOUTS = [
     frame: 'direction "down" — the triage state machine, cycles and all',
     note: "Every unoffset edge follows the corridor the engine left when it placed the nodes — "
       + "read back, not redrawn, so no edge here is hand-routed. needs-triage and needs-info "
-      + "point at each other, and left alone both legs run down one line; originAt / landAt "
-      + "move the return leg onto the outside of the fan, the one thing the engine cannot do "
-      + "for itself because nobody told it the labels are there. ready-for-agent sits on top "
+      + "point at each other, and the engine already gives that pair two ports of its own; "
+      + "originAt / landAt only move the neighbouring legs clear of its labels, the one thing "
+      + "the engine cannot do for itself because nobody told it the labels are there. "
+      + "ready-for-agent sits on top "
       + "because the engine reversed an edge to break the cycle: read the arrowheads, not the "
       + "layers.",
   },

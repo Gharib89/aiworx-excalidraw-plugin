@@ -57,8 +57,9 @@ The house still **owns** the edges; ELK **routes** them.
    measured against the group. A node moved or resized on its own invalidates it,
    whether it is an endpoint or the bystander the corridor went around. Bends
    aimed at where a node used to be are the exact refusal this change removes.
-   An edge ELK returns no single readable section for takes the same answer one
-   pass earlier, at `graph()` rather than at resolve: `route` becomes `"direct"`,
+   An edge whose sections ELK returns as anything other than one readable
+   section takes that answer a pass earlier, at `graph()` rather than at
+   resolve: `route` becomes `"direct"`,
    so a future elkjs that splits a section across containers degrades to the
    pre-#200 drawing instead of refusing a call that used to work.
 5. **The author placing an endpoint revokes the route.** An `originAt`/`landAt`,

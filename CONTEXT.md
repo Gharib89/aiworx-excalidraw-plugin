@@ -109,7 +109,8 @@ band-level `row` that spreads the panels, not the panel's own stacks. Layout
 groups place by mutating their children, so anything holding coordinates it wrote
 for itself — `via` waypoints, a frame sized by hand — belongs after its shapes'
 last mover. A deferred arrow and a frame listing `children` are settled later
-still, so their creation order is free.
+still, so their creation order is free; an **engine route** is held relative to
+its graph group and settles with them, so it too is free of this rule.
 _Avoid_: final placement, outer row
 
 **Deferred arrow**:
@@ -185,6 +186,15 @@ between the two shapes it connects and turns inside it, so it crosses neither �
 but it avoids nothing else. Upstream's `elbowed` element flag is a different
 thing and stays inert.
 _Avoid_: elbow arrow, right-angle connector
+
+**Engine route**:
+The path `graph` reads back off the layout engine and gives an edge: the bends and
+the two ports ELK left when it placed the nodes. Held relative to the graph group,
+so a later mover carries it, and settled with the deferred arrow — as against
+**via**, whose waypoints are the author's own absolute coordinates. It goes around
+the nodes the engine placed, which no other route can. Placing an endpoint by hand
+revokes it, and so does moving a node out from under it.
+_Avoid_: ELK route, auto-route, computed waypoints
 
 ### Style
 

@@ -21,7 +21,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
-| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge | [Laying out a graph](#laying-out-a-graph) |
+| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
 | `fromMermaid` | `await fromMermaid(source)` | `{ nodes, edges }` built from a mermaid flowchart, in the shape `graph` takes | [Ingesting mermaid](#ingesting-mermaid) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
@@ -332,7 +332,10 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   as `via: [[x, y], …]` waypoints and keeps its corners with `roundness: null`
   set for you — those coordinates are **absolute** and yours, the one part the
   resolve pass takes as given, so write them after the last mover or recompute
-  them from the shapes' final positions.
+  them from the shapes' final positions. An **engine route** is the opposite
+  bargain and needs no such care: `graph` holds it relative to its own group.
+  Routing around a shape is what it is for, so reach for `graph` before reaching
+  for `via` — see [Laying out a graph](#laying-out-a-graph).
 - `originAt` / `landAt` name where an arrow leaves and lands as a fraction of the
   **facing edge** — the cross-axis edge of that shape the arrow departs from or
   arrives at. `0` is the edge's low-coordinate end (its top when the edge runs
@@ -388,9 +391,16 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   The elbow always turns inside the gap, so it cannot cross either shape it
   connects. It does **not** avoid anything *else*: a third shape parked in that
   gap is still crossed, exactly as a direct arrow would cross it, and the gate's
-  `arrow-crossing` still refuses it — move the shape or write the path with
-  `via`. `route` and `via` together are a `LayoutError`, and `"orthogonal"` is
-  the only route there is.
+  `arrow-crossing` still refuses it — move the shape, or lay the picture out with
+  `graph`, whose routes go around what the engine placed.
+- `route` names three paths, and `route` with `via` is a `LayoutError` either way:
+  - `"direct"` — the straight run between the two standoff endpoints. What an
+    arrow does when you say nothing, sayable out loud where the choice matters.
+  - `"orthogonal"` — the single mid-gap jog above.
+  - `"engine"` — the layout engine's own path, and `graph`'s default. It comes
+    from the engine that placed the nodes, so it is the one route that goes
+    *around* them; see [Laying out a graph](#laying-out-a-graph). A
+    hand-composed `arrowBetween` has no engine behind it and refuses the value.
 - `arrowBetween` anchors on the same rotation-aware bounds the gate uses, so an
   arrow to a shape carrying an `angle` reaches its *turned* extent rather than
   the upright box it was authored in. Those bounds are the rotated *bounding
@@ -482,6 +492,8 @@ const { g, arrows } = await graph(nodes, [
   [ready, working, { label: "claimed" }],
   [working, human, { label: "PR open" }],
 ], { direction: "down", gap: 48, layerGap: 70, strokeColor: p.grey.stroke });
+// every edge is on the engine's route — no via, no fractions to pick
+
 
 return [g, ...arrows];                     // g places like any group; spread the arrows
 ```
@@ -508,26 +520,38 @@ return [g, ...arrows];                     // g places like any group; spread th
   nodes move with it; the arrows are deferred, so they still resolve against the
   final positions. Node positions come back on whole pixels, which is what makes
   a regenerated artifact byte-identical.
-- **The house draws the edges, not the engine.** ELK's own routing is discarded
-  and every edge becomes a bound `arrowBetween`, which is why labels, standoff,
-  arrowheads and gate checking work exactly as they do for a hand-written arrow.
-  The trade is that an arrow takes the direct path even where the engine would
-  have routed around something, and two shapes give the two failures worth
-  knowing:
-  - an edge **skipping** layers passes the nodes in between, so the gate refuses
-    it with `arrow-crossing`. Write that one edge's path with `via`.
-  - a **two-way pair** puts both arrows on the same line, so one strikes the
-    other's label (`text-struck-by-arrow`). Give the return leg its own
-    `originAt` / `landAt`, or label only one direction. Both fractions run along
-    whichever edge **faces** the other node, so the gap they open is a fraction
-    of *that* edge's length — and which edge faces turns with `direction`.
-    Re-pick them per layout: numbers that clear a label along the wide side of a
-    box laid out `"down"` open a much smaller gap along the short side laid out
-    `"right"`, often too small to clear anything. A label rides at the middle of
-    its own arrow, so the gap has to beat half the label's width.
+- **The house owns the edges; the engine routes them.** Every edge is still a
+  bound `arrowBetween`, so labels, standoff, arrowheads, bindings and gate
+  checking work exactly as they do for a hand-written arrow. What comes from the
+  engine is the path between them — its bends and its two ports, the **engine
+  route**, read back off the layout it just computed. The engine placed the
+  nodes, so it is the only party that knows the corridor it left between them:
+  an edge **skipping** layers goes *around* the nodes in between rather than
+  through them, and a **two-way pair** gets a port each instead of one shared
+  line. Both were `arrow-crossing` / `text-struck-by-arrow` refusals you used to
+  hand-route past.
 
-  Both are the gate doing its job — run the build, read the code it names, and
-  fix that edge rather than the layout.
+  An engine route is held relative to `g`, so composing the graph into a band
+  carries it — unlike `via`, it needs no thought about the **last mover**. Write
+  `route: "direct"` or `"orthogonal"` on the shared defaults or one edge to
+  override it.
+
+  Two things still fall to you, and both are the gate doing its job — run the
+  build, read the code it names, and fix that edge:
+  - **Labels.** The engine spaced its ports for the *arrows*, never having been
+    told the labels exist: `graph` takes nodes already measured but a label as
+    text. So a labelled fan can still put one arrow through a neighbour's label.
+    Give that leg its own `originAt` / `landAt`, or label only one direction.
+  - **A fraction takes the whole path back.** An `originAt` / `landAt` (or a
+    `via`) revokes that edge's engine route and leaves it the straight run,
+    because the corridor was cut for the engine's ports. So a fraction is picked
+    against a straight line, exactly as before `graph` had routes. Both fractions
+    run along whichever edge **faces** the other node, so the gap they open is a
+    fraction of *that* edge's length — and which edge faces turns with
+    `direction`. Re-pick them per layout: numbers that clear a label along the
+    wide side of a box laid out `"down"` open a much smaller gap along the short
+    side laid out `"right"`, often too small to clear anything. A label rides at
+    the middle of its own arrow, so the gap has to beat half the label's width.
 - Refusals are `LayoutError` from the call: an empty `nodes` array, an edge whose
   source or target is not in `nodes`, an edge missing an endpoint, a `direction`
   other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap`,
@@ -563,7 +587,8 @@ return [g, ...arrows];
 - **The parse is kept; the layout is dropped.** The converter positions with
   mermaid's own text metrics, which is the guessing this pipeline exists to
   replace, so its coordinates, its arrow routes and its colours never reach the
-  document. `graph` places the nodes and the house draws the arrows.
+  document. `graph` lays the nodes out again and routes the edges from that
+  layout, so the arrows are the house's on the engine's path.
 - **Nodes come back neutral and measured** — house grey, ink labels, sized for
   the label they will hold, all at the origin. Restyling by palette role is the
   step between the two calls; mermaid `classDef` colours are ignored rather than

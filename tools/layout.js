@@ -362,7 +362,8 @@ const ROUTES = new Set(["direct", "orthogonal", "engine"]);
  * omitted keeps today's overlap-midpoint (or shape-centre) behaviour for that
  * end, so nothing existing moves. This is what unpiles a many-to-one fan: two
  * arrows into one box at `landAt: 0.28` and `0.72` land apart instead of both
- * on the centre.
+ * on the centre. Either one **revokes** an engine route — placing an endpoint by
+ * hand takes the whole path back, since ELK's corridor was cut for ELK's ports.
  */
 export function arrowBetween(a, b, opts = {}, ramp = FIT_RAMP) {
   const { standoff = 10, via = [], route, label, originAt, landAt, ...style } = opts;
@@ -509,19 +510,24 @@ function resolveArrow(arrow) {
     end = [ex, topToBottom ? B.y1 - standoff : B.y2 + standoff];
   }
 
-  // an engine route replaces the intermediate points and the cross coordinate of
+  // An engine route replaces the intermediate points and the cross coordinate of
   // each end — ELK's port, so every segment leaving and entering stays axis-aligned
   // under `standoff`. The flow coordinate stays the house's, which is what keeps
-  // standoff, labels, arrowheads and bindings working as they do for any other
-  // arrow. An `originAt`/`landAt` of the author's own still lands last and holds,
-  // the same ownership rule `roundness` follows — at the cost of the alignment.
+  // standoff, labels, arrowheads and bindings working as they do for any other arrow.
+  //
+  // An `originAt`/`landAt` of the author's own revokes the route rather than
+  // overriding one end of it: the corridor was cut for ELK's ports, so moving an
+  // endpoint off its port leaves the first or last segment running diagonally into
+  // a bend list that no longer lines up — measurably worse geometry than the
+  // straight run the fractions were picked against. One party owns the path.
   let waypoints;
-  if (route === "engine" && engineHolds(engineRoute, horizontal)) {
+  const placed = originAt !== undefined || landAt !== undefined;
+  if (route === "engine" && !placed && engineHolds(engineRoute, horizontal)) {
     const { group } = engineRoute.frame;
     const cross = horizontal ? 1 : 0;
     const origin = horizontal ? group.y : group.x;
-    if (originAt === undefined) start[cross] = origin + engineRoute.startCross;
-    if (landAt === undefined) end[cross] = origin + engineRoute.endCross;
+    start[cross] = origin + engineRoute.startCross;
+    end[cross] = origin + engineRoute.endCross;
     // ELK reserves the same 10px it clears nodes by, so at the default standoff its
     // first bend lands exactly on the endpoint the house just computed — a
     // zero-length segment the converter would write out as a duplicate point
@@ -662,8 +668,14 @@ const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
  * rather than aim bends at where the node used to be — see `engineHolds`.
  *
  * `route` on the shared defaults or one edge overrides that: `"orthogonal"` for the
- * single mid-gap jog, `"direct"` for the straight run. Passing `via` on an edge
- * leaves the engine out of it, since the waypoints are then the author's.
+ * single mid-gap jog, `"direct"` for the straight run. `via` on an edge leaves the
+ * engine out of it, and so does an `originAt`/`landAt` — both say the author is
+ * placing the path, and one party owns it.
+ *
+ * ELK spaced its ports for the arrows and knows nothing of their labels: `graph`
+ * takes nodes already measured but a label as text, and this module measures no
+ * text. So a labelled fan can still put one arrow through a neighbour's label, and
+ * that is the case an `originAt`/`landAt` is still for.
  *
  * ELK reserves 10px around a node, the same as the default `standoff`, so a larger
  * standoff can leave a short stub before the first bend — the endpoint steps past

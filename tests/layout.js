@@ -967,6 +967,21 @@ const skipping = async (opts) => {
     pathOf(skip).length === 2, JSON.stringify(pathOf(skip)));
 }
 
+// placing an endpoint yourself takes the whole path back: the corridor was cut for
+// ELK's ports, and a bend list the endpoint no longer lines up with draws worse
+// geometry than the straight run the fraction was picked against
+{
+  const { skip } = await skipping({ originAt: 0.9 });
+  check("an originAt of the author's own revokes the engine route, not one end of it",
+    pathOf(skip).length === 2, JSON.stringify(pathOf(skip)));
+  const landed = await skipping({ landAt: 0.1 });
+  check("so does a landAt", pathOf(landed.skip).length === 2, JSON.stringify(pathOf(landed.skip)));
+  // and the fraction it was given is the one it lands on
+  check("the revoked route still honours the fraction it was handed",
+    pathOf(landed.skip).at(-1)[0] === landed.c.x + 0.1 * landed.c.width,
+    `${pathOf(landed.skip).at(-1)[0]} vs ${landed.c.x + 0.1 * landed.c.width}`);
+}
+
 // ---- route: three named values, and the one only graph() can hand out ----
 {
   const [a, b, c] = ["a", "b", "c"].map(node);

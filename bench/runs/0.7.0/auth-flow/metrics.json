@@ -1,0 +1,27 @@
+{
+  "slug": "auth-flow",
+  "plugin_version": "0.7.0",
+  "model": "claude-sonnet-5",
+  "cli_version": "2.1.246",
+  "date": "2026-08-26",
+  "cost_usd": 1.8430183999999998,
+  "turns": 44,
+  "duration_s": 743,
+  "exit": "success",
+  "gate_rounds": 6,
+  "refused_rounds": 1,
+  "denied_tool_calls": 0,
+  "read_back_dispatched": 0,
+  "scene_written": true,
+  "svg_rendered": true,
+  "final_gate": {
+    "ok": true,
+    "problems": [],
+    "stats": {
+      "elements": 75,
+      "frames": 0,
+      "texts": 31,
+      "outsideAll": 0
+    }
+  }
+}

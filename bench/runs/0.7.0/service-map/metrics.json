@@ -1,0 +1,27 @@
+{
+  "slug": "service-map",
+  "plugin_version": "0.7.0",
+  "model": "claude-sonnet-5",
+  "cli_version": "2.1.246",
+  "date": "2026-08-26",
+  "cost_usd": 1.8186076,
+  "turns": 39,
+  "duration_s": 604,
+  "exit": "success",
+  "gate_rounds": 7,
+  "refused_rounds": 4,
+  "denied_tool_calls": 0,
+  "read_back_dispatched": 0,
+  "scene_written": true,
+  "svg_rendered": true,
+  "final_gate": {
+    "ok": true,
+    "problems": [],
+    "stats": {
+      "elements": 54,
+      "frames": 0,
+      "texts": 32,
+      "outsideAll": 0
+    }
+  }
+}

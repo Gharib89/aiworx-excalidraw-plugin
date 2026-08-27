@@ -16,6 +16,7 @@ node tests/<area>.js              # one suite directly (e.g. tests/gate.js) — 
 npm run bundle                    # rebuild dist/ from tools/page.js
 node tools/bump-version.js minor  # moves plugin.json + package.json + lockfile together
 node tools/version-gate.js --base origin/main   # what CI asks before it lets a content change merge
+bench/run.sh [slug]               # a bench run: the benchmark corpus rendered headlessly at this version — manual, paid, not CI; bench/README.md
 ```
 
 CI (`.github/workflows/ci.yml`): `npm test` on a **3-OS matrix** (ubuntu / macos / windows — browser discovery and path handling are per-OS claims) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture) + a **plugin job** (the version gate below, plus `claude plugin validate . --strict` against a pinned CLI). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.

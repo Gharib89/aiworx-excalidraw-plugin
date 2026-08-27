@@ -15,6 +15,8 @@
  *   6. rectangle/ellipse/diamond targets still bind through the converter itself
  *   7. bound text inherits its container's angle — the alternative `box` names
  *      when it refuses to rotate its own content (#77)
+ *   8. an arrow whose points[0] is not [0, 0] is rebased onto the convention
+ *      before the convert, which would otherwise collapse it to a 1px stub (#197)
  */
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -195,6 +197,55 @@ await withAuthoring(async (author) => {
     check("bound text shares the container's angle",
       text?.angle === container?.angle && container?.angle === angle,
       `text ${text?.angle} / container ${container?.angle}`);
+  }
+  // ---- 8. an arrow whose first point is not [0, 0] is rebased, not collapsed ----
+  // the converter's arrow path assumes the Excalidraw convention `points[0] ===
+  // [0, 0]` and collapses the polyline to a 1px stub when it is violated (#197)
+  // — on both axes. author.js rebases onto the convention first, which is
+  // lossless: the absolute geometry the author declared comes out unchanged.
+  {
+    const out = join(outDir, "rebased-arrows.excalidraw");
+    const { elements } = await author({
+      out, svg: false,
+      build: async () => [
+        // right: already on the convention — the rebase must be a no-op
+        { type: "arrow", id: "right", x: 100, y: 30, width: 300, height: 0, points: [[0, 0], [300, 0]], strokeColor: "#1e1e1e", endArrowhead: "triangle", roundness: null },
+        // left: x is xMin and the points are absolute — 100 to 400, drawn leftward
+        { type: "arrow", id: "left", x: 100, y: 100, width: 300, height: 0, points: [[300, 0], [0, 0]], strokeColor: "#1e1e1e", endArrowhead: "triangle", roundness: null },
+        // vert: the same shape on the other axis — 200 to 500, drawn upward
+        { type: "arrow", id: "vert", x: 100, y: 200, width: 0, height: 300, points: [[0, 300], [0, 0]], strokeColor: "#1e1e1e", endArrowhead: "triangle", roundness: null },
+      ],
+    });
+    // the absolute span, not the point values: what the author declared is a
+    // segment between two places on the canvas, and that is what must survive
+    const spanOf = (id, axis) => {
+      const e = elements.find((el) => el.id === id);
+      if (!e?.points) return null;
+      const i = axis === "x" ? 0 : 1;
+      const at = e.points.map((p) => (axis === "x" ? e.x : e.y) + p[i]);
+      return [Math.min(...at), Math.max(...at)];
+    };
+    // 0.5px at each end is the arrowhead inset every healthy arrow carries
+    const spans = (got, lo, hi) => got && Math.abs(got[0] - lo) <= 0.5 && Math.abs(got[1] - hi) <= 0.5;
+
+    const rightSpan = spanOf("right", "x");
+    check("a conventional arrow is untouched by the rebase",
+      spans(rightSpan, 100, 400), JSON.stringify(rightSpan));
+    const leftSpan = spanOf("left", "x");
+    check("a leftward arrow with a non-origin first point keeps its 300px span",
+      spans(leftSpan, 100, 400), JSON.stringify(leftSpan));
+    const vertSpan = spanOf("vert", "y");
+    check("an upward arrow with a non-origin first point keeps its 300px span",
+      spans(vertSpan, 200, 500), JSON.stringify(vertSpan));
+
+    // the declared size is the author's, and the rebase does not touch it
+    const declared = (id) => {
+      const e = elements.find((el) => el.id === id);
+      return `${e?.width}x${e?.height}`;
+    };
+    check("the rebase leaves the declared width/height alone",
+      declared("left") === "300x0" && declared("vert") === "0x300",
+      `left ${declared("left")}, vert ${declared("vert")}`);
   }
 });
 

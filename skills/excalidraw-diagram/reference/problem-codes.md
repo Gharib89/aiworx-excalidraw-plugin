@@ -81,7 +81,7 @@ warning level.
 | `malformed-element` | live | (empty) | `index` | the entry at that array index is not an element object |
 | `unknown-type` | live | [element] | — | the element's `type` is not one the gate knows |
 | `non-finite-geometry` | live | [element] | — | a coordinate or size is `NaN` or `Infinity` |
-| `degenerate` | live | [element] | — | a line or arrow has zero length, or a shape zero/negative size |
+| `degenerate` | live | [element] | — | a line or arrow has zero length or spans under 25% of the size it declares, or a shape has zero/negative size |
 | `duplicate-id` | live | [element] | — | two elements share one id |
 | `frame-overlap` | live | [frame, frame] | — | two frames' outlines overlap |
 | `missing-container` | live | [text, container] | — | bound text names a container that is deleted or absent |
@@ -101,6 +101,22 @@ warning level.
 | `low-contrast` | live | [text] | `ratio`, `needs`, `ink`, `bg`, `theme` | text misses 4.5:1 (3:1 for large text) against its ground, under the named theme |
 | `foreign-font` | live | [text] | — | the text's `fontFamily` is outside the house pair — a spliced library item's own labels are the usual source, so splice it with `text: "drop"` ([authoring.md](authoring.md#real-assets-images-and-library-items)) |
 | `missing-image-bytes` | live | [image] | — | the image's `fileId` has no bytes in the files dictionary |
+
+`degenerate` names three shapes of nothing-to-render. Zero length (a linear
+element whose points coincide) and zero or negative size (a shape) are the plain
+two. The third is the **collapsed** polyline: an element that draws a fraction of
+the ink its own `width`/`height` claim, which renders as a bound label with no
+arrow under it. Its usual source is a generator that sets `x` to the leftmost
+coordinate and leaves the points absolute — Excalidraw's converter expects
+`points[0]` to be `[0, 0]` and mangles the arrow when it is not, on either axis.
+The minimum is **25%** of the declared size, measured on the point list's own
+diagonal and asked only of an element declaring at least **8px**: every healthy
+arrow loses 0.5px at each end to the arrowhead inset, and short arrows are
+legitimate. The message names the measured span against the declared size, which
+tells this arm from a genuinely zero-length element. `authorDiagram` rebases
+arrows onto the convention before writing, so a file it produced cannot carry a
+collapsed arrow; fix a hand-edited or imported one by rewriting the points
+relative to `points[0] === [0, 0]`.
 
 `frame-edge-crowding` is the near miss `frame-escape` does not cover: a per-frame
 export crops exactly at the frame border — Excalidraw zeroes padding for frame

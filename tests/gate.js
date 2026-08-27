@@ -65,6 +65,9 @@ const CASES = [
   // a linear element carries no size of its own: it degenerates when its points
   // coincide, which the zero-size branch never sees
   { name: "degenerate-zero-length", exit: 1, expect: "zero length", code: "degenerate" },
+  // the collapsed-polyline shape (#197): the points span a pixel, so the
+  // zero-length arm never sees it, while the declared width still claims 950
+  { name: "degenerate-collapsed-span", exit: 1, expect: "points span 1 of a declared 950", code: "degenerate" },
   { name: "degenerate-non-finite", exit: 1, expect: "non-finite geometry", code: "non-finite-geometry" },
   { name: "unknown-type", exit: 1, expect: 'unknown element type "widget"', code: "unknown-type" },
   { name: "free-texts-overlap", exit: 1, expect: "free texts overlap", code: "free-text-overlap" },

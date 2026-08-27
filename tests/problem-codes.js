@@ -24,17 +24,23 @@
  *      *and* absent from the registry — a silent pass in both directions.
  *      Counting call sites against literal matches is what closes that hole.
  *   4. the thresholds the registry's prose quotes for `frame-edge-crowding`,
- *      `text-struck-by-arrow` and `stray`, and for every advisory that judges
- *      a quantity, match the gate's own constants — a retuned constant would
- *      otherwise leave the shipped prose lying about the number the gate
- *      actually enforces.
+ *      `text-struck-by-arrow`, `stray` and `degenerate`, and for every advisory
+ *      that judges a quantity, match the gate's own constants — a retuned
+ *      constant would otherwise leave the shipped prose lying about the number
+ *      the gate actually enforces.
  *
  * Exits non-zero on any mismatch, naming the codes on each side.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { FRAME_EDGE_INSET, TEXT_ARROW_CLEARANCE, STRAY_GAP } from "../tools/verify.js";
+import {
+  FRAME_EDGE_INSET,
+  TEXT_ARROW_CLEARANCE,
+  STRAY_GAP,
+  DEGENERATE_SPAN_RATIO,
+  DEGENERATE_SPAN_FLOOR,
+} from "../tools/verify.js";
 import { ARROW_CLEARANCE, ASPECT_BAND, FONT_FLOOR, MAX_BENDS, MAX_HUES, MAX_PANEL_WIDTH_DRIFT } from "../tools/advise.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -200,6 +206,28 @@ const hues = quotedAll(/more than (\d+) non-grey hue families/, "the hue ceiling
 check("the registry's hue ceiling matches MAX_HUES", hues?.[0] === MAX_HUES, `doc says ${hues?.[0]}, advise.js says ${MAX_HUES}`);
 const drift = quotedAll(/widest ÷ narrowest frame width above ([\d.]+)×/, "the panel width drift");
 check("the registry's panel width drift matches MAX_PANEL_WIDTH_DRIFT", drift?.[0] === MAX_PANEL_WIDTH_DRIFT, `doc says ${drift?.[0]}, advise.js says ${MAX_PANEL_WIDTH_DRIFT}`);
+// degenerate's collapsed-polyline arm carries two numbers, and the table cell
+// restates the ratio — the same half-stale hazard the inset and clearance have
+const quotedSpanRatio = quoted(/minimum is \*\*(\d+)%\*\* of the declared size/, "the degenerate span ratio");
+check(
+  "the registry's degenerate span ratio matches DEGENERATE_SPAN_RATIO",
+  quotedSpanRatio === DEGENERATE_SPAN_RATIO * 100,
+  `doc says ${quotedSpanRatio}%, verify.js says ${DEGENERATE_SPAN_RATIO * 100}%`,
+);
+
+const tableSpanRatio = quoted(/spans under (\d+)% of the size it declares/, "the degenerate span ratio (table cell)");
+check(
+  "the registry table's degenerate span ratio matches DEGENERATE_SPAN_RATIO",
+  tableSpanRatio === DEGENERATE_SPAN_RATIO * 100,
+  `doc says ${tableSpanRatio}%, verify.js says ${DEGENERATE_SPAN_RATIO * 100}%`,
+);
+
+const quotedSpanFloor = quoted(/declaring at least \*\*(\d+)px\*\*/, "the degenerate span floor");
+check(
+  "the registry's degenerate span floor matches DEGENERATE_SPAN_FLOOR",
+  quotedSpanFloor === DEGENERATE_SPAN_FLOOR,
+  `doc says ${quotedSpanFloor}px, verify.js says ${DEGENERATE_SPAN_FLOOR}px`,
+);
 
 console.log(
   fail.length

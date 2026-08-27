@@ -304,6 +304,28 @@ const detail = (report) => JSON.stringify(report.problems.map((p) => p.code));
 
   const stub = verifyDocument(doc([{ ...shape("a1", 0, 0, 0, 0), type: "arrow", points: [[0, 0], [0, 0]] }]));
   check("a zero-length arrow is degenerate", only(stub, "degenerate"), detail(stub));
+
+  // #197: the collapsed polyline. A pixel of span clears the zero-length arm,
+  // so only the span-against-declared-size arm catches an arrow that claims
+  // 950px of width and draws 1px of ink.
+  const collapsed = verifyDocument(doc([{ ...shape("a2", 0, 0, 950, 0), type: "arrow", points: [[-0.5, 0], [0.5, 0]] }]));
+  check(
+    "an arrow spanning a pixel under a 950px declared width is degenerate",
+    only(collapsed, "degenerate") && /points span 1 of a declared 950/.test(find(collapsed, "degenerate").message),
+    detail(collapsed),
+  );
+  const collapsedTall = verifyDocument(doc([{ ...shape("a3", 0, 0, 0, 950), type: "arrow", points: [[0, -0.5], [0, 0.5]] }]));
+  check("the vertical collapse is degenerate too", only(collapsedTall, "degenerate"), detail(collapsedTall));
+
+  // the arm must not fire on the 0.5px-per-end arrowhead inset every healthy
+  // arrow carries — worst real ratio in the committed corpus is 0.975, on the
+  // shortest arrow there
+  const short = verifyDocument(doc([{ ...shape("a4", 0, 0, 40, 0), type: "arrow", points: [[0.5, 0], [39.5, 0]] }]));
+  check("a healthy 40px arrow with its arrowhead inset is not degenerate", short.problems.length === 0, detail(short));
+  // below the absolute floor the ratio test says nothing: a genuinely tiny
+  // arrow is either healthy or already zero-length
+  const tiny = verifyDocument(doc([{ ...shape("a5", 0, 0, 6, 0), type: "arrow", points: [[0, 0], [1, 0]] }]));
+  check("a sub-floor declared size cannot trip the span arm", tiny.problems.length === 0, detail(tiny));
 }
 
 // ---- 13. a duplicate id silently drops an element on import ----

@@ -191,7 +191,7 @@ _Avoid_: elbow arrow, right-angle connector
 The path `graph` reads back off the layout engine and gives an edge: the bends and
 the two ports ELK left when it placed the nodes. Held relative to the graph group,
 so a later mover carries it, and settled with the deferred arrow — as against
-**via**, whose waypoints are the author's own absolute coordinates. It goes around
+`via`, whose waypoints are the author's own absolute coordinates. It goes around
 the nodes the engine placed, which no other route can. Placing an endpoint by hand
 revokes it, and so does moving a node out from under it.
 _Avoid_: ELK route, auto-route, computed waypoints

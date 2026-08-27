@@ -927,6 +927,9 @@ const skipping = async (opts) => {
   check("each half of the pair still runs axis-aligned",
     pathOf(there)[0][0] === pathOf(there).at(-1)[0] &&
       pathOf(back)[0][0] === pathOf(back).at(-1)[0]);
+  check("neither half of the pair enters a node",
+    crossings(there, [a, b]).length === 0 && crossings(back, [a, b]).length === 0,
+    [...crossings(there, [a, b]), ...crossings(back, [a, b])].join("; "));
 }
 
 // the band idiom is a later mover: `row(panels.map(p => p.g))` shifts the whole

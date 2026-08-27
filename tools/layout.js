@@ -431,8 +431,8 @@ export function arrowBetween(a, b, opts = {}, ramp = FIT_RAMP) {
   return arrow;
 }
 
-/** One node's extent in its graph group's frame — the placement a route was cut for. */
-function inFrame(node, group) {
+/** One node's extent relative to its graph group — the placement a route was cut for. */
+function asPlaced(node, group) {
   const { x1, y1, x2, y2 } = boundsOf(node);
   return [x1 - group.x, y1 - group.y, x2 - group.x, y2 - group.y];
 }
@@ -451,9 +451,9 @@ function inFrame(node, group) {
  * flow, so a pair whose wider separation is now the cross axis has none to follow.
  */
 function engineHolds(route, horizontal) {
-  const { group, horizontal: flow, nodes, placement } = route.frame;
+  const { group, horizontal: flow, nodes, boxes } = route.placement;
   return horizontal === flow &&
-    nodes.every((node, i) => inFrame(node, group).every((n, j) => n === placement[i][j]));
+    nodes.every((node, i) => asPlaced(node, group).every((n, j) => n === boxes[i][j]));
 }
 
 /** Measure one deferred arrow's endpoints where they now stand, and place it. */
@@ -523,7 +523,7 @@ function resolveArrow(arrow) {
   let waypoints;
   const placed = originAt !== undefined || landAt !== undefined;
   if (route === "engine" && !placed && engineHolds(engineRoute, horizontal)) {
-    const { group } = engineRoute.frame;
+    const { group } = engineRoute.placement;
     const cross = horizontal ? 1 : 0;
     const origin = horizontal ? group.y : group.x;
     start[cross] = origin + engineRoute.startCross;
@@ -653,33 +653,24 @@ const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
  * every arrow and a third entry overrides one.
  *
  * **The house owns the edges; ELK routes them.** Every edge is still a bound
- * `arrowBetween`, so labels, standoff, arrowheads, bindings and gate checking work
- * exactly as they do for a hand-written arrow — only the intermediate points come
- * from ELK, read back off `laid.edges[].sections` as an **engine route** and stored
- * on the deferred arrow relative to the group. ELK placed the nodes, so it is the
- * only party that knows the corridor it left between them; discarding that and
- * drawing straight is what used to send a layer-skipping edge through a node and
- * cost the author a hand-routed `via`. See ADR-0003 for the reversal.
+ * `arrowBetween` — labels, standoff, arrowheads, bindings and gate checking are
+ * the hand-written arrow's — but its path is the **engine route** read back off
+ * `laid.edges[].sections`, because ELK placed the nodes and is therefore the only
+ * party that knows the corridor it left between them. ADR-0003 records the
+ * reversal of the discard-the-routing principle this replaces, and its reasons.
  *
- * Group-relative, and resolved with the endpoints, because the band idiom
- * (`row(panels.map(p => p.g))`) moves the whole graph afterwards: absolute bends
- * would be left behind exactly as `via` is. A node moved or resized *on its own*
- * does invalidate the corridor, and there the route drops to the straight run
- * rather than aim bends at where the node used to be — see `engineHolds`.
+ * `route` on the shared defaults or one edge overrides it: `"orthogonal"` for the
+ * single mid-gap jog, `"direct"` for the straight run. A `via` or an
+ * `originAt`/`landAt` revokes it, because the author is then placing the path.
  *
- * `route` on the shared defaults or one edge overrides that: `"orthogonal"` for the
- * single mid-gap jog, `"direct"` for the straight run. `via` on an edge leaves the
- * engine out of it, and so does an `originAt`/`landAt` — both say the author is
- * placing the path, and one party owns it.
- *
- * ELK spaced its ports for the arrows and knows nothing of their labels: `graph`
- * takes nodes already measured but a label as text, and this module measures no
- * text. So a labelled fan can still put one arrow through a neighbour's label, and
- * that is the case an `originAt`/`landAt` is still for.
- *
- * ELK reserves 10px around a node, the same as the default `standoff`, so a larger
- * standoff can leave a short stub before the first bend — the endpoint steps past
- * the corridor ELK reserved for it. Lower the standoff or take the edge `"direct"`.
+ * Two consequences an author meets in practice:
+ * - ELK spaced its ports for the *arrows*, knowing nothing of their labels — this
+ *   module measures no text, so `graph` never had a width to give it. A labelled
+ *   fan can still put one arrow through a neighbour's label, and that is what an
+ *   `originAt`/`landAt` is still for.
+ * - ELK reserves 10px around a node, the same as the default `standoff`, so a
+ *   larger standoff steps past that corridor and leaves a short stub before the
+ *   first bend. Lower the standoff, or take the edge `"direct"`.
  *
  * Positions are rounded to whole pixels, so the same input regenerates the same
  * artifact byte for byte. ELK is deterministic on its own; the rounding closes
@@ -798,22 +789,22 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
   // needs the array order to be ELK's.
   const sections = new Map((laid.edges ?? []).map((edge) => [edge.id, edge.sections]));
   const toGroup = (p) => [Math.round(p.x) - originX, Math.round(p.y) - originY];
-  // one frame shared by every route out of this graph: the placement they were all
+  // one record shared by every route out of this graph: the placement they were all
   // cut against, and what `engineHolds` reads to tell a moved graph from a moved node
-  const frame = {
+  const placement = {
     group: g,
     horizontal: direction === "right",
     nodes,
-    placement: nodes.map((node) => inFrame(node, g)),
+    boxes: nodes.map((node) => asPlaced(node, g)),
   };
   const engineRouteFor = (i) => {
     const [section, ...rest] = sections.get(`e${i}`) ?? [];
     // one section per edge is what a 1:1 edge gets; a split route is a shape this
     // reader has no answer for, so leave the edge to the straight run
     if (!section || rest.length) return undefined;
-    const cross = frame.horizontal ? 1 : 0;
+    const cross = placement.horizontal ? 1 : 0;
     return {
-      frame,
+      placement,
       bends: (section.bendPoints ?? []).map(toGroup),
       startCross: toGroup(section.startPoint)[cross],
       endCross: toGroup(section.endPoint)[cross],
@@ -827,11 +818,11 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       // an edge carrying its own waypoints has already said who routes it, so the
       // engine default steps aside rather than colliding with them
       const hasVia = Array.isArray(merged.via) && merged.via.length > 0;
-      const wanted = merged.route ?? (hasVia ? undefined : "engine");
-      const engineRoute = wanted === "engine" ? engineRouteFor(i) : undefined;
-      // nothing readable came back for this edge, so it is a straight run — the
-      // same answer a stale route resolves to, reached one pass earlier
-      const route = wanted === "engine" && !engineRoute ? undefined : wanted;
+      const asked = merged.route ?? (hasVia ? undefined : "engine");
+      const engineRoute = asked === "engine" ? engineRouteFor(i) : undefined;
+      // nothing readable came back for this edge, so say the straight run out loud
+      // — the same answer a route gone stale resolves to, reached one pass earlier
+      const route = asked === "engine" && !engineRoute ? "direct" : asked;
       const arrow = arrowBetween(source, target, { ...merged, route }, ramp);
       if (engineRoute) arrow[DEFERRED].engineRoute = engineRoute;
       return arrow;

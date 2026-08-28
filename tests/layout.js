@@ -786,6 +786,56 @@ const rejectsLayoutError = async (fn) => {
       taller.c.x - (taller.b.x + taller.b.width) === down.c.x - (down.b.x + down.b.width));
 }
 
+// ---- graph: entry and exit pin the layers a cycle would otherwise pick for itself ----
+{
+  // a ring — every node has an edge in and an edge out, so the engine breaks the
+  // cycle wherever it likes and the state the author calls the entry lands
+  // mid-picture as often as not
+  const ring = async (pin) => {
+    const nodes = ["a", "b", "c", "d"].map(node);
+    const [a, b, c, d] = nodes;
+    await graph(nodes, [[a, b], [b, c], [c, d], [d, a]], pin(nodes));
+    const layers = [...new Set(nodes.map((n) => n.y))].sort((p, q) => p - q);
+    return { nodes, layer: (n) => layers.indexOf(n.y), depth: layers.length };
+  };
+
+  // `c` is the third node listed, so nothing — not the edges, not the listing
+  // order the tie-break reads — would otherwise lead the picture with it
+  const loose = await ring(() => ({}));
+  check("a cycle the author has not pinned leads with a node of the engine's choosing",
+    loose.layer(loose.nodes[2]) !== 0);
+
+  const first = await ring(([, , c]) => ({ entry: c }));
+  check("entry lands its node in layer 0 even inside a cycle",
+    first.layer(first.nodes[2]) === 0);
+
+  const last = await ring(([, , c]) => ({ exit: c }));
+  check("exit lands its node in the final layer even inside a cycle",
+    last.layer(last.nodes[2]) === last.depth - 1);
+}
+
+// ---- graph: model order makes the listing order the tie-break ----
+{
+  // one source fanning to three targets: nothing in the graph itself says which
+  // target sits left, so the order they were listed in is the only thing left to
+  // read the intent off
+  const fan = async (order, opts) => {
+    const nodes = ["r", ...order].map(node);
+    const [r, ...targets] = nodes;
+    await graph(nodes, targets.map((t) => [r, t]), opts);
+    return Object.fromEntries(targets.map((t) => [t.id, t.x]));
+  };
+  const across = (xs, order) => order.map((id) => xs[id]).every((x, i, all) => i === 0 || all[i - 1] < x);
+
+  check("graph orders a layer by the order its nodes were listed in",
+    across(await fan(["a", "b", "c"]), ["a", "b", "c"]) &&
+      across(await fan(["c", "b", "a"]), ["c", "b", "a"]));
+  // the same three targets read back in listing order both ways is the claim;
+  // without the tie-break the engine is free to pick, and here it does
+  check("modelOrder: false hands the within-layer order back to the engine",
+    !across(await fan(["a", "b", "c"], { modelOrder: false }), ["a", "b", "c"]));
+}
+
 // ---- graph: the group obeys the outermost mover, and its arrows follow ----
 {
   const [a, b] = ["a", "b"].map(node);
@@ -857,6 +907,15 @@ const rejectsLayoutError = async (fn) => {
   check("graph refuses spacings that are not pixel counts",
     await rejectsLayoutError(() => graph([a, b], [], { gap: NaN })) &&
       await rejectsLayoutError(() => graph([a, b], [], { layerGap: -10 })));
+  check("graph refuses a pin naming a shape outside the node list",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: stranger })) &&
+      await rejectsLayoutError(() => graph([a, b], [[a, b]], { exit: [b, stranger] })));
+  // one node cannot both open and close the flow, and ELK would keep whichever
+  // constraint it was handed last without a word
+  check("graph refuses a node pinned as both entry and exit",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: a, exit: a })));
+  check("graph refuses a modelOrder that is not a yes or a no",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { modelOrder: "yes" })));
   check("graph refuses a node it cannot measure",
     await rejectsLayoutError(() => graph([{ type: "rectangle", id: "unmeasured" }])));
   // the same shape twice would collapse in the identity index, laying out a node

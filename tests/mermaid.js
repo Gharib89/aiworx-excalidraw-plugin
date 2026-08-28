@@ -106,6 +106,25 @@ await withAuthoring(async (author) => {
       JSON.stringify(nodes[0].label.text));
   }
 
+  // ---- 3b. the source's own order is the layout's tie-break ----
+  // `fromMermaid` hands `graph` its nodes in the order the source wrote them, and
+  // `graph` reads that order as the tie-break — so the branch a reader meets
+  // first in the mermaid is the branch that sits leading in the picture.
+  {
+    let c, d;
+    await author({
+      out: join(outDir, "order.excalidraw"), svg: false,
+      build: async ({ fromMermaid, graph }) => {
+        const { nodes, edges } = await fromMermaid(FLOW);
+        const { g, arrows } = await graph(nodes, edges);
+        const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+        [c, d] = [byId.C.x, byId.D.x];
+        return [g, ...arrows];
+      },
+    });
+    check("the branch listed first in the source lays out leading", c < d, `C@${c} D@${d}`);
+  }
+
   // ---- 4. the whole path: mermaid in, gated document out ----
   {
     const out = join(outDir, "flow.excalidraw");

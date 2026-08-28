@@ -22,10 +22,11 @@
  * never told the labels exist. That, and nothing else, is what the `originAt` /
  * `landAt` on the legs around the pair are for.
  *
- * One thing the pictures show that no option controls: the engine breaks the
- * cycle by reversing an edge, so `ready-for-agent` lands in the top layer even
- * though `needs-triage` is where an issue starts. The arrows still point the
- * way the transitions really go — follow the arrowheads, not the layers.
+ * `needs-triage` leads both pictures because `graph()` reads the order the states
+ * were listed in — `modelOrder`, on by default — and that order picks which edge
+ * of the cycle gives way. The machine has a cycle either way; what the listing
+ * order buys is that the state an issue really starts in is the one a reader
+ * meets first. `entry: triage` would pin the same thing outright.
  *
  *   node gen-triage-graph.js <plugin root>                    # plugin root as the first argument
  *   CLAUDE_PLUGIN_ROOT=<plugin root> node gen-triage-graph.js   # equivalent
@@ -105,12 +106,14 @@ const transitions = ({ tag, offsets = {} }, [triage, info, ready, human, working
     // the fan and reads as an edge between the wrong two states.
     [triage, info, { ...at("ask"), label: says("ask reporter") }],
     [info, triage, at("answered")],
-    // no offset, so this one is an engine route — and every other unoffset edge below
     [triage, ready, { ...at("ready"), label: says("fully specified") }],
     // needs-triage leaves by one and the same edge four times over. Left alone
     // every one of those arrows departs from the middle of it and stacks the
-    // labels on one spot, so the offsets fan the departures out in the order
-    // the engine happened to lay the targets in.
+    // labels on one spot, so the offsets fan the departures out. `modelOrder`
+    // fixes the targets in the order they are listed above, which is what makes
+    // one set of fractions hold: the fan departs the *facing* edge, so the
+    // nearest target takes the largest fraction and the farthest the smallest,
+    // and the legs spread instead of crossing.
     [triage, human, { ...at("human"), label: says("human only") }],
     [triage, wontfix, at("wontfix")],                   // an unlabelled transition beside the labelled ones
     [ready, working, { ...at("claim"), label: says("/ship claims it") }],
@@ -128,10 +131,11 @@ const LAYOUTS = [
     tag: "down",
     opts: { direction: "down", gap: 110, layerGap: 96 },
     offsets: {
-      ask: { originAt: 0.34, landAt: 0.78 },
-      answered: { originAt: 0.2, landAt: 0.08 },
+      ask: { originAt: 0.22, landAt: 0.8 },
+      answered: { originAt: 0.03, landAt: 0.06 },
+      ready: { originAt: 0.92 },
       human: { originAt: 0.62 },
-      wontfix: { originAt: 0.92 },
+      wontfix: { originAt: 0.34 },
     },
     title: "graph() lays out the triage labels",
     frame: 'direction "down" — the triage state machine, cycles and all',
@@ -140,18 +144,20 @@ const LAYOUTS = [
       + "point at each other, and the engine already gives that pair two ports of its own; "
       + "originAt / landAt only move the neighbouring legs clear of its labels, the one thing "
       + "the engine cannot do for itself because nobody told it the labels are there. "
-      + "ready-for-agent sits on top "
-      + "because the engine reversed an edge to break the cycle: read the arrowheads, not the "
-      + "layers.",
+      + "needs-triage leads because modelOrder makes the order the states were listed in the "
+      + "tie-break, and that order picks which edge of the cycle gives way — the picture opens "
+      + "where an issue really opens.",
   },
   {
     tag: "right",
-    opts: { direction: "right", gap: 64, layerGap: 190 },
+    opts: { direction: "right", gap: 80, layerGap: 190 },
     offsets: {
-      ask: { originAt: 0.3, landAt: 0.7 },
-      answered: { originAt: 0.1, landAt: 0.08 },
-      human: { originAt: 0.55 },
-      wontfix: { originAt: 0.85 },
+      ask: { originAt: 0.12, landAt: 0.78 },
+      answered: { originAt: 0.04, landAt: 0.05 },
+      ready: { originAt: 0.35 },
+      human: { originAt: 0.72 },
+      wontfix: { originAt: 0.95 },
+      claim: { originAt: 0.32, landAt: 0.32 },
     },
     title: "same nodes, same edges, laid out sideways",
     frame: 'direction "right" — the same graph, respaced',

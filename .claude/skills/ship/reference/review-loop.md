@@ -34,23 +34,41 @@ rip out capability, and reject known non-issues with a one-line reason.
 Reviews take minutes. Run
 `scripts/poll-pr.sh <n> --await-review "coderabbitai[bot]"` inline — a bounded
 foreground loop that returns ONE JSON summary: check conclusions, reviews keyed
-to the current head sha, `mergeable_state`. `done: false` means the window
-closed first — re-run to extend; never a detached background monitor. No
-subagent: the script already projects its output. The poll is the **landing
-signal** only — it projects `{login, state}` per review, so before triage fetch
-the round's review body and comment threads (that fetch is also what tells an
-error-only body apart from a real round). Auto-triage those on the
-**judgment tier**.
+to the current head sha, `reviewer_blocked`, `mergeable_state`. `done: false`
+means the window closed first — re-run to extend; never a detached background
+monitor. No subagent: the script already projects its output. The poll is the
+**landing signal** only — before triage fetch the round's review body and
+comment threads. Auto-triage those on the **judgment tier**.
 
-## Infra flakes — don't wait forever
+**A round is a review with a body.** Replying to a thread posts a review row of
+its own — current head sha, state `COMMENTED`, empty body — so answering round N
+manufactures rows that look like round N+1 arriving. `poll-pr.sh` counts only
+`substantive: true`; hold any hand-rolled check to the same bar.
 
-- A PR still silent minutes after open, or a push whose incremental review
-  never lands within one poll window, is flakiness — trigger a round manually
-  with a `@coderabbitai review` comment. If that also produces nothing,
-  proceed on green CI and note in the merge summary that the reviewer never
-  actually passed: a **degraded** exit, not convergence.
-- A review body that is only an error notice with zero comments is an **infra
-  failure**, not feedback — same handling: retry once, then degraded exit.
+## A round that hasn't landed — blocked, or flaking
+
+**Read `reviewer_blocked` before calling anything a flake.** A missing round has
+two causes and they need opposite handling; the reviewer says which in a
+*comment*, which is why the poll projects it.
+
+- **Blocked** (`reviewer_blocked` non-null — a quota banner, a queue notice):
+  the round is **waiting, not missing**. Keep polling. This is recoverable and
+  the exit stays clean; free-OSS quota on this repo resets in about an hour.
+  Two traps: the banner's countdown is static text that never re-renders, so
+  read it as *blocked* and never as *blocked for N more minutes*; and a
+  `@coderabbitai review` while blocked answers **"Action not completed / Review
+  rate limited"**, which is the command being inapplicable rather than the
+  quota talking. Once the quota clears, a manual trigger answers **"Action
+  performed / Review triggered"** — that word pair is the whole signal.
+- **Flaking** (`reviewer_blocked` null and no round within a poll window):
+  trigger with `@coderabbitai review`. If that also produces nothing, proceed
+  on green CI and mark the merge summary **degraded** — the reviewer never
+  actually passed. A review body that is only an error notice with zero
+  comments is the same failure: retry once, then degraded.
+
+The reviewer's summary comment also names the range it has queued
+(*"Reviewing files that changed between \<base\> and \<head\>"*) — the surest
+answer to *which commits has it actually seen*, better than any review row.
 
 After any merge command, re-verify PR state before declaring done
 (`scripts/merge-and-verify.sh` does).

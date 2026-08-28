@@ -732,8 +732,9 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       where: "graph", next: "Build a separate shape per node, and list each one once.",
     });
   }
-  // one map from node to the ELK layer constraint it was pinned with, built from
-  // the two author-facing options so nothing downstream carries ELK's vocabulary
+  // node -> the ELK layer constraint it was pinned with. The two author-facing
+  // options are read into it here so that ELK's own vocabulary starts at this
+  // line and never reaches the author.
   const pinned = new Map();
   for (const [name, value, constraint] of [["entry", entry, "FIRST"], ["exit", exit, "LAST"]]) {
     if (value === undefined) continue;
@@ -782,6 +783,19 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
   // ELK decorates every object it is handed with an internal `$H` and writes the
   // results back onto it, so it is fed a plain graph built here and never a
   // house element.
+  // A pin the edges cannot honour — two nodes pinned `entry` with an edge
+  // between them, so one of them cannot be in the first layer — is the one
+  // author mistake the engine itself catches, and it answers with a Java class
+  // name and its own `n${i}` ids. Say it back in the house voice, naming the
+  // node the author built.
+  const pinRefusal = (err) => {
+    const reason = String(err?.message ?? err).replace(/^[\w.]+Exception:\s*/, "")
+      .replace(/root\.n(\d+)/g, (_, i) => bindId(nodes[Number(i)]) ?? `node ${i}`);
+    return new LayoutError(`the engine cannot honour these pins — ${reason}`, {
+      where: "graph", next: "Pin one node per end of the flow, and pick ends the edges can reach.",
+    });
+  };
+
   const laid = await (await elkEngine()).layout({
     id: "root",
     layoutOptions: {
@@ -792,10 +806,10 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       // the author's listing order, spent only where the graph itself leaves a
       // choice: it breaks ties within a layer and picks the cycle edge to
       // reverse, so a source-ordered input lays out the way it reads
-      ...(modelOrder ? {
+      ...(modelOrder && {
         "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
         "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
-      } : {}),
+      }),
     },
     children: sizes.map((size, i) => {
       const constraint = pinned.get(nodes[i]);
@@ -810,6 +824,9 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       sources: [`n${index.get(source)}`],
       targets: [`n${index.get(target)}`],
     })),
+  }).catch((err) => {
+    if (pinned.size) throw pinRefusal(err);
+    throw err;
   });
 
   // `laid.children[i]` is `nodes[i]`: ELK lays out in place and hands back the

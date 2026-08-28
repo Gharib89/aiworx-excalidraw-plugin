@@ -799,19 +799,24 @@ const rejectsLayoutError = async (fn) => {
     return { nodes, layer: (n) => layers.indexOf(n.y), depth: layers.length };
   };
 
-  // `c` is the third node listed, so nothing — not the edges, not the listing
-  // order the tie-break reads — would otherwise lead the picture with it
-  const loose = await ring(() => ({}));
-  check("a cycle the author has not pinned leads with a node of the engine's choosing",
-    loose.layer(loose.nodes[2]) !== 0);
-
-  const first = await ring(([, , c]) => ({ entry: c }));
-  check("entry lands its node in layer 0 even inside a cycle",
-    first.layer(first.nodes[2]) === 0);
+  // pinned two different ways round: one node landing in layer 0 could be the
+  // engine's own pick, but two rival candidates each leading when named cannot be
+  const third = await ring(([, , c]) => ({ entry: c }));
+  const fourth = await ring(([, , , d]) => ({ entry: d }));
+  check("entry lands whichever node it names in layer 0, even inside a cycle",
+    third.layer(third.nodes[2]) === 0 && fourth.layer(fourth.nodes[3]) === 0);
 
   const last = await ring(([, , c]) => ({ exit: c }));
   check("exit lands its node in the final layer even inside a cycle",
     last.layer(last.nodes[2]) === last.depth - 1);
+
+  // two ways in, one way out — the shape a single pin cannot describe
+  {
+    const [a, b, sink] = ["a", "b", "sink"].map(node);
+    await graph([a, b, sink], [[a, sink], [b, sink]], { entry: [a, b], exit: sink });
+    check("entry and exit pin several nodes at once",
+      a.y === b.y && a.y < sink.y);
+  }
 }
 
 // ---- graph: model order makes the listing order the tie-break ----
@@ -916,6 +921,10 @@ const rejectsLayoutError = async (fn) => {
     await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: a, exit: a })));
   check("graph refuses a modelOrder that is not a yes or a no",
     await rejectsLayoutError(() => graph([a, b], [[a, b]], { modelOrder: "yes" })));
+  // the engine catches this one, and left alone it answers with a Java class
+  // name and its own internal ids — a house refusal, or the author reads a stack
+  check("a pin the edges cannot honour comes back as a LayoutError, not an engine crash",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: [a, b] })));
   check("graph refuses a node it cannot measure",
     await rejectsLayoutError(() => graph([{ type: "rectangle", id: "unmeasured" }])));
   // the same shape twice would collapse in the identity index, laying out a node

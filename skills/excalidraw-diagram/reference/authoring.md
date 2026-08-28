@@ -575,8 +575,10 @@ return [g, ...arrows];                     // g places like any group; spread th
   source or target is not in `nodes`, an edge missing an endpoint, a `direction`
   other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap`,
   an `entry` / `exit` naming a shape outside `nodes`, one node pinned as both,
-  a `modelOrder` that is not `true` or `false`, and a node with no measured size.
-  `graph` is `async`, so its refusal reaches your `await`.
+  a pin the edges cannot honour (two `entry` nodes with an edge between them —
+  one of them cannot be in the first layer), a `modelOrder` that is not `true` or
+  `false`, and a node with no measured size. `graph` is `async`, so its refusal
+  reaches your `await`.
 - Flat graphs only — nested (compound) children are out of scope, as are the
   engine's other algorithms.
 

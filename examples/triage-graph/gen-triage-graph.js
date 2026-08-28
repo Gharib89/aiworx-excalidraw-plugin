@@ -142,8 +142,9 @@ const LAYOUTS = [
     note: "Every unoffset edge follows the corridor the engine left when it placed the nodes — "
       + "read back, not redrawn, so no edge here is hand-routed. needs-triage and needs-info "
       + "point at each other, and the engine already gives that pair two ports of its own; "
-      + "originAt / landAt only move the neighbouring legs clear of its labels, the one thing "
-      + "the engine cannot do for itself because nobody told it the labels are there. "
+      + "originAt / landAt do the two things the engine cannot: spread the four legs leaving "
+      + "needs-triage across its facing edge, and move them clear of each other's labels, "
+      + "which ELK spaced its ports without ever being told about. "
       + "needs-triage leads because modelOrder makes the order the states were listed in the "
       + "tie-break, and that order picks which edge of the cycle gives way — the picture opens "
       + "where an issue really opens.",

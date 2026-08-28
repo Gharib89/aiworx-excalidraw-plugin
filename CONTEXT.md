@@ -141,6 +141,14 @@ what `graph` takes and what ELK's `layered` algorithm arranges into layers. A
 author owns every coordinate. Say graph only where edges decide the placement.
 _Avoid_: diagram (unqualified), network, chart
 
+**Reading order**:
+The order a reader meets a graph's nodes — which one leads, which closes, and
+which way a layer runs across. It belongs to the author, not the engine: `graph`
+takes the order `nodes` was listed in as its tie-break (*model order*) and takes
+`entry` / `exit` to *pin* a node to the first or last layer. A cycle still costs
+one reversed edge; what these decide is **which** edge gives way.
+_Avoid_: flow direction (that is `direction`), rank, precedence
+
 **Bound label**:
 Text bound to an arrow — its `containerId` names the arrow, and `arrowBetween`'s
 `label:` option writes one. The house form for on-arrow text: the renderer masks

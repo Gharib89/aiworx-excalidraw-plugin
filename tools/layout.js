@@ -792,7 +792,7 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
     const reason = String(err?.message ?? err).replace(/^[\w.]+Exception:\s*/, "")
       .replace(/root\.n(\d+)/g, (_, i) => bindId(nodes[Number(i)]) ?? `node ${i}`);
     return new LayoutError(`the engine cannot honour these pins — ${reason}`, {
-      where: "graph", next: "Pin one node per end of the flow, and pick ends the edges can reach.",
+      where: "graph", next: "Pin nodes the edges can leave in one layer — an edge between two entry pins is the usual culprit.",
     });
   };
 

@@ -9,13 +9,18 @@
  * node set and the edge list are shared, and only the layout options — and the
  * per-edge offsets those options force, which is a lesson of its own — differ.
  *
+ * Every edge that names no offset takes `graph()`'s engine route: the corridor
+ * ELK left when it placed the nodes, read back rather than redrawn. That is the
+ * half of the old hand-routing that is gone — no `via` anywhere in this file.
+ *
  * The machine is drawn honestly, cycles included. `agent-working` hands back to
  * `needs-triage`, and `needs-triage` ↔ `needs-info` is a two-way pair — see the
  * note above `transitions` for which legs the triage-labels doc states and which
- * are read off it — that piles both arrows onto one line and strikes the
- * forward leg's label. The
- * return leg carries `originAt` / `landAt` so `text-struck-by-arrow` never
- * fires: the documented remedy in use, not a dodged shape.
+ * are read off it. The engine gives the pair its own two ports, so the arrows
+ * never share a line; what it cannot do is keep the forward leg off a
+ * neighbour's *label*, because ELK spaced those ports for the arrows and was
+ * never told the labels exist. That, and nothing else, is what the `originAt` /
+ * `landAt` on the legs around the pair are for.
  *
  * One thing the pictures show that no option controls: the engine breaks the
  * cycle by reversing an edge, so `ready-for-agent` lands in the top layer even
@@ -66,14 +71,23 @@ const STATES = [
 // if the labels are ever reworked.
 //
 // Each edge carries its own id so a gate refusal names the transition rather
-// than a generated string.
+// than a generated string. No waypoints: `graph()` gives every edge an engine
+// route, so the corridors are ELK's — the same numbers it used to place the
+// nodes, which is the only place they can come from consistently under two
+// different `direction`s.
 //
-// `offsets` carries the per-edge `originAt` / `landAt` for one layout. They live
-// with the layout rather than here because a fraction runs along the *facing*
-// edge, and which edge faces depends on `direction`: 0.2 is a fifth of the way
-// across the bottom of a box laid out "down", and a fifth of the way down its
-// side laid out "right". One set of numbers cannot serve both pictures.
-const transitions = ({ tag, offsets }, [triage, info, ready, human, working, wontfix, closed]) => {
+// `offsets` is the one thing the engine route cannot supply. ELK spaced its ports
+// for the *arrows*, never having been told the labels exist — `graph()` takes its
+// nodes already measured but its labels as text, and layout.js measures no text —
+// so the fan out of `needs-triage` puts a neighbouring arrow through a label at
+// 0px clearance. A fraction revokes that edge's engine route and hands the path
+// back, which is why these numbers still read the way they always did.
+//
+// They live with the layout rather than here because a fraction runs along the
+// *facing* edge, and which edge faces depends on `direction`: 0.2 is a fifth of
+// the way across the bottom of a box laid out "down", and a fifth of the way down
+// its side laid out "right". One set of numbers cannot serve both pictures.
+const transitions = ({ tag, offsets = {} }, [triage, info, ready, human, working, wontfix, closed]) => {
   const at = (name) => ({ id: `${tag}-${name}`, ...(offsets[name] ?? {}) });
   // A label rides at the middle of its own arrow, so its width is what decides
   // whether a neighbouring edge can pass. Set smaller than the state names on
@@ -91,6 +105,7 @@ const transitions = ({ tag, offsets }, [triage, info, ready, human, working, won
     // the fan and reads as an edge between the wrong two states.
     [triage, info, { ...at("ask"), label: says("ask reporter") }],
     [info, triage, at("answered")],
+    // no offset, so this one is an engine route — and every other unoffset edge below
     [triage, ready, { ...at("ready"), label: says("fully specified") }],
     // needs-triage leaves by one and the same edge four times over. Left alone
     // every one of those arrows departs from the middle of it and stacks the
@@ -120,11 +135,14 @@ const LAYOUTS = [
     },
     title: "graph() lays out the triage labels",
     frame: 'direction "down" — the triage state machine, cycles and all',
-    note: "needs-triage and needs-info point at each other, and left alone both legs run down "
-      + "one line — the return arrow straight through the outgoing leg's label. originAt / "
-      + "landAt move the return leg onto the outside of the fan, where it has a line to itself. "
-      + "ready-for-agent sits on top because the engine reversed an edge to break the cycle: "
-      + "read the arrowheads, not the layers.",
+    note: "Every unoffset edge follows the corridor the engine left when it placed the nodes — "
+      + "read back, not redrawn, so no edge here is hand-routed. needs-triage and needs-info "
+      + "point at each other, and the engine already gives that pair two ports of its own; "
+      + "originAt / landAt only move the neighbouring legs clear of its labels, the one thing "
+      + "the engine cannot do for itself because nobody told it the labels are there. "
+      + "ready-for-agent sits on top "
+      + "because the engine reversed an edge to break the cycle: read the arrowheads, not the "
+      + "layers.",
   },
   {
     tag: "right",
@@ -139,8 +157,9 @@ const LAYOUTS = [
     frame: 'direction "right" — the same graph, respaced',
     note: "Same states, same transitions, three different numbers. gap spaces the states inside "
       + "a layer, layerGap spaces the layers themselves, and direction turns the flow on its "
-      + "side — after which every originAt / landAt above had to be picked again, because a "
-      + "fraction runs along whichever edge now faces its target.",
+      + "side. The engine routes follow on their own, because they are read back from the "
+      + "layout rather than written beside it — every originAt / landAt above still had to be "
+      + "picked again, because a fraction runs along whichever edge now faces its target.",
   },
 ];
 

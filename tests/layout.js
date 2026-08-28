@@ -865,6 +865,151 @@ const rejectsLayoutError = async (fn) => {
     await rejectsLayoutError(() => graph([a, b, a], [[a, b]])));
 }
 
+// ---- engine route: graph() reads ELK's own path back, so the house stops hand-routing ----
+// The whole point is the geometry the gate scores, so these claims are checked with
+// `segmentLengthInsideShape` and `shapeDepth` — what `arrow-crossing` and
+// `arrow-buried` read — rather than against arithmetic restated here.
+const pathOf = (arrow) => arrow.points.map(([px, py]) => [arrow.x + px, arrow.y + py]);
+const crossings = (arrow, shapes) => {
+  const pts = pathOf(arrow);
+  const hits = [];
+  for (let s = 0; s + 1 < pts.length; s++) {
+    for (const shape of shapes) {
+      if (shapeDepth(shape, pts[s]) > 0.5 || shapeDepth(shape, pts[s + 1]) > 0.5) {
+        hits.push(`vertex in ${shape.id}`);
+      }
+      if (segmentLengthInsideShape(shape, pts[s], pts[s + 1]) > 2) hits.push(`seg${s} crosses ${shape.id}`);
+    }
+  }
+  return hits;
+};
+
+// a -> b -> c layers three deep, and a -> c skips the middle layer: the edge that
+// used to be refused as `arrow-crossing` and hand-routed around b with `via`
+const skipping = async (opts) => {
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]], opts);
+  const resolved = resolveArrows(arrows);
+  return { a, b, c, g, arrows: resolved, skip: resolved[2] };
+};
+
+{
+  const { a, b, c, skip } = await skipping({});
+  check("an engine route bends the layer-skipping edge around the node between",
+    pathOf(skip).length > 2, JSON.stringify(pathOf(skip)));
+  check("the engine route clears every node in the graph",
+    crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
+  // the contrast is the reason this ticket exists: the same edge routed the old
+  // way runs straight through the node ELK went around
+  const direct = await skipping({ route: "direct" });
+  check("the same edge routed direct still crosses the node between",
+    pathOf(direct.skip).length === 2 &&
+      crossings(direct.skip, [direct.b]).length > 0,
+    crossings(direct.skip, [direct.b]).join("; "));
+  // the endpoints stay the house's: standoff still holds both ends off their shape
+  check("an engine route leaves standoff at both ends to the house",
+    pathOf(skip)[0][1] === a.y + a.height + 10 && pathOf(skip).at(-1)[1] === c.y - 10,
+    `${pathOf(skip)[0]} → ${pathOf(skip).at(-1)}`);
+  // a path with corners goes in as explicit points, so roundness must be off —
+  // the same rule `route: "orthogonal"` follows
+  check("an engine route with bends turns roundness off", skip.roundness === null);
+}
+
+// a two-way pair needs no bend: ELK gives the two edges different ports, and the
+// house reads those back — without them both arrows run the overlap centre and pile
+{
+  const [a, b] = ["a", "b"].map(node);
+  const { arrows } = await graph([a, b], [[a, b], [b, a]]);
+  const [there, back] = resolveArrows(arrows);
+  check("an engine route separates a two-way pair by the ports ELK gave it",
+    pathOf(there)[0][0] !== pathOf(back)[0][0] && pathOf(there).at(-1)[0] !== pathOf(back).at(-1)[0],
+    `${pathOf(there)[0]} vs ${pathOf(back)[0]}`);
+  check("each half of the pair still runs axis-aligned",
+    pathOf(there)[0][0] === pathOf(there).at(-1)[0] &&
+      pathOf(back)[0][0] === pathOf(back).at(-1)[0]);
+  check("neither half of the pair enters a node",
+    crossings(there, [a, b]).length === 0 && crossings(back, [a, b]).length === 0,
+    [...crossings(there, [a, b]), ...crossings(back, [a, b])].join("; "));
+}
+
+// the band idiom is a later mover: `row(panels.map(p => p.g))` shifts the whole
+// graph, and an absolute bend list would point at where the nodes used to be
+{
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]]);
+  const before = pathOf(resolveArrows([{ ...arrows[2] }])[0]);
+  const legend = { type: "rectangle", id: "legend", width: 80, height: 40 };
+  row([g, legend], { x: 400, y: 250, gap: 30 });
+  const [, , moved] = resolveArrows(arrows);
+  check("an engine route survives a band-level mover, shifted with its group",
+    JSON.stringify(pathOf(moved)) ===
+      JSON.stringify(before.map(([px, py]) => [px + 400, py + 250])),
+    JSON.stringify(pathOf(moved)));
+  check("the moved engine route still clears every node",
+    crossings(moved, [a, b, c]).length === 0, crossings(moved, [a, b, c])[0]);
+}
+
+// a node moved on its own leaves ELK's corridor stale: bends pointing at where the
+// node was are the exact refusal this replaces, so the route drops to direct
+{
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]]);
+  b.x += 300;
+  const [, , skip] = resolveArrows(arrows);
+  check("an engine route whose endpoints moved independently falls back to direct",
+    pathOf(skip).length === 2, JSON.stringify(pathOf(skip)));
+}
+{
+  // a resized node clears the corridor no more than a moved one does — the route
+  // was computed against an extent that is gone
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]]);
+  a.width += 60;
+  const [, , skip] = resolveArrows(arrows);
+  check("a resized endpoint drops the engine route too",
+    pathOf(skip).length === 2, JSON.stringify(pathOf(skip)));
+}
+
+// placing an endpoint yourself takes the whole path back: the corridor was cut for
+// ELK's ports, and a bend list the endpoint no longer lines up with draws worse
+// geometry than the straight run the fraction was picked against
+{
+  const { skip } = await skipping({ originAt: 0.9 });
+  check("an originAt of the author's own revokes the engine route, not one end of it",
+    pathOf(skip).length === 2, JSON.stringify(pathOf(skip)));
+  const landed = await skipping({ landAt: 0.1 });
+  check("so does a landAt", pathOf(landed.skip).length === 2, JSON.stringify(pathOf(landed.skip)));
+  // and the fraction it was given is the one it lands on
+  check("the revoked route still honours the fraction it was handed",
+    pathOf(landed.skip).at(-1)[0] === landed.c.x + 0.1 * landed.c.width,
+    `${pathOf(landed.skip).at(-1)[0]} vs ${landed.c.x + 0.1 * landed.c.width}`);
+}
+
+// ---- route: three named values, and the one only graph() can hand out ----
+{
+  const [a, b, c] = ["a", "b", "c"].map(node);
+  const { arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c, { route: "orthogonal" }]]);
+  const [, , orth] = resolveArrows(arrows);
+  // the elbow owns only the gap between its two shapes, so on this aligned pair it
+  // has no slope to remove and stays the straight run — through b, as it always did
+  check("a per-edge route overrides the engine default graph() applies",
+    pathOf(orth).length === 2 && crossings(orth, [b]).length > 0,
+    JSON.stringify(pathOf(orth)));
+
+  const x = { type: "rectangle", id: "x", x: 0, y: 0, width: 100, height: 60 };
+  const y = { type: "rectangle", id: "y", x: 0, y: 200, width: 100, height: 60 };
+  check('route: "direct" is the escape hatch and draws the straight run',
+    pathOf(arrowBetween(x, y, { route: "direct" })).length === 2);
+  check("route refuses a value it cannot draw",
+    throwsLayoutError(() => deferArrow(x, y, { route: "curved" })));
+  // an engine route is ELK's answer; a hand-composed arrow has no engine behind it,
+  // and drawing it straight instead would answer a question nobody asked
+  check('route: "engine" outside graph() refuses rather than drawing direct',
+    throwsLayoutError(() => resolveOne(deferArrow(x, y, { route: "engine" }))));
+  check("route and via still refuse together, engine included",
+    throwsLayoutError(() => deferArrow(x, y, { route: "engine", via: [[50, 100]] })));
+}
+
 // ---- flatten: mixed elements and groups, depth-first ----
 {
   const t = { type: "text", width: 10, height: 10 };

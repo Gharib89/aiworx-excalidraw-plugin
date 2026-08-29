@@ -21,7 +21,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
-| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
+| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, entry, exit, modelOrder, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
 | `fromMermaid` | `await fromMermaid(source)` | `{ nodes, edges }` built from a mermaid flowchart, in the shape `graph` takes | [Ingesting mermaid](#ingesting-mermaid) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
@@ -507,15 +507,32 @@ return [g, ...arrows];                     // g places like any group; spread th
   overrides what it needs.
 - `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
   left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
-  layers themselves. These four are the whole option surface: the algorithm is
+  layers themselves. These six options are the whole surface: the algorithm is
   always `layered`, and raw ELK options do not pass through.
-- **A cycle costs you the reading order.** The engine layers a graph by making it
-  acyclic first, so every cycle has one edge reversed for the purpose of laying
-  out — and the state an author thinks of as the entry can land mid-picture or
-  at the bottom. Nothing in the option surface picks which edge gives way, and
-  the order `nodes` is listed in does not sway it. The arrows still point the way
-  the edges were written, so the picture stays true: it is the layers that stop
-  being the reading order. Say so in the caption rather than fighting the engine.
+- **The reading order is yours, not the engine's.** Two options decide it, and
+  both are worth reaching for before you reach for a caption that apologises:
+  - `modelOrder` (default `true`) makes the order you listed `nodes` in the
+    tie-break. It orders each layer — list the branches the way a reader should
+    meet them and they lay out that way — and it picks which edge of a **cycle**
+    gives way, so the state you listed first is normally the state that leads.
+    `modelOrder: false` hands both back to the engine, which picks for itself.
+  - `entry` and `exit` pin a node — or an array of them — to the first and last
+    layer outright. This is what holds when the listing order is not enough: a
+    cycle whose entry is not the node you happened to list first, or an end state
+    you want at the bottom whatever the edges say.
+
+  The engine still layers a graph by making it acyclic first, so a cycle always
+  has one edge reversed for the purpose of laying out. What these two options buy
+  is **which** edge — and the arrows keep pointing the way you wrote the edges,
+  so the picture stays true either way.
+
+  ```js
+  const { g, arrows } = await graph(states, transitions, {
+    direction: "down",
+    entry: needsTriage,        // an issue opens here, so the picture opens here
+    exit: closed,              // and ends here, however the cycle is broken
+  });
+  ```
 - `g` obeys the **last mover** like any group, so compose it into a band and the
   nodes move with it; the arrows are deferred, so they still resolve against the
   final positions. Node positions come back on whole pixels, which is what makes
@@ -557,8 +574,11 @@ return [g, ...arrows];                     // g places like any group; spread th
 - Refusals are `LayoutError` from the call: an empty `nodes` array, an edge whose
   source or target is not in `nodes`, an edge missing an endpoint, a `direction`
   other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap`,
-  and a node with no measured size. `graph` is `async`, so its refusal reaches
-  your `await`.
+  an `entry` / `exit` naming a shape outside `nodes`, one node pinned as both,
+  a pin the edges cannot honour (two `entry` nodes with an edge between them —
+  one of them cannot be in the first layer), a `modelOrder` that is not `true` or
+  `false`, and a node with no measured size. `graph` is `async`, so its refusal
+  reaches your `await`.
 - Flat graphs only — nested (compound) children are out of scope, as are the
   engine's other algorithms.
 
@@ -607,6 +627,12 @@ return [g, ...arrows];
   using `subgraph` blocks (`graph` is flat-only — flatten the source, or draw one
   panel per subgraph), unparseable mermaid (the message carries the parser's own
   line), and a flowchart with no nodes.
+- **The source's own order is the layout's.** Nodes come back in the order the
+  mermaid named them, and `graph`'s `modelOrder` reads that order as its
+  tie-break — so a branch a reader meets first in the source is the branch that
+  lays out leading, and the same mermaid regenerates the same picture. Pin an
+  entry the source does not open with using `entry`
+  ([Laying out a graph](#laying-out-a-graph)).
 - **A loop in the source lands on the engine's route.** An edge back to an
   earlier node skips layers once the engine has ranked the graph, and its
   **engine route** goes around the nodes in between — the same as any other

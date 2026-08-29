@@ -109,8 +109,10 @@ The house still **owns** the edges; ELK **routes** them.
 - **Edge labels remain the author's problem.** ELK spaced its ports for arrows,
   never having been told the labels exist, so a labelled fan can still put one
   arrow through a neighbour's label. `examples/triage-graph` still carries
-  `originAt`/`landAt` on four edges for exactly that reason and no other — the
-  hand-routing is gone, the label nudging is not.
+  `originAt`/`landAt` for exactly that reason — the hand-routing is gone, the
+  label nudging is not. (Since #201 those fractions also spread a fan across its
+  source's facing edge, which the engine ports alone leave stacked; the count per
+  band moves with the layout, so read the generator rather than a number here.)
 - The corridor check is O(nodes) per edge at resolve. Diagrams are tens of
   elements; a graph large enough for that to matter is out of `graph()`'s stated
   scope already (flat, `layered` only).

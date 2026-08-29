@@ -786,6 +786,61 @@ const rejectsLayoutError = async (fn) => {
       taller.c.x - (taller.b.x + taller.b.width) === down.c.x - (down.b.x + down.b.width));
 }
 
+// ---- graph: entry and exit pin the layers a cycle would otherwise pick for itself ----
+{
+  // a ring — every node has an edge in and an edge out, so the engine breaks the
+  // cycle wherever it likes and the state the author calls the entry lands
+  // mid-picture as often as not
+  const ring = async (pin) => {
+    const nodes = ["a", "b", "c", "d"].map(node);
+    const [a, b, c, d] = nodes;
+    await graph(nodes, [[a, b], [b, c], [c, d], [d, a]], pin(nodes));
+    const layers = [...new Set(nodes.map((n) => n.y))].sort((p, q) => p - q);
+    return { nodes, layer: (n) => layers.indexOf(n.y), depth: layers.length };
+  };
+
+  // pinned two different ways round: one node landing in layer 0 could be the
+  // engine's own pick, but two rival candidates each leading when named cannot be
+  const third = await ring(([, , c]) => ({ entry: c }));
+  const fourth = await ring(([, , , d]) => ({ entry: d }));
+  check("entry lands whichever node it names in layer 0, even inside a cycle",
+    third.layer(third.nodes[2]) === 0 && fourth.layer(fourth.nodes[3]) === 0);
+
+  const last = await ring(([, , c]) => ({ exit: c }));
+  check("exit lands its node in the final layer even inside a cycle",
+    last.layer(last.nodes[2]) === last.depth - 1);
+
+  // two ways in, one way out — the shape a single pin cannot describe
+  {
+    const [a, b, sink] = ["a", "b", "sink"].map(node);
+    await graph([a, b, sink], [[a, sink], [b, sink]], { entry: [a, b], exit: sink });
+    check("entry and exit pin several nodes at once",
+      a.y === b.y && a.y < sink.y);
+  }
+}
+
+// ---- graph: model order makes the listing order the tie-break ----
+{
+  // one source fanning to three targets: nothing in the graph itself says which
+  // target sits left, so the order they were listed in is the only thing left to
+  // read the intent off
+  const fan = async (order, opts) => {
+    const nodes = ["r", ...order].map(node);
+    const [r, ...targets] = nodes;
+    await graph(nodes, targets.map((t) => [r, t]), opts);
+    return Object.fromEntries(targets.map((t) => [t.id, t.x]));
+  };
+  const across = (xs, order) => order.map((id) => xs[id]).every((x, i, all) => i === 0 || all[i - 1] < x);
+
+  check("graph orders a layer by the order its nodes were listed in",
+    across(await fan(["a", "b", "c"]), ["a", "b", "c"]) &&
+      across(await fan(["c", "b", "a"]), ["c", "b", "a"]));
+  // the same three targets read back in listing order both ways is the claim;
+  // without the tie-break the engine is free to pick, and here it does
+  check("modelOrder: false hands the within-layer order back to the engine",
+    !across(await fan(["a", "b", "c"], { modelOrder: false }), ["a", "b", "c"]));
+}
+
 // ---- graph: the group obeys the outermost mover, and its arrows follow ----
 {
   const [a, b] = ["a", "b"].map(node);
@@ -857,6 +912,19 @@ const rejectsLayoutError = async (fn) => {
   check("graph refuses spacings that are not pixel counts",
     await rejectsLayoutError(() => graph([a, b], [], { gap: NaN })) &&
       await rejectsLayoutError(() => graph([a, b], [], { layerGap: -10 })));
+  check("graph refuses a pin naming a shape outside the node list",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: stranger })) &&
+      await rejectsLayoutError(() => graph([a, b], [[a, b]], { exit: [b, stranger] })));
+  // one node cannot both open and close the flow, and ELK would keep whichever
+  // constraint it was handed last without a word
+  check("graph refuses a node pinned as both entry and exit",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: a, exit: a })));
+  check("graph refuses a modelOrder that is not a yes or a no",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { modelOrder: "yes" })));
+  // the engine catches this one, and left alone it answers with a Java class
+  // name and its own internal ids — a house refusal, or the author reads a stack
+  check("a pin the edges cannot honour comes back as a LayoutError, not an engine crash",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: [a, b] })));
   check("graph refuses a node it cannot measure",
     await rejectsLayoutError(() => graph([{ type: "rectangle", id: "unmeasured" }])));
   // the same shape twice would collapse in the identity index, laying out a node

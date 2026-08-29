@@ -680,8 +680,20 @@ const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
  * left to right. `gap` spaces nodes within a layer, `layerGap` spaces the layers
  * themselves. Flat graphs only, and `layered` only; nested children and the
  * other ELK algorithms are out of scope by design.
+ *
+ * **Reading order** is the other half of the option surface, and it is the
+ * author's rather than the engine's:
+ * - `entry` and `exit` pin a node — or an array of them — to the first and last
+ *   layer. This is the only thing that holds inside a **cycle**, where the engine
+ *   reverses one edge to lay the graph out at all and would otherwise leave the
+ *   state the author calls the entry sitting mid-picture.
+ * - `modelOrder` (default `true`) makes the order `nodes` was listed in the
+ *   tie-break: it orders each layer and picks which edge of a cycle gives way, so
+ *   a graph lays out the way it was written. `false` hands both back to the
+ *   engine. It is what makes `fromMermaid` deterministic in **source** order,
+ *   since its nodes arrive in the order the mermaid named them.
  */
-export async function graph(nodes, edges = [], { direction = "down", gap = 40, layerGap = 60, ...arrowDefaults } = {}, ramp = FIT_RAMP) {
+export async function graph(nodes, edges = [], { direction = "down", gap = 40, layerGap = 60, entry, exit, modelOrder = true, ...arrowDefaults } = {}, ramp = FIT_RAMP) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     throw new LayoutError(`nodes must be a non-empty array, got ${shown(nodes)}`, {
       where: "graph", next: "Pass at least one measured shape as a node.",
@@ -699,6 +711,11 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       });
     }
   }
+  if (typeof modelOrder !== "boolean") {
+    throw new LayoutError(`modelOrder must be true or false, got ${shown(modelOrder)}`, {
+      where: "graph", next: "Pass false to hand the order back to the engine, or omit it for the default.",
+    });
+  }
   if (!Array.isArray(edges)) {
     throw new LayoutError(`edges must be an array of [source, target] pairs, got ${shown(edges)}`, {
       where: "graph", next: "Pass edges: [[a, b], [b, c]], or omit them for nodes alone.",
@@ -715,6 +732,30 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       where: "graph", next: "Build a separate shape per node, and list each one once.",
     });
   }
+  // node -> the ELK layer constraint it was pinned with. The two author-facing
+  // options are read into it here so that ELK's own vocabulary starts at this
+  // line and never reaches the author.
+  const pinned = new Map();
+  for (const [name, value, constraint] of [["entry", entry, "FIRST"], ["exit", exit, "LAST"]]) {
+    if (value === undefined) continue;
+    for (const node of Array.isArray(value) ? value : [value]) {
+      if (!index.has(node)) {
+        throw new LayoutError(
+          `${name} names ${bindId(node) ?? shown(node?.type)}, which is not one of the ${nodes.length} nodes`,
+          { where: "graph", next: "Pass the node object itself, and list it in nodes." },
+        );
+      }
+      // a node cannot open and close the same reading order, and ELK would take
+      // whichever constraint was written last without a word
+      if (pinned.has(node) && pinned.get(node) !== constraint) {
+        throw new LayoutError(`${bindId(node) ?? shown(node?.type)} is pinned as both entry and exit`, {
+          where: "graph", next: "Pin the node to one end of the flow, or to neither.",
+        });
+      }
+      pinned.set(node, constraint);
+    }
+  }
+
   const wired = edges.map((edge, i) => {
     // exactly two or three: a fourth entry is something the author meant to be
     // read, and accepting it would drop it without a word
@@ -742,6 +783,19 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
   // ELK decorates every object it is handed with an internal `$H` and writes the
   // results back onto it, so it is fed a plain graph built here and never a
   // house element.
+  // A pin the edges cannot honour — two nodes pinned `entry` with an edge
+  // between them, so one of them cannot be in the first layer — is the one
+  // author mistake the engine itself catches, and it answers with a Java class
+  // name and its own `n${i}` ids. Say it back in the house voice, naming the
+  // node the author built.
+  const pinRefusal = (err) => {
+    const reason = String(err?.message ?? err).replace(/^[\w.]+Exception:\s*/, "")
+      .replace(/root\.n(\d+)/g, (_, i) => bindId(nodes[Number(i)]) ?? `node ${i}`);
+    return new LayoutError(`the engine cannot honour these pins — ${reason}`, {
+      where: "graph", next: "Pin nodes the edges can leave in one layer — an edge between two entry pins is the usual culprit.",
+    });
+  };
+
   const laid = await (await elkEngine()).layout({
     id: "root",
     layoutOptions: {
@@ -749,13 +803,30 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       "elk.direction": ELK_DIRECTION[direction],
       "elk.spacing.nodeNode": gap,
       "elk.layered.spacing.nodeNodeBetweenLayers": layerGap,
+      // the author's listing order, spent only where the graph itself leaves a
+      // choice: it breaks ties within a layer and picks the cycle edge to
+      // reverse, so a source-ordered input lays out the way it reads
+      ...(modelOrder && {
+        "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
+        "elk.layered.cycleBreaking.strategy": "GREEDY_MODEL_ORDER",
+      }),
     },
-    children: sizes.map((size, i) => ({ id: `n${i}`, ...size })),
+    children: sizes.map((size, i) => {
+      const constraint = pinned.get(nodes[i]);
+      return {
+        id: `n${i}`,
+        ...size,
+        ...(constraint && { layoutOptions: { "elk.layered.layering.layerConstraint": constraint } }),
+      };
+    }),
     edges: wired.map(({ source, target }, i) => ({
       id: `e${i}`,
       sources: [`n${index.get(source)}`],
       targets: [`n${index.get(target)}`],
     })),
+  }).catch((err) => {
+    if (pinned.size) throw pinRefusal(err);
+    throw err;
   });
 
   // `laid.children[i]` is `nodes[i]`: ELK lays out in place and hands back the

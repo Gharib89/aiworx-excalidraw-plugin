@@ -864,8 +864,12 @@ const rejectsLayoutError = async (fn) => {
   const geometry = async () => {
     const [a, b, c, d] = ["a", "b", "c", "d"].map(node);
     // "right" is the direction that made ELK produce a fractional y before the
-    // rounding — the case a byte-stable artifact depends on
-    const { g, arrows } = await graph([a, b, c, d], [[a, b], [a, c], [b, d], [c, d]], { direction: "right" });
+    // rounding — the case a byte-stable artifact depends on. Every route option
+    // is named too: they reach a different ELK strategy and different corridor
+    // widths, and a byte-stable artifact needs those repeatable as well.
+    const { g, arrows } = await graph([a, b, c, d], [[a, b], [a, c], [b, d], [c, d]], {
+      direction: "right", placement: "straight", edgeGap: 24, edgeLayerGap: 18, sharedPorts: true,
+    });
     return JSON.stringify(flatten([g, ...resolveArrows(arrows)]));
   };
   const first = await geometry();

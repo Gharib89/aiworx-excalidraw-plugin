@@ -431,7 +431,7 @@ export function arrowBetween(a, b, opts = {}, ramp = FIT_RAMP) {
   return arrow;
 }
 
-/** One node's extent relative to its graph group — the placement a route was cut for. */
+/** One node's extent relative to its graph group — the layout a route was cut against. */
 function asPlaced(node, group) {
   const { x1, y1, x2, y2 } = boundsOf(node);
   return [x1 - group.x, y1 - group.y, x2 - group.x, y2 - group.y];
@@ -439,7 +439,7 @@ function asPlaced(node, group) {
 
 /**
  * Whether the engine route `graph` recorded still describes the picture in front of
- * it. ELK routed the corridor against the whole placement it had just made, so the
+ * it. ELK routed the corridor against the whole layout it had just made, so the
  * route is only true while every node in the graph still sits — and still reaches —
  * where ELK left it. Measured against the group, so the band-level mover that
  * carries the whole graph changes nothing; a node moved or resized *on its own*
@@ -451,7 +451,7 @@ function asPlaced(node, group) {
  * flow, so a pair whose wider separation is now the cross axis has none to follow.
  */
 function engineHolds(route, horizontal) {
-  const { group, horizontal: flow, nodes, boxes } = route.placement;
+  const { group, horizontal: flow, nodes, boxes } = route.cut;
   return horizontal === flow &&
     nodes.every((node, i) => asPlaced(node, group).every((n, j) => n === boxes[i][j]));
 }
@@ -523,7 +523,7 @@ function resolveArrow(arrow) {
   let waypoints;
   const placed = originAt !== undefined || landAt !== undefined;
   if (route === "engine" && !placed && engineHolds(engineRoute, horizontal)) {
-    const { group } = engineRoute.placement;
+    const { group } = engineRoute.cut;
     const cross = horizontal ? 1 : 0;
     const origin = horizontal ? group.y : group.x;
     start[cross] = origin + engineRoute.startCross;
@@ -739,6 +739,9 @@ export async function graph(nodes, edges = [], {
       });
     }
   }
+  // the two boolean guards stay straight-line rather than sharing the loop above:
+  // tests/error-classes.js reads every throw site statically and needs a literal
+  // `next:` string, which a destructured loop variable is not
   if (typeof modelOrder !== "boolean") {
     throw new LayoutError(`modelOrder must be true or false, got ${shown(modelOrder)}`, {
       where: "graph", next: "Pass false to hand the order back to the engine, or omit it for the default.",
@@ -899,9 +902,11 @@ export async function graph(nodes, edges = [], {
   // needs the array order to be ELK's.
   const sections = new Map((laid.edges ?? []).map((edge) => [edge.id, edge.sections]));
   const toGroup = (p) => [Math.round(p.x) - originX, Math.round(p.y) - originY];
-  // one record shared by every route out of this graph: the placement they were all
-  // cut against, and what `engineHolds` reads to tell a moved graph from a moved node
-  const cutAgainst = {
+  // The **cut**: one record shared by every route out of this graph, holding the
+  // layout they were all cut against, and what `engineHolds` reads to tell a moved
+  // graph from a moved node. Named apart from the `placement` option, which is the
+  // engine's *choice of strategy* rather than the result it reached.
+  const cut = {
     group: g,
     horizontal: direction === "right",
     nodes,
@@ -912,9 +917,9 @@ export async function graph(nodes, edges = [], {
     // one section per edge is what a 1:1 edge gets; a split route is a shape this
     // reader has no answer for, so leave the edge to the straight run
     if (!section || rest.length) return undefined;
-    const cross = cutAgainst.horizontal ? 1 : 0;
+    const cross = cut.horizontal ? 1 : 0;
     return {
-      placement: cutAgainst,
+      cut,
       bends: (section.bendPoints ?? []).map(toGroup),
       startCross: toGroup(section.startPoint)[cross],
       endCross: toGroup(section.endPoint)[cross],

@@ -241,6 +241,12 @@ const rejectsLayoutError = async (fn) => {
   check("a non-finite width is rejected",
     throwsLayoutError(() => uniformWidth([{ width: NaN, height: 25 }])));
   check("a missing width is rejected", throwsLayoutError(() => uniformWidth([{ height: 25 }])));
+  // an `available - used` gone past zero reaches here as a negative width, and
+  // returning one would surface much later as a degenerate shape at the gate
+  check("a negative width is rejected",
+    throwsLayoutError(() => uniformWidth([{ width: -50, height: 25 }])));
+  check("a zero width is still a width", uniformWidth([{ width: 0, height: 25 }]) === 40,
+    String(uniformWidth([{ width: 0, height: 25 }])));
   check("a non-finite padding is rejected",
     throwsLayoutError(() => uniformWidth(measured, { padding: Infinity })));
   check("a negative padding is rejected",

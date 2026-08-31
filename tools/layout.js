@@ -172,8 +172,11 @@ export function uniformWidth(items, { padding = 20, round = 20 } = {}) {
 
   const widths = items.map((item, i) => {
     const w = item?.width;
-    if (!Number.isFinite(w)) {
-      throw new LayoutError(`item ${i} needs a finite width (got ${shown(w)})`, {
+    // negative is reachable arithmetic — an `available - used` gone past zero —
+    // and would hand back a width the gate only refuses much later, as a
+    // degenerate shape, naming the rectangle instead of the measurement behind it
+    if (!Number.isFinite(w) || w < 0) {
+      throw new LayoutError(`item ${i} needs a non-negative finite width (got ${shown(w)})`, {
         where: item?.id || "uniformWidth",
         next: "Measure the text first, or size the shape explicitly.",
       });

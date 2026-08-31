@@ -8,6 +8,8 @@
  * frame, so `direction`, `gap` and `layerGap` can be seen doing the work: the
  * node set and the edge list are shared, and only the layout options — and the
  * per-edge offsets those options force, which is a lesson of its own — differ.
+ * `placement` is the one layout option deliberately *equal* in both, because
+ * what it buys is not a difference between the pictures: see `LAYOUTS`.
  *
  * Every edge that names no offset takes `graph()`'s engine route: the corridor
  * ELK left when it placed the nodes, read back rather than redrawn. That is the
@@ -17,10 +19,11 @@
  * `needs-triage`, and `needs-triage` ↔ `needs-info` is a two-way pair — see the
  * note above `transitions` for which legs the triage-labels doc states and which
  * are read off it. The engine gives the pair its own two ports, so the arrows
- * never share a line; what it cannot do is keep the forward leg off a
- * neighbour's *label*, because ELK spaced those ports for the arrows and was
- * never told the labels exist. That, and nothing else, is what the `originAt` /
- * `landAt` on the legs around the pair are for.
+ * never share a line; what it cannot do is keep an arrow off a neighbour's
+ * *label*, because ELK spaced those ports for the arrows and was never told the
+ * labels exist. That, and nothing else, is what the `originAt` / `landAt` in
+ * this file are for — and where not even a fraction opens a gap, the label
+ * comes off instead, which is why the pair is the one unlabelled transition.
  *
  * `needs-triage` leads both pictures because `graph()` reads the order the states
  * were listed in — `modelOrder`, on by default — and that order picks which edge
@@ -96,15 +99,18 @@ const transitions = ({ tag, offsets = {} }, [triage, info, ready, human, working
   // and no amount of offsetting opens a gap for them.
   const says = (text) => ({ text, fontSize: 13 });
   return [
-    // The two-way pair. Both legs would otherwise run centre to centre along
-    // one line, and the return arrow would strike the label of the leg going
-    // out — `text-struck-by-arrow`, at 0px clearance. The offsets pull the two
-    // legs apart onto separate parallel lines, which leaves the label a side to
-    // itself. Two things decide the numbers: the gap has to be wider than half
-    // the label, which is centred on its own leg, and the return leg belongs on
-    // the outside of the layout — pushed the other way it crosses the rest of
-    // the fan and reads as an edge between the wrong two states.
-    [triage, info, { ...at("ask"), label: says("ask reporter") }],
+    // The two-way pair, and the one transition here that carries no label. The
+    // engine gives the pair two ports of its own, so the legs never share a
+    // line — but under `placement: "straight"` it settles the two states
+    // diagonally apart, and two legs between diagonally-opposite boxes run
+    // close to the same diagonal. A bound label rides at the middle of its own
+    // leg, which is where the other leg passes, so a label between them is
+    // `text-struck-by-arrow` at 0px clearance for *every* fraction: an
+    // originAt / landAt moves an endpoint along one edge and barely moves the
+    // midpoint. Labelling one direction only is the remedy the authoring
+    // reference names, and here even one is one too many — the pair reads from
+    // its two arrowheads, and the meanings are in docs/agents/triage-labels.md.
+    [triage, info, at("ask")],
     [info, triage, at("answered")],
     [triage, ready, { ...at("ready"), label: says("fully specified") }],
     // needs-triage leaves by one and the same edge four times over. Left alone
@@ -115,24 +121,30 @@ const transitions = ({ tag, offsets = {} }, [triage, info, ready, human, working
     // nearest target takes the largest fraction and the farthest the smallest,
     // and the legs spread instead of crossing.
     [triage, human, { ...at("human"), label: says("human only") }],
-    [triage, wontfix, at("wontfix")],                   // an unlabelled transition beside the labelled ones
+    [triage, wontfix, at("wontfix")],                   // unlabelled because the arrowhead says it all
     [ready, working, { ...at("claim"), label: says("/ship claims it") }],
     [working, triage, { ...at("handback"), label: says("blocked") }],   // the cycle
     [working, closed, { ...at("merged"), label: says("merged") }],
   ];
 };
 
-// One entry per frame. The band's whole claim is that these three options — and
+// One entry per frame. The band's whole claim is that these four options — and
 // nothing else — separate the two pictures, so the caption under each graph is
 // built from this object rather than typed beside it: a drawn caption that can
 // drift from the call it describes is a lie the gate cannot catch.
+//
+// `placement` is the same value in both, because it is not what separates them:
+// it is what makes the handback edge drawable at all. Under the default
+// "balanced" placement that edge came back with three direction changes in each
+// frame — `too-many-bends` twice over, the only advisory this band could not
+// offset its way out of, because a bend count is the engine's to spend and no
+// fraction moves it.
 const LAYOUTS = [
   {
     tag: "down",
-    opts: { direction: "down", gap: 110, layerGap: 96 },
+    opts: { direction: "down", gap: 110, layerGap: 96, placement: "straight" },
     offsets: {
       ask: { originAt: 0.22, landAt: 0.8 },
-      answered: { originAt: 0.03, landAt: 0.06 },
       ready: { originAt: 0.92 },
       human: { originAt: 0.62 },
       wontfix: { originAt: 0.34 },
@@ -140,38 +152,39 @@ const LAYOUTS = [
     title: "graph() lays out the triage labels",
     frame: 'direction "down" — the triage state machine, cycles and all',
     note: "Every unoffset edge follows the corridor the engine left when it placed the nodes — "
-      + "read back, not redrawn, so no edge here is hand-routed. needs-triage and needs-info "
-      + "point at each other, and the engine already gives that pair two ports of its own; "
-      + "originAt / landAt do the two things the engine cannot: spread the four legs leaving "
-      + "needs-triage across its facing edge, and move them clear of each other's labels, "
-      + "which ELK spaced its ports without ever being told about. "
-      + "needs-triage leads because modelOrder makes the order the states were listed in the "
-      + "tie-break, and that order picks which edge of the cycle gives way — the picture opens "
-      + "where an issue really opens.",
+      + "read back, not redrawn, so no edge here is hand-routed. placement \"straight\" is what "
+      + "lets the handback edge take that corridor in two bends instead of three: the engine "
+      + "spends the same bends on the short edges to keep the long one straight, which is the "
+      + "one thing an originAt / landAt cannot buy. What the fractions still do is the engine's "
+      + "blind spot — spread the four legs leaving needs-triage across its facing edge and move "
+      + "them clear of each other's labels, which ELK spaced its ports without ever being told "
+      + "about. needs-triage leads because modelOrder makes the order the states were listed in "
+      + "the tie-break, and that order picks which edge of the cycle gives way — the picture "
+      + "opens where an issue really opens.",
   },
   {
     tag: "right",
-    opts: { direction: "right", gap: 80, layerGap: 190 },
+    opts: { direction: "right", gap: 80, layerGap: 190, placement: "straight" },
     offsets: {
       ask: { originAt: 0.12, landAt: 0.78 },
-      answered: { originAt: 0.04, landAt: 0.05 },
       ready: { originAt: 0.35 },
       human: { originAt: 0.72 },
       wontfix: { originAt: 0.95 },
-      claim: { originAt: 0.32, landAt: 0.32 },
+      claim: { originAt: 0.55, landAt: 0.32 },
     },
     title: "same nodes, same edges, laid out sideways",
     frame: 'direction "right" — the same graph, respaced',
-    note: "Same states, same transitions, three different numbers. gap spaces the states inside "
-      + "a layer, layerGap spaces the layers themselves, and direction turns the flow on its "
-      + "side. The engine routes follow on their own, because they are read back from the "
-      + "layout rather than written beside it — every originAt / landAt above still had to be "
-      + "picked again, because a fraction runs along whichever edge now faces its target.",
+    note: "Same states, same transitions, three different numbers — placement is the fourth "
+      + "option and deliberately the same in both. gap spaces the states inside a layer, "
+      + "layerGap spaces the layers themselves, and direction turns the flow on its side. The "
+      + "engine routes follow on their own, because they are read back from the layout rather "
+      + "than written beside it — every originAt / landAt above still had to be picked again, "
+      + "because a fraction runs along whichever edge now faces its target.",
   },
 ];
 
-const caption = ({ direction, gap, layerGap }) =>
-  `direction: "${direction}" · gap: ${gap} · layerGap: ${layerGap}`;
+const caption = ({ direction, gap, layerGap, placement }) =>
+  `direction: "${direction}" · gap: ${gap} · layerGap: ${layerGap} · placement: "${placement}"`;
 
 await authorDiagram({
   out: join(here, "triage-graph.excalidraw"),

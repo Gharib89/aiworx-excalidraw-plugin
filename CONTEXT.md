@@ -204,6 +204,17 @@ the nodes the engine placed, which no other route can. Placing an endpoint by ha
 revokes it, and so does moving a node out from under it.
 _Avoid_: ELK route, auto-route, computed waypoints
 
+**Corridor**:
+The space the layout engine reserves around every node for the routes that pass
+it — where an **engine route** runs and turns. Its width is `graph`'s `edgeGap`
+across the flow and `edgeLayerGap` along it, both 10px by default; widening one
+buys an edge label room to sit beside a node rather than on it. Corridors are
+the engine's to spend, like the bend count a `placement` strategy trades: a
+fraction (`originAt`/`landAt`) reaches none of them, it only revokes the route.
+Distinct from **clearance**, which measures ink already drawn, and from `gap` /
+`layerGap`, which space the nodes rather than the routes between them.
+_Avoid_: channel, lane, edge margin
+
 ### Style
 
 **Register**:

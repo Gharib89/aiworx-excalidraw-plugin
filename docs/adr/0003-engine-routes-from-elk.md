@@ -27,8 +27,9 @@ That workaround was the baseline's largest single cost: **15 of the 17 refusals*
 in `bench/runs/0.7.0/` were `arrow-crossing` / `text-struck-by-arrow` on
 hand-routed edges, and one brief cost **\$9.18 / 56 minutes** (#190). The
 geometry needed was never missing — ELK reserves a corridor around every node
-(`elk.spacing.edgeNode`, 10px) and routes the long edge through it. It was
-computed, returned on `laid.edges[].sections`, and discarded.
+(`elk.spacing.edgeNode`, 10px by default, `edgeGap` since #202) and routes the
+long edge through it. It was computed, returned on `laid.edges[].sections`, and
+discarded.
 
 ## Decision
 
@@ -113,6 +114,11 @@ The house still **owns** the edges; ELK **routes** them.
   label nudging is not. (Since #201 those fractions also spread a fan across its
   source's facing edge, which the engine ports alone leave stacked; the count per
   band moves with the layout, so read the generator rather than a number here.)
+  Since #202 the band's two-way pair carries **no** label: where the engine
+  settles a pair diagonally apart, both legs run near the same diagonal and a
+  fraction moves an endpoint without moving the midpoint the label rides at, so
+  no number clears it. The label comes off rather than the pair getting a `via`
+  back.
 - The corridor check is O(nodes) per edge at resolve. Diagrams are tens of
   elements; a graph large enough for that to matter is out of `graph()`'s stated
   scope already (flat, `layered` only).

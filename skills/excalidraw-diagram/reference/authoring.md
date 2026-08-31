@@ -21,7 +21,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
-| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, entry, exit, modelOrder, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
+| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, edgeGap, edgeLayerGap, entry, exit, modelOrder, placement, sharedPorts, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
 | `fromMermaid` | `await fromMermaid(source)` | `{ nodes, edges }` built from a mermaid flowchart, in the shape `graph` takes | [Ingesting mermaid](#ingesting-mermaid) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
@@ -507,8 +507,13 @@ return [g, ...arrows];                     // g places like any group; spread th
   overrides what it needs.
 - `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
   left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
-  layers themselves. These six options are the whole surface: the algorithm is
-  always `layered`, and raw ELK options do not pass through.
+  layers themselves. `edgeGap` and `edgeLayerGap` are those same two axes for the
+  **routes** rather than the nodes: how far a route stays off what it passes
+  across the flow — the corridor width — and along it, which is where it turns
+  inside a layer gap. Both default to `10`, the engine's own margin and the same
+  distance the default `standoff` keeps; widen `edgeGap` to open a corridor for a
+  label the engine never saw. These ten options are the whole surface: the
+  algorithm is always `layered`, and raw ELK options do not pass through.
 - **The reading order is yours, not the engine's.** Two options decide it, and
   both are worth reaching for before you reach for a caption that apologises:
   - `modelOrder` (default `true`) makes the order you listed `nodes` in the
@@ -553,12 +558,29 @@ return [g, ...arrows];                     // g places like any group; spread th
   `route: "direct"` or `"orthogonal"` on the shared defaults or one edge to
   override it.
 
+  Two options shape those routes rather than space them, and both are the
+  engine's to spend — no fraction of yours reaches either:
+  - `placement` decides how a node settles along its layer. `"balanced"`
+    (default) centres it between its neighbours; `"straight"` keeps a long edge
+    straight and spends the same bends on the short ones instead. Reach for it
+    when a layer-skipping or handback edge comes back over the **bend budget** —
+    `too-many-bends` counts direction changes **per arrow**, and `"straight"` is
+    what takes the worst arrow under it. It is a trade, not a win: the total
+    holds, the bends move.
+  - `sharedPorts` (default `false`) merges every edge at a node onto one port, so
+    a fan-in arrives as one trunk instead of a port each.
+
   Two things still fall to you, and both are the gate doing its job — run the
   build, read the code it names, and fix that edge:
   - **Labels.** The engine spaced its ports for the *arrows*, never having been
     told the labels exist: `graph` takes nodes already measured but a label as
     text. So a labelled fan can still put one arrow through a neighbour's label.
     Give that leg its own `originAt` / `landAt`, or label only one direction.
+    Where a **two-way pair** ends up diagonally apart, no fraction saves it: both
+    legs run near the same diagonal, a bound label rides at the middle of its own
+    leg — which is where the other leg passes — and a fraction moves an endpoint
+    without moving that middle. Take the label off the pair and let the two
+    arrowheads say it.
   - **A fraction takes the whole path back.** An `originAt` / `landAt` revokes
     that edge's engine route and leaves it the straight run, because the corridor
     was cut for the engine's ports. So a fraction is picked against a straight
@@ -573,12 +595,13 @@ return [g, ...arrows];                     // g places like any group; spread th
     the middle of its own arrow, so the gap has to beat half the label's width.
 - Refusals are `LayoutError` from the call: an empty `nodes` array, an edge whose
   source or target is not in `nodes`, an edge missing an endpoint, a `direction`
-  other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap`,
-  an `entry` / `exit` naming a shape outside `nodes`, one node pinned as both,
-  a pin the edges cannot honour (two `entry` nodes with an edge between them —
-  one of them cannot be in the first layer), a `modelOrder` that is not `true` or
-  `false`, and a node with no measured size. `graph` is `async`, so its refusal
-  reaches your `await`.
+  other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap` /
+  `edgeGap` / `edgeLayerGap`, an `entry` / `exit` naming a shape outside `nodes`,
+  one node pinned as both, a pin the edges cannot honour (two `entry` nodes with
+  an edge between them — one of them cannot be in the first layer), a
+  `placement` other than `"balanced"` / `"straight"`, a `modelOrder` or
+  `sharedPorts` that is not `true` or `false`, and a node with no measured size.
+  `graph` is `async`, so its refusal reaches your `await`.
 - Flat graphs only — nested (compound) children are out of scope, as are the
   engine's other algorithms.
 

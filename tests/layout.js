@@ -9,8 +9,8 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  column, row, stack, box, arrowBetween as deferArrow, fanOut, graph, resolveArrows, flatten, LayoutError,
-  rampedLayout,
+  column, row, stack, box, uniformWidth, arrowBetween as deferArrow, fanOut, graph, resolveArrows, flatten,
+  LayoutError, rampedLayout,
 } from "../tools/layout.js";
 import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "../tools/presets.js";
 
@@ -195,6 +195,58 @@ const rejectsLayoutError = async (fn) => {
   check("box accepts angle 0 as the no-op it is",
     JSON.stringify(zeroed.shape) === JSON.stringify(upright.shape),
     JSON.stringify(zeroed.shape));
+}
+
+// ---- uniformWidth: one width for a whole set, so rule 6 holds by construction ----
+{
+  // ragged measurements, in the shape `measure` hands back
+  const measured = [{ width: 96, height: 25 }, { width: 143, height: 25 }, { width: 61, height: 25 }];
+  const w = uniformWidth(measured);
+
+  check("one width clears the widest item plus padding on both sides", w >= 143 + 2 * 20, String(w));
+  check("the pitch rounding is honoured", w % 20 === 0, String(w));
+  // the widest item is what sets the width, so a narrower set must not reach it
+  check("a narrower set gets a narrower width",
+    uniformWidth([{ width: 61, height: 25 }]) < w, String(uniformWidth([{ width: 61, height: 25 }])));
+  // and the padding is the author's, not a floor of its own
+  check("padding widens the result", uniformWidth(measured, { padding: 40 }) > w,
+    String(uniformWidth(measured, { padding: 40 })));
+  check("round sets the pitch the result lands on",
+    uniformWidth(measured, { round: 50 }) % 50 === 0, String(uniformWidth(measured, { round: 50 })));
+  // round: 1 is the escape hatch for a caller that wants no grid at all
+  check("round 1 rounds to the whole pixel and no further",
+    uniformWidth([{ width: 96.4, height: 25 }], { padding: 0, round: 1 }) === 97,
+    String(uniformWidth([{ width: 96.4, height: 25 }], { padding: 0, round: 1 })));
+
+  // unconditional by design: a spread already inside rule 6's 1.25x tolerance
+  // still collapses, because a helper that sometimes does nothing is two
+  // behaviours to model — and a 1.24x spread is the ragged case the rule names
+  const tight = [{ width: 100, height: 25 }, { width: 110, height: 25 }];
+  check("an already-tight spread still yields one width",
+    uniformWidth(tight) === uniformWidth([{ width: 110, height: 25 }]), String(uniformWidth(tight)));
+
+  // the author still builds the boxes, so it composes with box: cards built at
+  // the returned width are one width, which is what rule 6 asks for
+  const card = (label) =>
+    box({ type: "text", width: w - 2 * 20, height: 25 }, { padding: 20, id: `card-${label}` });
+  const cards = [card("a"), card("b")];
+  check("boxes built at the returned width are all one width",
+    new Set(cards.map((c) => c.shape.width)).size === 1 && cards[0].shape.width === w,
+    String(cards[0].shape.width));
+
+  // degenerate input refuses as a LayoutError, like the rest of the module
+  check("empty items are rejected", throwsLayoutError(() => uniformWidth([])));
+  check("a non-array is rejected", throwsLayoutError(() => uniformWidth(undefined)));
+  check("a non-finite width is rejected",
+    throwsLayoutError(() => uniformWidth([{ width: NaN, height: 25 }])));
+  check("a missing width is rejected", throwsLayoutError(() => uniformWidth([{ height: 25 }])));
+  check("a non-finite padding is rejected",
+    throwsLayoutError(() => uniformWidth(measured, { padding: Infinity })));
+  check("a negative padding is rejected",
+    throwsLayoutError(() => uniformWidth(measured, { padding: -20 })));
+  // round divides, so zero would hand back Infinity rather than refuse
+  check("a zero round is rejected", throwsLayoutError(() => uniformWidth(measured, { round: 0 })));
+  check("a negative round is rejected", throwsLayoutError(() => uniformWidth(measured, { round: -20 })));
 }
 
 // ---- arrowBetween: the arrow owns the gap ----

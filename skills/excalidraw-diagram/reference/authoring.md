@@ -19,6 +19,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `column` | `column(items, opts)` | `stack` fixed to `direction: "column"` | [Composing layout](#composing-layout) |
 | `row` | `row(items, opts)` | `stack` fixed to `direction: "row"` | [Composing layout](#composing-layout) |
 | `box` | `box(child, { padding, ...shapeProps })` | a group exposing its sized rectangle as `.shape` | [Composing layout](#composing-layout) |
+| `uniformWidth` | `uniformWidth(measurements, { padding, round })` | one width for the whole set — the widest item plus padding, on the `round` pitch | [Composing layout](#composing-layout) |
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
 | `graph` | `await graph(nodes, edges, { direction, gap, layerGap, edgeGap, edgeLayerGap, entry, exit, modelOrder, placement, sharedPorts, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
@@ -313,6 +314,31 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   `authorDiagram` flattens groups back into elements.
 - `box` sizes a rectangle from its content plus padding and exposes the
   rectangle as `.shape`, so `arrowBetween` can bind boxes directly.
+- `uniformWidth` gives a whole set of cards **one** width — same element type,
+  same size, which is what a `graph`'s nodes and a row's panels want. Ragged card
+  widths are the most common thing a reader notices in a generated band: text
+  length, not meaning, drives them. Measure, take one width, then build every
+  box at it:
+
+  ```js
+  const CARD_W = uniformWidth(heads, { padding: PAD });   // widest + 2*PAD, on a 20px pitch
+  const card = (head, body) => box(
+    column([head, body], { gap: 12 }),
+    { padding: PAD, width: CARD_W, id: `card-${head.text}` },   // width overrides box's own
+  );
+  ```
+
+  Decide the width **before** building, never after: `box` places its child at
+  `padding`, so a rectangle widened afterwards leaves its content sitting where
+  the narrow card put it, and `graph()` never lets the engine resize a house
+  element. For the same reason the content of a card wider than its content is
+  flush left at `padding` — give a text element the inner width
+  (`CARD_W - 2 * PAD`) and `textAlign: "center"` if it should read centred.
+
+  It is unconditional: it collapses the set however small the spread, because a
+  helper that sometimes does nothing is two behaviours to remember. `round` is
+  the grid pitch the result lands on — `1` for whole pixels. A non-empty array
+  of finite widths is the contract; anything else is a `LayoutError`.
 - `flatten` unrolls nested groups back into their elements. A frame's
   `children` wants flat element ids, so list them with
   `flatten(band).map((el) => el.id)` instead of re-walking the group by hand —
@@ -450,9 +476,8 @@ Wrapping a code block breaks the snippet, so code is measured and never wrapped
 card width follow it, then wrap the prose to what is left.
 
 ```js
-const widest = Math.max(...(await measure(codeLines.map(
-  (text) => ({ text, fontSize: 16, fontFamily: CODE })))).map((m) => m.width));
-const CARD_W = Math.ceil((widest + 2 * PAD + 20) / 20) * 20;
+const measured = await measure(codeLines.map((text) => ({ text, fontSize: 16, fontFamily: CODE })));
+const CARD_W = uniformWidth(measured, { padding: PAD });
 ```
 
 Labels *on* a drawing collide with it. Regions of a mocked page, cells of a

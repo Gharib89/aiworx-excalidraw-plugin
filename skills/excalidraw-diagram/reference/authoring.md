@@ -512,7 +512,11 @@ return [g, ...arrows];                     // g places like any group; spread th
   across the flow — the corridor width — and along it, which is where it turns
   inside a layer gap. Both default to `10`, the engine's own margin and the same
   distance the default `standoff` keeps; widen `edgeGap` to open a corridor for a
-  label the engine never saw. These ten options are the whole surface: the
+  label the engine never saw. **Keep `edgeLayerGap` at or above the `standoff`**:
+  the standoff owns the endpoint and the corridor owns the bends, so a corridor
+  narrower than the standoff leaves the first bend behind the point it starts
+  from and the route doubles back over itself. Widening is always safe.
+  These ten options are the whole surface: the
   algorithm is always `layered`, and raw ELK options do not pass through.
 - **The reading order is yours, not the engine's.** Two options decide it, and
   both are worth reaching for before you reach for a caption that apologises:

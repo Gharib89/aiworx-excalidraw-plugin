@@ -27,7 +27,9 @@ That workaround was the baseline's largest single cost: **15 of the 17 refusals*
 in `bench/runs/0.7.0/` were `arrow-crossing` / `text-struck-by-arrow` on
 hand-routed edges, and one brief cost **\$9.18 / 56 minutes** (#190). The
 geometry needed was never missing — ELK reserves a corridor around every node
-(`elk.spacing.edgeNode`, 10px by default, `edgeGap` since #202) and routes the
+(`elk.spacing.edgeNode` across the flow and
+`elk.layered.spacing.edgeNodeBetweenLayers` along it, 10px each by default,
+`edgeGap` and `edgeLayerGap` since #202) and routes the
 long edge through it. It was computed, returned on `laid.edges[].sections`, and
 discarded.
 

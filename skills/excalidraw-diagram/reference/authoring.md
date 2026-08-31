@@ -315,30 +315,26 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
 - `box` sizes a rectangle from its content plus padding and exposes the
   rectangle as `.shape`, so `arrowBetween` can bind boxes directly.
 - `uniformWidth` gives a whole set of cards **one** width — same element type,
-  same size, which is what a `graph`'s nodes and a row's panels want. Ragged card
-  widths are the most common thing a reader notices in a generated band: text
-  length, not meaning, drives them. Measure, take one width, then build every
-  box at it:
+  same size, which is what a `graph`'s nodes and a row's panels want. Reach for
+  it whenever text length rather than meaning is driving the widths apart:
 
   ```js
-  const CARD_W = uniformWidth(heads, { padding: PAD });   // widest + 2*PAD, on a 20px pitch
+  const CARD_W = uniformWidth(heads, { padding: PAD });  // widest + 2*PAD, on the round pitch
   const card = (head, body) => box(
     column([head, body], { gap: 12 }),
-    { padding: PAD, width: CARD_W, id: `card-${head.text}` },   // width overrides box's own
+    { padding: PAD, width: CARD_W, id: `card-${head.text}` },  // width overrides box's own
   );
   ```
 
-  Decide the width **before** building, never after: `box` places its child at
-  `padding`, so a rectangle widened afterwards leaves its content sitting where
-  the narrow card put it, and `graph()` never lets the engine resize a house
-  element. For the same reason the content of a card wider than its content is
-  flush left at `padding` — give a text element the inner width
-  (`CARD_W - 2 * PAD`) and `textAlign: "center"` if it should read centred.
-
-  It is unconditional: it collapses the set however small the spread, because a
-  helper that sometimes does nothing is two behaviours to remember. `round` is
-  the grid pitch the result lands on — `1` for whole pixels. A non-empty array
-  of finite widths is the contract; anything else is a `LayoutError`.
+  **Size up front.** `box` places its child at `padding`, so a rectangle widened
+  afterwards leaves its content where the narrow card put it, and `graph()` never
+  lets the engine resize a house element — deciding the width before the boxes
+  exist is the only pass that keeps both. By the same rule a card wider than its
+  content sits flush left: give the text the inner width (`CARD_W - 2 * PAD`) and
+  `textAlign: "center"` to centre it. `round` is the grid pitch, 20px by default;
+  pass `1` for whole pixels. It is unconditional — it collapses the set however
+  small the spread, because a helper that sometimes does nothing is two
+  behaviours to remember.
 - `flatten` unrolls nested groups back into their elements. A frame's
   `children` wants flat element ids, so list them with
   `flatten(band).map((el) => el.id)` instead of re-walking the group by hand —

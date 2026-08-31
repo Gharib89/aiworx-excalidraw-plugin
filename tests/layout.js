@@ -26,6 +26,8 @@ const arrowBetween = (a, b, opts) => resolveOne(deferArrow(a, b, opts));
 // the gate's own scoring, so the routing claim is checked against the rule that
 // would refuse it rather than against a second opinion written here
 import { shapeDepth, segmentLengthInsideShape } from "../tools/geometry.js";
+// and the advisory itself where the claim is about a bend budget, for the same reason
+import { adviseDocument } from "../tools/advise.js";
 
 // the house pair, read the way the helpers read it — importing author.js here
 // would pull the browser driver into a suite that runs without one
@@ -921,6 +923,13 @@ const rejectsLayoutError = async (fn) => {
     await rejectsLayoutError(() => graph([a, b], [[a, b]], { entry: a, exit: a })));
   check("graph refuses a modelOrder that is not a yes or a no",
     await rejectsLayoutError(() => graph([a, b], [[a, b]], { modelOrder: "yes" })));
+  check("graph refuses a placement it has no strategy for",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { placement: "compact" })));
+  check("graph refuses corridor spacings that are not pixel counts",
+    await rejectsLayoutError(() => graph([a, b], [], { edgeGap: -1 })) &&
+      await rejectsLayoutError(() => graph([a, b], [], { edgeLayerGap: NaN })));
+  check("graph refuses a sharedPorts that is not a yes or a no",
+    await rejectsLayoutError(() => graph([a, b], [[a, b]], { sharedPorts: 1 })));
   // the engine catches this one, and left alone it answers with a Java class
   // name and its own internal ids — a house refusal, or the author reads a stack
   check("a pin the edges cannot honour comes back as a LayoutError, not an engine crash",
@@ -1051,6 +1060,76 @@ const skipping = async (opts) => {
   check("the revoked route still honours the fraction it was handed",
     pathOf(landed.skip).at(-1)[0] === landed.c.x + 0.1 * landed.c.width,
     `${pathOf(landed.skip).at(-1)[0]} vs ${landed.c.x + 0.1 * landed.c.width}`);
+}
+
+// ---- graph: placement picks which edges the engine straightens ----
+// House rule 9 counts bends **per arrow**, and so does `too-many-bends` — never
+// the total. The two strategies spend the same bends differently, so the claim is
+// about the arrow an advisory would name, and it is scored by the advisory itself
+// rather than by a bend counter restated here.
+{
+  // a spine with a handback: a -> b -> c -> d, and c hands back to a. The
+  // handback spans the layers against the flow, so it is the edge with a corridor
+  // to find — the shape the triage band's own `blocked` transition has
+  const spine = async (opts) => {
+    const nodes = ["a", "b", "c", "d"].map(node);
+    const [a, b, c, d] = nodes;
+    const { g, arrows } = await graph(nodes, [[a, b], [b, c], [c, d], [c, a]], opts);
+    const elements = flatten([g, ...resolveArrows(arrows)]).map((el, i) => ({ id: `el${i}`, ...el }));
+    return adviseDocument({ elements }).filter((ad) => ad.code === "too-many-bends");
+  };
+  const balanced = await spine({});
+  const straight = await spine({ placement: "straight" });
+  check('placement: "straight" clears the too-many-bends the default placement leaves',
+    balanced.length > 0 && straight.length === 0,
+    `balanced ${balanced.length} (${balanced.map((ad) => ad.bends)}) vs straight ${straight.length}`);
+  check('placement: "balanced" is the default, so naming it changes nothing',
+    (await spine({ placement: "balanced" })).length === balanced.length);
+}
+
+// ---- graph: edgeGap and edgeLayerGap widen the corridor the routes run down ----
+{
+  // a -> b -> c with a -> c skipping: the skip route runs down the corridor
+  // beside b, so the clearance it keeps from b *is* the corridor width
+  const corridor = async (opts) => {
+    const [a, b, c] = ["a", "b", "c"].map(node);
+    const { arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]], opts);
+    const skip = resolveArrows(arrows)[2];
+    const pts = pathOf(skip);
+    return {
+      b,
+      // how far the route's outermost run sits past b's facing side
+      across: Math.max(...pts.map(([px]) => px)) - (b.x + b.width),
+      // and where along the flow it turns: the first bend's distance past a
+      along: pts[1][1] - (a.y + a.height),
+    };
+  };
+  const tight = await corridor({});
+  const wide = await corridor({ edgeGap: 40 });
+  check("graph edgeGap widens the corridor a route keeps from the nodes it passes",
+    wide.across - tight.across === 30, `${tight.across} -> ${wide.across}`);
+  // each spacing owns its own axis, exactly as gap and layerGap do
+  const deep = await corridor({ edgeLayerGap: 40 });
+  check("graph edgeLayerGap moves where a route turns without widening the corridor",
+    deep.along > tight.along && deep.across === tight.across,
+    `along ${tight.along} -> ${deep.along}, across ${tight.across} -> ${deep.across}`);
+  check("graph edgeGap leaves the turn along the flow where it was",
+    wide.along === tight.along, `${tight.along} -> ${wide.along}`);
+}
+
+// ---- graph: sharedPorts merges a fan onto one port instead of one each ----
+{
+  const fanIn = async (opts) => {
+    const [a, b, c, sink] = ["a", "b", "c", "sink"].map(node);
+    const { arrows } = await graph([a, b, c, sink], [[a, sink], [b, sink], [c, sink]], opts);
+    return resolveArrows(arrows).map((arrow) => pathOf(arrow).at(-1)[0]);
+  };
+  const apiece = await fanIn({});
+  check("a fan-in lands on a port each by default", new Set(apiece).size === 3,
+    JSON.stringify(apiece));
+  const merged = await fanIn({ sharedPorts: true });
+  check("sharedPorts: true lands the whole fan-in on one shared port",
+    new Set(merged).size === 1, JSON.stringify(merged));
 }
 
 // ---- route: three named values, and the one only graph() can hand out ----

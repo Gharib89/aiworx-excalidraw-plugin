@@ -639,6 +639,10 @@ async function elkEngine() {
 }
 
 const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
+// How the engine settles a node along its layer. `balanced` is the engine's own
+// default, so naming it is a no-op; `straight` spends the same bends on other
+// edges to keep a long one straight.
+const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" };
 
 /**
  * A graph — nodes and the edges between them — laid out by ELK's `layered`
@@ -678,8 +682,21 @@ const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
  *
  * `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
  * left to right. `gap` spaces nodes within a layer, `layerGap` spaces the layers
- * themselves. Flat graphs only, and `layered` only; nested children and the
+ * themselves. `edgeGap` and `edgeLayerGap` are the same two axes for the routes
+ * rather than the nodes: how far a route stays off what it passes across the flow
+ * — the corridor width — and along it, which is where it turns inside a layer
+ * gap. Both default to the engine's own 10px, the same margin the default
+ * `standoff` keeps. Flat graphs only, and `layered` only; nested children and the
  * other ELK algorithms are out of scope by design.
+ *
+ * Two options shape the routes rather than space them:
+ * - `placement` decides how a node settles along its layer. `"balanced"`
+ *   (default) centres it between its neighbours; `"straight"` spends the same
+ *   bends elsewhere to keep a long edge straight, which is what takes a
+ *   layer-skipping or handback edge under the `too-many-bends` budget. It is a
+ *   trade, not a win: the bends move onto the short edges.
+ * - `sharedPorts` (default `false`) merges every edge at a node onto one port, so
+ *   a fan-in arrives as one trunk instead of a port each.
  *
  * **Reading order** is the other half of the option surface, and it is the
  * author's rather than the engine's:
@@ -693,7 +710,11 @@ const ELK_DIRECTION = { down: "DOWN", right: "RIGHT" };
  *   engine. It is what makes `fromMermaid` deterministic in **source** order,
  *   since its nodes arrive in the order the mermaid named them.
  */
-export async function graph(nodes, edges = [], { direction = "down", gap = 40, layerGap = 60, entry, exit, modelOrder = true, ...arrowDefaults } = {}, ramp = FIT_RAMP) {
+export async function graph(nodes, edges = [], {
+  direction = "down", gap = 40, layerGap = 60, entry, exit, modelOrder = true,
+  placement = "balanced", edgeGap = 10, edgeLayerGap = 10, sharedPorts = false,
+  ...arrowDefaults
+} = {}, ramp = FIT_RAMP) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
     throw new LayoutError(`nodes must be a non-empty array, got ${shown(nodes)}`, {
       where: "graph", next: "Pass at least one measured shape as a node.",
@@ -704,7 +725,14 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       where: "graph", next: 'Pass "down" or "right" for direction.',
     });
   }
-  for (const [name, value] of [["gap", gap], ["layerGap", layerGap]]) {
+  if (!Object.hasOwn(ELK_PLACEMENT, placement)) {
+    throw new LayoutError(`placement must be "balanced" or "straight", got ${shown(placement)}`, {
+      where: "graph", next: 'Pass "straight" to keep the long edges straight, or omit it for the default.',
+    });
+  }
+  for (const [name, value] of [
+    ["gap", gap], ["layerGap", layerGap], ["edgeGap", edgeGap], ["edgeLayerGap", edgeLayerGap],
+  ]) {
     if (!Number.isFinite(value) || value < 0) {
       throw new LayoutError(`${name} must be a finite number of pixels, got ${shown(value)}`, {
         where: "graph", next: `Pass a non-negative number for ${name}, or omit it for the default.`,
@@ -714,6 +742,11 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
   if (typeof modelOrder !== "boolean") {
     throw new LayoutError(`modelOrder must be true or false, got ${shown(modelOrder)}`, {
       where: "graph", next: "Pass false to hand the order back to the engine, or omit it for the default.",
+    });
+  }
+  if (typeof sharedPorts !== "boolean") {
+    throw new LayoutError(`sharedPorts must be true or false, got ${shown(sharedPorts)}`, {
+      where: "graph", next: "Pass true to merge every edge at a node onto one port, or omit it for the default.",
     });
   }
   if (!Array.isArray(edges)) {
@@ -803,6 +836,12 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
       "elk.direction": ELK_DIRECTION[direction],
       "elk.spacing.nodeNode": gap,
       "elk.layered.spacing.nodeNodeBetweenLayers": layerGap,
+      // the same two axes again, for the routes rather than the nodes: how far a
+      // route stays off what it passes across the flow, and along it
+      "elk.spacing.edgeNode": edgeGap,
+      "elk.layered.spacing.edgeNodeBetweenLayers": edgeLayerGap,
+      "elk.layered.nodePlacement.strategy": ELK_PLACEMENT[placement],
+      "elk.layered.mergeEdges": sharedPorts,
       // the author's listing order, spent only where the graph itself leaves a
       // choice: it breaks ties within a layer and picks the cycle edge to
       // reverse, so a source-ordered input lays out the way it reads
@@ -862,7 +901,7 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
   const toGroup = (p) => [Math.round(p.x) - originX, Math.round(p.y) - originY];
   // one record shared by every route out of this graph: the placement they were all
   // cut against, and what `engineHolds` reads to tell a moved graph from a moved node
-  const placement = {
+  const cutAgainst = {
     group: g,
     horizontal: direction === "right",
     nodes,
@@ -873,9 +912,9 @@ export async function graph(nodes, edges = [], { direction = "down", gap = 40, l
     // one section per edge is what a 1:1 edge gets; a split route is a shape this
     // reader has no answer for, so leave the edge to the straight run
     if (!section || rest.length) return undefined;
-    const cross = placement.horizontal ? 1 : 0;
+    const cross = cutAgainst.horizontal ? 1 : 0;
     return {
-      placement,
+      placement: cutAgainst,
       bends: (section.bendPoints ?? []).map(toGroup),
       startCross: toGroup(section.startPoint)[cross],
       endCross: toGroup(section.endPoint)[cross],

@@ -319,18 +319,25 @@ return [band, link, { type: "frame", children: [/* ids */], name: "1 · claim" }
   it whenever text length rather than meaning is driving the widths apart:
 
   ```js
+  const heads = await measure(labels.map((text) => ({ text, fontSize: 20, fontFamily: PROSE })));
   const CARD_W = uniformWidth(heads, { padding: PAD });  // widest + 2*PAD, on the round pitch
-  const card = (head, body) => box(
-    column([head, body], { gap: 12 }),
-    { padding: PAD, width: CARD_W, id: `card-${head.text}` },  // width overrides box's own
+  const INNER = CARD_W - 2 * PAD;
+  const card = (headEl, bodyEl, label) => box(         // both built at INNER, see below
+    column([headEl, bodyEl], { gap: 12 }),
+    { padding: PAD, width: CARD_W, id: `card-${label}` },  // width overrides box's own
   );
   ```
 
   **Size up front.** `box` places its child at `padding`, so a rectangle widened
   afterwards leaves its content where the narrow card put it, and `graph()` never
   lets the engine resize a house element — deciding the width before the boxes
-  exist is the only pass that keeps both. By the same rule a card wider than its
-  content sits flush left: give the text the inner width (`CARD_W - 2 * PAD`) and
+  exist is the only pass that keeps both.
+
+  Then build every text in the card at `INNER` — `wrap` the prose to it rather
+  than measuring it free. A child wider than `INNER` leaves `box` writing a
+  rectangle narrower than its own content, which the gate scores as overflow, and
+  the group reports the forced width, understating its extent to the enclosing
+  `row`. A card wider than its content sits flush left, so give a text `INNER` and
   `textAlign: "center"` to centre it. `round` is the grid pitch, 20px by default;
   pass `1` for whole pixels. It is unconditional — it collapses the set however
   small the spread, because a helper that sometimes does nothing is two

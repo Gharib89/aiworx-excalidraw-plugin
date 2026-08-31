@@ -197,9 +197,10 @@ const rejectsLayoutError = async (fn) => {
     JSON.stringify(zeroed.shape));
 }
 
-// ---- uniformWidth: one width for a whole set, so rule 6 holds by construction ----
+// ---- uniformWidth: one width for a whole set, so a ragged row cannot be built ----
 {
-  // ragged measurements, in the shape `measure` hands back
+  // ragged measurements, in the shape `measure` hands back — text length rather
+  // than meaning driving the widths apart, which is the case this collapses
   const measured = [{ width: 96, height: 25 }, { width: 143, height: 25 }, { width: 61, height: 25 }];
   const w = uniformWidth(measured);
 
@@ -218,15 +219,15 @@ const rejectsLayoutError = async (fn) => {
     uniformWidth([{ width: 96.4, height: 25 }], { padding: 0, round: 1 }) === 97,
     String(uniformWidth([{ width: 96.4, height: 25 }], { padding: 0, round: 1 })));
 
-  // unconditional by design: a spread already inside rule 6's 1.25x tolerance
-  // still collapses, because a helper that sometimes does nothing is two
-  // behaviours to model — and a 1.24x spread is the ragged case the rule names
+  // unconditional by design: a spread narrow enough to argue about still
+  // collapses, because a helper that sometimes does nothing is two behaviours
+  // to model — and a 1.1x spread is still ragged to a reader
   const tight = [{ width: 100, height: 25 }, { width: 110, height: 25 }];
   check("an already-tight spread still yields one width",
     uniformWidth(tight) === uniformWidth([{ width: 110, height: 25 }]), String(uniformWidth(tight)));
 
   // the author still builds the boxes, so it composes with box: cards built at
-  // the returned width are one width, which is what rule 6 asks for
+  // the returned width all come out one width, which is the point
   const card = (label) =>
     box({ type: "text", width: w - 2 * 20, height: 25 }, { padding: 20, id: `card-${label}` });
   const cards = [card("a"), card("b")];

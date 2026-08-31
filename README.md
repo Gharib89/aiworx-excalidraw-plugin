@@ -238,7 +238,7 @@ directory — verification never touches tracked files.
 skills/excalidraw-diagram/   SKILL.md and reference material
 tools/
   author.js         authoring API: measured wrapping, frame binding, images, library splicing, diagram-level finish register and output preset, in-process gate, one-session batches, revise round-trip
-  layout.js         layout composition: stack/row/column, padded boxes, one width across a ragged set, arrows that own the gap, fans that spread their landings, graphs laid out in layers by ELK and routed on the paths it returns (anchored on geometry.js bounds)
+  layout.js         layout composition: stack/row/column, padded boxes, one uniform width across a set, arrows that own the gap, fans that spread their landings, graphs laid out in layers by ELK and routed on the paths it returns (anchored on geometry.js bounds)
   mermaid.js        mermaid flowchart ingestion: the official converter's parse tree, rebuilt as house nodes and edges for layout.js's graph()
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts

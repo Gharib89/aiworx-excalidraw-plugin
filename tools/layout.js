@@ -137,8 +137,8 @@ export const row = (items, opts = {}) => stack(items, { ...opts, direction: "row
  * `measure` and `wrap` hand back — and returns the width every box in the set
  * should get: the widest item plus `padding` on both sides, rounded up to the
  * `round` pitch so the cards land on the same grid as the gaps between them.
- * Nothing is placed or mutated; the author still builds the boxes, so this
- * composes with `box`, `stack` and `spliceLibraryItem` alike.
+ * Nothing is placed or mutated — it returns a number, so the author still builds
+ * the boxes and `box` and `stack` take them as they always did.
  *
  * Sizing has to happen here rather than after the fact: `box` places its child
  * at `padding`, so widening a rectangle later would leave its text off-centre,
@@ -148,8 +148,8 @@ export const row = (items, opts = {}) => stack(items, { ...opts, direction: "row
  * Unconditional by design — it collapses the set whatever the natural spread,
  * because a helper that sometimes does nothing is two behaviours to model, and a
  * spread narrow enough to argue about is still the ragged case a reader notices.
- * Nothing here refuses a scene: a hand-built band that never called this is
- * still legal, so the gate keeps its own opinion of ragged widths.
+ * Nothing here refuses a scene, though: this is a helper an author reaches for,
+ * and a band that never called it stays as legal as it was.
  */
 export function uniformWidth(items, { padding = 20, round = 20 } = {}) {
   if (!Array.isArray(items) || items.length === 0) {

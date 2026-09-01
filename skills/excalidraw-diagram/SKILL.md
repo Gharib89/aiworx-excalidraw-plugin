@@ -48,12 +48,30 @@ holds.
 Done when the walk-up finds a `.excalidraw-brand.json` and
 `node "${CLAUDE_PLUGIN_ROOT}/tools/palette.js" <that file>` exits 0.
 
-## Step 1 — name the kind, list the panels
+## Step 1 — name the kind and the surface, list the panels
 
-Say which kind this is. For a **band**, write the panel list first: one line per
-frame, in reading order, each naming the single idea that frame lands.
+Say which kind this is, and read it off the brief's own words:
 
-Done when the kind is named and, for a band, every panel has a one-line claim.
+| the brief asks for | the kind |
+|---|---|
+| "step by step", "walk through", "slide-ready … stages" | a numbered **band**, one frame per stage |
+| one idea on one screen, "a diagram of X" | a **sketch** |
+
+A brief asking for stages gets frames: there is no frameless sequence pattern
+here, and a row of arrows standing in for one is the commonest wrong turn taken
+before an element is placed.
+
+Name the **surface** as well — a projected slide, a doc figure, a social card.
+It sets the type ramp and the shape the picture has to fit, and both are cheap
+to choose now and expensive to retrofit once the layout exists. The preset table
+is under [Output presets](reference/authoring.md#output-presets); naming nothing
+gets you `fit`.
+
+For a **band**, write the panel list: one line per frame, in reading order, each
+naming the single idea that frame lands.
+
+Done when the kind and the surface are named and, for a band, every panel has a
+one-line claim.
 
 ## Step 2 — map each idea to a shape that means it
 
@@ -63,11 +81,27 @@ side by side for a coordinate flip, a bar chart for a measured result. Read
 [reference/patterns.md](reference/patterns.md) for the pattern set, shape
 meanings, and how much text belongs in a container.
 
+The pattern's natural aspect has to fit the surface named in step 1. A tall tree
+in a slide's wide slot is the wrong pattern, not a layout to squeeze — and an
+ingested Mermaid `TD` flowchart is rotated to the surface rather than accepted
+because that is the direction the source happened to use.
+
+Name the **one focal element** per panel: the thing the reader should land on
+first. Step 3's 1:2:4 stroke ladder hangs off that choice, which makes it a
+pattern decision rather than a styling one.
+
 Apply the **isomorphism test**: strip every label, and the remaining structure
 still carries the argument. When a panel fails it, choose a different pattern.
 
-Done when each panel names a pattern distinct from its neighbours' and passes the
-isomorphism test.
+[reference/rubric.md](reference/rubric.md) is the ranked set of house rules step
+5 scores the result against — Tier A rule by rule, Tier B in prose. Reading it
+while the pattern is still a sentence costs less than meeting it once the
+coordinates exist.
+
+Done when each panel names a pattern that fits the surface, names its focal
+element, and passes the isomorphism test — and the panels differ from their
+neighbours', unless consecutive claims differ in exactly one named variable,
+where the rubric's small-multiples inversion asks for the same pattern instead.
 
 ## Step 3 — build it from measured text
 
@@ -100,16 +134,28 @@ rebuilds by hand what already exists — the first three live under
 - A frame lists its `children` by id and then sizes itself around them. One
   without that list is a `SkeletonError` at the door.
 
-Name the **surface** too when the diagram has one — a projected slide, a doc
-figure, a social card. `preset: "slide-16x9"` on the authoring call hands the
-build a **type ramp** (`ramp.title` / `ramp.label` / `ramp.sublabel`) and the
-`surface` to lay out into, so the type is sized before the text is measured and
-the cards grow with it. The preset table and both context members are under
-[Output presets](reference/authoring.md#output-presets). Omit it and you get
-`fit`, which is what this pipeline has always done.
+`preset:` on the authoring call carries step 1's surface into the build: it
+hands you a **type ramp** (`ramp.title` / `ramp.label` / `ramp.sublabel`) and
+the `surface` to lay out into, so the type is sized before the text is measured
+and the cards grow with it. Both context members are under
+[Output presets](reference/authoring.md#output-presets).
 
-Done when the `.excalidraw` file exists and every card, column and frame size
-traces to a measurement or an explicit constant — with no character-width factors.
+Done when the `.excalidraw` file exists, every card, column and frame size
+traces to a measurement or an explicit constant — with no character-width
+factors — and the picture carries all three of:
+
+- **A title stating its scope, in sentence case.** On a band that is each
+  frame's `name` — the panel's claim, numbered, with panel 1's carrying the
+  diagram's scope. A title floating clear of every frame is legal and lands in
+  no per-frame export, which is the only thing the deck author and step 5 ever
+  look at. An in-canvas panel heading stays optional and earns its place by
+  saying something the frame name does not.
+- **A legend** at two or more role hues, or any non-default stroke style or
+  arrowhead. One hue beside grey needs none.
+- **A label on every bound arrow**, naming its intent.
+
+The last two are rubric rules 4 and 7, which carry what each one is for; here
+they are the bar the file has to clear before step 4 sees it.
 
 ## Step 4 — pass the gate
 
@@ -177,26 +223,38 @@ flush with that border renders clipped — which step 4 already refuses as
 `frame-edge-crowding`, so the fix is clearance inside the frame rather than a
 flag here.
 
-For each frame, check the composition against the claim from step 1, then hunt
-the catalogue in [reference/anti-patterns.md](reference/anti-patterns.md) — the
-defects there are legal geometry the gate cannot see.
+For each frame, check the composition against the claim from step 1, then score
+it against [reference/rubric.md](reference/rubric.md) — the house rules, ranked,
+Tier A scored and Tier B judged. They are legal geometry the gate cannot refuse
+over, which is why a pair of eyes is the only thing that reads them.
 
 You have been staring at the coordinates, so you will see what you meant, not
-what renders. **Four or more frames: dispatch a fresh subagent for the
-read-back** — hand it the PNGs, the step 1 panel list and step 4's advisory
-list: *"For each frame, name the claim you read from the picture alone, then
-list mechanical defects — overlap, clipping, crowding, arrows missing their
-target — and confirm or dismiss each advisory from the picture."* For three
-frames or fewer, your own pass above is the read-back.
+what renders. **Dispatch a fresh subagent for the read-back on every diagram**,
+whatever the frame count — the bias belongs to the author, not to the band. Give
+it the work in two parts, in this order:
 
-A frame whose read-back claim differs from the panel list has failed the
-isomorphism test — send it back to step 2, where the pattern is chosen, rather
-than nudging its geometry here.
+1. **Blind** — the frame PNGs alone (the SVG for a frameless sketch), with no
+   panel list, no rubric and no advisories: *"For each frame, name the claim you
+   read from the picture alone, then list the mechanical defects you see —
+   overlap, clipping, crowding, an arrow missing its target."* Handing over the
+   panel list here would buy back the same bias one level down: it would read
+   back the claim it was told.
+2. **Informed** — now with the step 1 panel list, `reference/rubric.md` and step
+   4's `--json` advisories: *"Score every Tier A rule `pass` / `fail` / `n-a`
+   with one line of evidence, judge Tier B in prose, and say where the picture
+   disagrees with an advisory."* It holds the advisories so it spends its
+   attention on what the gate could not measure rather than re-reporting
+   crossings already counted.
 
-Done when every frame has been viewed, each defect found and each advisory the
-read-back confirmed is either fixed or named as a deliberate choice, any fix has
-re-passed the step 4 gate, and, at four or more frames, a fresh subagent has
-read every frame back.
+The verdict comes back to you and is never written to disk.
+
+A frame whose blind claim differs from the panel list has failed the isomorphism
+test — send it back to step 2, where the pattern is chosen, rather than nudging
+its geometry here.
+
+Done when every frame has been viewed, the two-part read-back has returned,
+every Tier A `fail` is either fixed or named as a deliberate choice, and any fix
+has re-passed the step 4 gate.
 
 ## Step 6 — ship the right files
 
@@ -217,17 +275,15 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" path/to/diagram.excalidraw
 Excalidraw document is rejected with a `DocumentError`, a revision that would
 fail the gate with a `GateError`, and neither writes anything.
 
-Every successful pass ends with its **fidelity ledger** — the account of what the
-round-trip changed beyond what you asked for: text remeasured with the real
-fonts, bindings and frame membership repaired, bound labels re-centered onto
-their arrows, deleted elements purged, image payloads nothing references any more
-pruned with the bytes they cost. Read it: two of those are lossy, and all of them
-used to happen in silence. A pass that changed nothing says so in one line.
-`--json` prints the same ledger as one document instead —
-[reference/problem-codes.md](reference/problem-codes.md) has every ledger code
-and the document shape. [reference/authoring.md](reference/authoring.md) carries
-the recipe for a label that must sit off the line, plus the `reviseDiagram` call
-for use from inside a generator.
+Every successful pass ends with its **fidelity ledger**, the account of what the
+round-trip changed beyond what you asked for — and two of its entries throw
+something away. [reference/problem-codes.md](reference/problem-codes.md) names
+every ledger code, which two those are, and the document `--json` prints
+instead.
+
+[reference/authoring.md](reference/authoring.md) carries the recipe for a label
+that must sit off the line, plus the `reviseDiagram` call for use from inside a
+generator.
 
 Done when the files the kind calls for are committed, no frame PNG is among them,
 and any hand-edited file has been back through `revise.js`.

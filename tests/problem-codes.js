@@ -28,6 +28,10 @@
  *      that judges a quantity, match the gate's own constants — a retuned
  *      constant would otherwise leave the shipped prose lying about the number
  *      the gate actually enforces.
+ *   5. every advisory code the rubric's Advisory column names exists in the
+ *      registry. One direction only: the rubric may not promise a code the gate
+ *      does not emit, but an advisory that ships as a pure regression guard is
+ *      free to carry no rubric row.
  *
  * Exits non-zero on any mismatch, naming the codes on each side.
  */
@@ -228,6 +232,29 @@ check(
   quotedSpanFloor === DEGENERATE_SPAN_FLOOR,
   `doc says ${quotedSpanFloor}px, verify.js says ${DEGENERATE_SPAN_FLOOR}px`,
 );
+
+// Invariant 5 — the rubric's Advisory column names only codes the registry
+// carries. The rubric ships to plugin users with no checkout, so a misspelled
+// code there sends a reader hunting a row that does not exist. One direction
+// only: the registry may hold a code no rule cites (`too-many-hues` nearly is),
+// because a regression guard is allowed to score nothing.
+{
+  const rubric = read("skills/excalidraw-diagram/reference/rubric.md");
+  const registered = new Set((rows(SECTIONS.advisory) ?? []).map((r) => r.code));
+  // A Tier A row opens with the rule's number, which is what separates it from
+  // the file's other tables; its last cell is the Advisory column, so a code
+  // named in the prose of a rule cell is never read as a claim.
+  const cited = new Set(
+    [...rubric.matchAll(/^\|\s*\d+\s*\|[^\n]*\|([^|\n]*)\|\s*$/gm)]
+      .flatMap((m) => [...m[1].matchAll(/`([a-z][a-z-]*)`/g)].map((c) => c[1])),
+  );
+  const unregistered = [...cited].filter((c) => !registered.has(c)).sort();
+  check(
+    "every advisory code the rubric cites is in the registry",
+    cited.size > 0 && unregistered.length === 0,
+    cited.size === 0 ? "the rubric cites no code at all" : unregistered.join(", ") || `${cited.size} codes cited`,
+  );
+}
 
 console.log(
   fail.length

@@ -129,6 +129,65 @@ export const column = (items, opts = {}) => stack(items, { ...opts, direction: "
 export const row = (items, opts = {}) => stack(items, { ...opts, direction: "row" });
 
 /**
+ * One width for a whole set of measurements — "same element type, same size
+ * within a graph or a row" as arithmetic the author runs *before* building the
+ * boxes.
+ *
+ * Takes measurements — anything carrying a finite `width`, which is what
+ * `measure` and `wrap` hand back — and returns the width every box in the set
+ * should get: the widest item plus `padding` on both sides, rounded up to the
+ * `round` pitch so the cards land on the same grid as the gaps between them.
+ * Nothing is placed or mutated — it returns a number, so the author still builds
+ * the boxes and `box` and `stack` take them as they always did.
+ *
+ * Sizing has to happen here rather than after the fact: `box` places its child
+ * at `padding`, so widening a rectangle later would leave its text off-centre,
+ * and `graph()` holds the invariant that the engine never resizes a house
+ * element. Deciding the width up front is the only pass that keeps both.
+ *
+ * Unconditional by design — it collapses the set whatever the natural spread,
+ * because a helper that sometimes does nothing is two behaviours to model, and a
+ * spread narrow enough to argue about is still the ragged case a reader notices.
+ * Nothing here refuses a scene, though: this is a helper an author reaches for,
+ * and a band that never called it stays as legal as it was.
+ */
+export function uniformWidth(items, { padding = 20, round = 20 } = {}) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new LayoutError(`needs a non-empty array of measurements, got ${shown(items)}`, {
+      where: "uniformWidth", next: "Pass the measurements of every item that should share a width.",
+    });
+  }
+  if (!Number.isFinite(padding) || padding < 0) {
+    throw new LayoutError(`padding must be a non-negative finite number of pixels, got ${shown(padding)}`, {
+      where: "uniformWidth", next: "Pass the padding the boxes will use, or omit it for 20.",
+    });
+  }
+  // the divisor below: a zero or negative pitch would hand back Infinity or a
+  // width narrower than the item, neither of which reads as a refusal
+  if (!Number.isFinite(round) || round <= 0) {
+    throw new LayoutError(`round must be a positive finite number of pixels, got ${shown(round)}`, {
+      where: "uniformWidth", next: "Pass the grid pitch to land on, 1 for whole pixels, or omit it for 20.",
+    });
+  }
+
+  const widths = items.map((item, i) => {
+    const w = item?.width;
+    // negative is reachable arithmetic — an `available - used` gone past zero —
+    // and would hand back a width the gate only refuses much later, as a
+    // degenerate shape, naming the rectangle instead of the measurement behind it
+    if (!Number.isFinite(w) || w < 0) {
+      throw new LayoutError(`item ${i} needs a non-negative finite width (got ${shown(w)})`, {
+        where: item?.id || "uniformWidth",
+        next: "Measure the text first, or size the shape explicitly.",
+      });
+    }
+    return w;
+  });
+
+  return Math.ceil((Math.max(...widths) + 2 * padding) / round) * round;
+}
+
+/**
  * Wrap content in a rectangle sized by padding — a card whose height follows
  * its measured content. Shape props (id, colours, roundness…) pass through;
  * the returned group exposes the rectangle as `.shape` so arrows can bind it.

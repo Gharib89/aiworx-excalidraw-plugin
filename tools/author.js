@@ -28,7 +28,7 @@ import { readExcalidrawDocument } from "./document.js";
 import { bounds, outlineContains, outline } from "./geometry.js";
 import { buildLedger, METRIC_EPSILON } from "./ledger.js";
 import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
-import { stack, row, column, box, flatten, resolveArrows, rampedLayout } from "./layout.js";
+import { stack, row, column, box, uniformWidth, flatten, resolveArrows, rampedLayout } from "./layout.js";
 import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "./presets.js";
 import { makeFromMermaid } from "./mermaid.js";
 import { NamedError, DocumentError } from "./errors.js";
@@ -821,6 +821,7 @@ export const buildContext = (ex, files, preset = DEFAULT_PRESET) => ({
   row,
   column,
   box,
+  uniformWidth,
   flatten,
   ...rampedLayout(PRESETS[preset].ramp),
   fromMermaid: makeFromMermaid(ex),

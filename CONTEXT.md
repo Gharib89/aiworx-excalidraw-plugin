@@ -215,6 +215,19 @@ Distinct from **clearance**, which measures ink already drawn, and from `gap` /
 `layerGap`, which space the nodes rather than the routes between them.
 _Avoid_: channel, lane, edge margin
 
+**Uniform width**:
+The one width a whole set of house elements is built at, so that text length
+rather than meaning stops driving their size. `uniformWidth` derives it — the
+widest measurement plus padding, rounded up to a pitch — and the author passes it
+to every `box` in the set, because the width has to be settled before the boxes
+exist: `box` places its child at `padding`, so a rectangle widened afterwards
+leaves its content where the narrow card put it, and `graph` never lets the engine
+resize a house element. Its scope is the author's, not the layout's — one width
+per `graph` call or per `row`, never per layer, which the engine assigns and a
+pre-pass cannot know. Distinct from `surface`, the preset's target for the whole
+scene, and from `gap`, which spaces elements rather than sizing them.
+_Avoid_: card width, standard width, fixed width
+
 ### Style
 
 **Register**:

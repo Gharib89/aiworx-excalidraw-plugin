@@ -29,7 +29,7 @@ threshold is repeated here.
 | 3 | A title states the diagram's scope, in sentence case — on a band, each frame's name | `picture` | P | — |
 | 4 | Every encoding on canvas — role hue, stroke style, arrowhead — is decodable from a legend or an in-place label, and the legend never contradicts the strokes. A legend is required at two or more role hues, or any non-default stroke style or arrowhead; one hue beside grey needs none | `picture` | P | — |
 | 5 | Role hues stay under the ceiling, grey excluded; `pass` and `fail` are never told apart by hue alone — a second channel, a ✓/✗ glyph or a stroke style, always rides with red and green | `panel` | A + P | `too-many-hues`, `hue-only-pass-fail` |
-| 6 | Within any one `graph` layer or row, elements of the same type share a size — widths within 1.25× of each other. Measure the widest member first and size the rest to it | `picture` | P | — |
+| 6 | Within any one `graph` layer or row, elements of the same type share a size — widths within 1.25× of each other. `uniformWidth` ([authoring.md](authoring.md#composing-layout)) settles the whole set at once, so reach for it whenever text length rather than meaning is driving the widths apart | `picture` | L + P | — |
 | 7 | Every arrow bound between two shapes carries a label naming its intent. A headless line between two shapes is structure — a spine, a divider — or it is an arrow that lost its label | `picture` | P | — |
 | 9 | Every arrow reaches its target inside the bend budget. The route is the engine's job — `graph` reads its routes back, so a hand-routed elbow is the exception that needs a reason | `picture` | L + A | `too-many-bends` |
 | 10 | Every text clears its surface's font floor at embed scale | `picture` | P + A | `font-below-floor` |

@@ -19,7 +19,7 @@ One frame's worth of content in a band — the unit an author reads, judges, and
 _Avoid_: slide, section
 
 **Frame**:
-The containment and verification unit. Every frame renders to its own PNG; elements must sit inside exactly one frame in a framed diagram.
+The containment and verification unit. Every frame renders to its own PNG. An element that overlaps a frame must be bound to exactly one; an element clear of every frame is legitimate and simply appears in no panel export — which is why a band's title belongs to a frame rather than floating above the row.
 
 **Container**:
 A shape whose outline encloses another shape's outline — a boundary drawn around what it groups (an account, a VPC, a cluster). Arrows crossing it do so by design, so a measurement that reads "an arrow passing near an unrelated shape" reads past it. A container is still a node: enclosure is what it does to the arrows over it, not a different kind of thing.
@@ -84,6 +84,11 @@ _Avoid_: error format, message template
 
 **Isomorphism test**:
 The authoring judgment that the picture's structure mirrors the idea's structure — if the visual shape does not match the argument, restructure the diagram, not the styling.
+
+**Read-back**:
+The fresh subagent's second look at the rendered frames, dispatched on every diagram because the author has been staring at coordinates. It runs in two parts: **blind** first — the images alone, naming the claim each frame makes and the mechanical defects it shows — then **informed**, with the panel list, the rubric and the gate's advisories, scoring each Tier A rule pass/fail/n-a with a line of evidence and judging Tier B in prose. Its verdict is returned, never written to disk.
+_Avoid_: review, critique, self-check
+_Not_: a **grade**, which is a bench-run artifact scored by someone who never authored the picture.
 
 ### Authoring
 

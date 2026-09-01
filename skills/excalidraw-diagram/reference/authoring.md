@@ -840,6 +840,13 @@ enough to clear both frames' fitted extents — a frame fits about 10px outside
 its children, so clear the bodies by more than that. A connector reaching into a
 frame it does not belong to is `unbound-over-frame`.
 
+**The gutter is one nominal gap for the whole band, at least 120px between
+frame extents** — enough for a cross-panel connector to clear both frames. Set
+it once on the band-level `row` and let it stand; frames auto-fit about 10px
+around their children, so the rendered gaps land a little either side of the
+nominal and that spread is the auto-fit, not a decision. `frame-overlap` refuses
+the gap that actually failed.
+
 An arrow that crosses from one panel to the next stays **unbound**. A frame's
 auto-fit counts anything bound to one of its children as its own, so binding
 across a panel boundary stretches both frames over the gap until they overlap —

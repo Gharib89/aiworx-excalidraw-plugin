@@ -73,6 +73,10 @@ shake reads as noise, not charm. `strokeStyle` joins the register at `"solid"`;
 `"dashed"` and `"dotted"` mean provisional or inferred, so they are a
 per-element break rather than a whole-diagram voice.
 
+Drift is what to hunt in the render: one hachure card among solid ones, or
+roughness changing card to card. Every value in the register is legal on its
+own, so nothing refuses the mix — it simply reads as unfinished.
+
 ## Depth
 
 Opacity is a depth cue with three tiers: 100 for the elements carrying the

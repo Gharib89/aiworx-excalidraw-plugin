@@ -143,6 +143,15 @@ Both themes are scored on every run, which is why `low-contrast` names the
 `theme` it failed under — [palette.md](palette.md) has the filter that makes a
 dark-only failure possible.
 
+One font failure carries no code at all, and reading the render is how you meet
+it: **every family renders as identical, vaguely serif text.** The warm-up
+failed, so every measurement in the file was taken against fallback metrics and
+`foreign-font` has nothing to say — the families are the house pair, they simply
+never loaded. The warm now refuses loudly with a `FontIntegrityError`, so a file
+showing this predates that guard: re-run its generator with the current tools. A
+layout nudged back into place against fallback metrics breaks again the moment
+the real fonts load.
+
 ## File-level codes
 
 Emitted by `check.js` for a file that never reached the rules. They appear under

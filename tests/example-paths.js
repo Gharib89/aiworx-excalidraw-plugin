@@ -118,7 +118,7 @@ const check = (name, cond, detail) => {
     ["skills/excalidraw-diagram/reference/authoring.md", shape],
     ["skills/excalidraw-diagram/reference/palette.md", shape],
     ["skills/excalidraw-diagram/reference/patterns.md", shape],
-    ["skills/excalidraw-diagram/reference/anti-patterns.md", shape],
+    ["skills/excalidraw-diagram/reference/rubric.md", shape],
   ];
   const offenders = sources
     .filter(([f, scan]) => /\.pathname\b/.test(scan(readFileSync(join(root, f), "utf8"))))

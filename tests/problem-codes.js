@@ -141,28 +141,6 @@ for (const [level, heading] of Object.entries(SECTIONS)) {
   check(`no ${level}-level code is listed live but never emitted`, phantom.length === 0, list(phantom));
 }
 
-// Invariant 5 — the rubric's Advisory column names only codes the registry
-// carries. The rubric ships to plugin users with no checkout, so a misspelled
-// code there sends a reader hunting a row that does not exist. One direction:
-// the registry may hold a code no rule cites (`too-many-hues` nearly is),
-// because a regression guard is allowed to score nothing.
-{
-  const rubric = read("skills/excalidraw-diagram/reference/rubric.md");
-  const registered = new Set((rows(SECTIONS.advisory) ?? []).map((r) => r.code));
-  // A Tier A row is `| # | rule | scope | channel | advisory |` — read the last
-  // cell only, so a code named in the prose of a rule cell is not a claim.
-  const cited = new Set(
-    [...rubric.matchAll(/^\|[^\n]*\|([^|\n]*)\|\s*$/gm)]
-      .flatMap((m) => [...m[1].matchAll(/`([a-z][a-z-]*)`/g)].map((c) => c[1])),
-  );
-  const unregistered = [...cited].filter((c) => !registered.has(c)).sort();
-  check(
-    "every advisory code the rubric cites is in the registry",
-    cited.size > 0 && unregistered.length === 0,
-    cited.size === 0 ? "the rubric cites no code at all" : unregistered.join(", ") || `${cited.size} codes cited`,
-  );
-}
-
 // Invariant 4 — the prose quotes the same numbers the gate enforces. Anchored
 // to the wording, not bare digits, so an unrelated number elsewhere in the
 // doc can't false-match.
@@ -254,6 +232,29 @@ check(
   quotedSpanFloor === DEGENERATE_SPAN_FLOOR,
   `doc says ${quotedSpanFloor}px, verify.js says ${DEGENERATE_SPAN_FLOOR}px`,
 );
+
+// Invariant 5 — the rubric's Advisory column names only codes the registry
+// carries. The rubric ships to plugin users with no checkout, so a misspelled
+// code there sends a reader hunting a row that does not exist. One direction
+// only: the registry may hold a code no rule cites (`too-many-hues` nearly is),
+// because a regression guard is allowed to score nothing.
+{
+  const rubric = read("skills/excalidraw-diagram/reference/rubric.md");
+  const registered = new Set((rows(SECTIONS.advisory) ?? []).map((r) => r.code));
+  // A Tier A row opens with the rule's number, which is what separates it from
+  // the file's other tables; its last cell is the Advisory column, so a code
+  // named in the prose of a rule cell is never read as a claim.
+  const cited = new Set(
+    [...rubric.matchAll(/^\|\s*\d+\s*\|[^\n]*\|([^|\n]*)\|\s*$/gm)]
+      .flatMap((m) => [...m[1].matchAll(/`([a-z][a-z-]*)`/g)].map((c) => c[1])),
+  );
+  const unregistered = [...cited].filter((c) => !registered.has(c)).sort();
+  check(
+    "every advisory code the rubric cites is in the registry",
+    cited.size > 0 && unregistered.length === 0,
+    cited.size === 0 ? "the rubric cites no code at all" : unregistered.join(", ") || `${cited.size} codes cited`,
+  );
+}
 
 console.log(
   fail.length

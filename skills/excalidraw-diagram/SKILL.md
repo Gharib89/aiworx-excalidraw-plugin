@@ -150,12 +150,12 @@ factors — and the picture carries all three of:
   no per-frame export, which is the only thing the deck author and step 5 ever
   look at. An in-canvas panel heading stays optional and earns its place by
   saying something the frame name does not.
-- **A legend wherever the encoding needs decoding** — two or more role hues, or
-  any non-default stroke style or arrowhead. One hue beside grey needs none, and
-  a legend contradicting its own strokes is worse than no legend at all.
-- **A label on every bound arrow, naming its intent.** A headless line between
-  two shapes is structure — a spine, a divider — or it is an arrow that lost its
-  label.
+- **A legend** at two or more role hues, or any non-default stroke style or
+  arrowhead. One hue beside grey needs none.
+- **A label on every bound arrow**, naming its intent.
+
+The last two are rubric rules 4 and 7, which carry what each one is for; here
+they are the bar the file has to clear before step 4 sees it.
 
 ## Step 4 — pass the gate
 
@@ -275,13 +275,15 @@ node "${CLAUDE_PLUGIN_ROOT}/tools/revise.js" path/to/diagram.excalidraw
 Excalidraw document is rejected with a `DocumentError`, a revision that would
 fail the gate with a `GateError`, and neither writes anything.
 
-Every successful pass ends with its **fidelity ledger** — the account of what
-the round-trip changed beyond what you asked for. Read it: two of its entries
-throw something away. [reference/problem-codes.md](reference/problem-codes.md)
-has every ledger code, which two those are, and the document `--json` prints
-instead; [reference/authoring.md](reference/authoring.md) carries the recipe for
-a label that must sit off the line, plus the `reviseDiagram` call for use from
-inside a generator.
+Every successful pass ends with its **fidelity ledger**, the account of what the
+round-trip changed beyond what you asked for — and two of its entries throw
+something away. [reference/problem-codes.md](reference/problem-codes.md) names
+every ledger code, which two those are, and the document `--json` prints
+instead.
+
+[reference/authoring.md](reference/authoring.md) carries the recipe for a label
+that must sit off the line, plus the `reviseDiagram` call for use from inside a
+generator.
 
 Done when the files the kind calls for are committed, no frame PNG is among them,
 and any hand-edited file has been back through `revise.js`.

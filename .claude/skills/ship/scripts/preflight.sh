@@ -14,8 +14,19 @@ N="${1:?usage: preflight.sh <issue>}"
 
 api() { gh api "$@" || { sleep 2; gh api "$@"; }; }
 
-ISS=$(api "repos/{owner}/{repo}/issues/$N") || exit 1
 REASONS=()
+
+# Write access first, because it is the one failure the rest of the pipeline
+# cannot see: every read-only call a run makes — the polls, the PR view, the CI
+# conclusions — succeeds for an account that cannot push, so a `gh` active
+# account pointed at the wrong login stays invisible until the phase-9 merge
+# PUT answers 404 with the whole run already spent.
+VIEWER=$(api user --jq .login) || exit 1
+PUSH=$(api "repos/{owner}/{repo}" --jq '.permissions.push // false') || exit 1
+[ "$PUSH" = "true" ] \
+  || REASONS+=("gh account '$VIEWER' cannot push here — switch with: gh auth switch --user <the account with access>")
+
+ISS=$(api "repos/{owner}/{repo}/issues/$N") || exit 1
 STATE=$(jq -r .state <<<"$ISS")
 [ "$STATE" = "open" ] || REASONS+=("issue is $STATE")
 jq -e '.pull_request' <<<"$ISS" >/dev/null && REASONS+=("#$N is a PR, not an issue")

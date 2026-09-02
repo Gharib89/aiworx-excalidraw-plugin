@@ -62,7 +62,7 @@ separately from the evidence it cites.
 ## Poll mechanics
 
 Reviews take minutes. Run
-`scripts/poll-pr.sh <n> --await-review "copilot-pull-request-reviewer[bot]"`
+`scripts/poll-pr.sh "$PR" --await-review "copilot-pull-request-reviewer[bot]"`
 inline — a bounded foreground loop that returns ONE JSON summary: check
 conclusions, reviews keyed to the current head sha, `reviewer_blocked`,
 `mergeable_state`. `done: false` means the window closed first — re-run to

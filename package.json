@@ -1,6 +1,6 @@
 {
   "name": "aiworx-excalidraw-plugin",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "private": true,
   "description": "Claude Code plugin: author Excalidraw diagrams with real text metrics and headless visual verification",
   "license": "MIT",

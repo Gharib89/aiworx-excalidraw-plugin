@@ -69,11 +69,31 @@ dist_unchanged() {
   git diff --quiet -- dist/ && [ -z "$(git status --porcelain --ignored dist/)" ]
 }
 
+# The one thing CI cannot answer: has this branch seen every commit on its base?
+# A branch that predates a merge still diffs and merges clean — CI tests the
+# merge ref, and nothing here is textual — but every "does X already exist in
+# the repo?" question answered from this worktree gets the pre-merge answer.
+# That is how a valid review finding gets rejected against a tree main has moved
+# past. Best-effort fetch: offline falls back to the last known ref.
+base_fresh_check() {
+  git fetch -q origin "${BASE#origin/}" 2>/dev/null
+  local behind
+  behind=$(git log --oneline "HEAD..$BASE" 2>/dev/null) || return 0
+  if [ -n "$behind" ]; then
+    echo "branch has not seen these commits on $BASE — rebase onto it, re-run this gate, then open the PR:"
+    printf '%s\n' "$behind"
+    return 1
+  fi
+  echo "$BASE is an ancestor of HEAD"
+}
+
 if [ -n "$SMALL_NODE" ]; then
+  run "base fresh" base_fresh_check
   run "fingerprint" fingerprint_check
   run "test file" node "$SMALL_NODE"
 else
   PRE_STATUS=$(git status --porcelain)
+  run "base fresh" base_fresh_check
   if [ "$BUNDLE_CHANGED" -eq 1 ]; then
     run "bundle rebuild" npm run bundle
     run "bundle reproducible (dist/ matches commit)" dist_unchanged

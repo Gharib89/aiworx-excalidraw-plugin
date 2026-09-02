@@ -154,8 +154,11 @@ finding-**triage** at the judgment tier, mechanical helpers at the cheap tier
 
 **0 · Isolate.** **Pre-flight:** run `scripts/preflight.sh <issue>` — if it
 reports not actionable (closed, an existing open/merged PR that claims to
-*close* it, existing branch, already claimed), **stop and report** its reasons
-instead of opening a duplicate. Its `mentions` array lists live PRs that merely
+*close* it, existing branch, already claimed, or a `gh` account without push
+access), **stop and report** its reasons instead of opening a duplicate. The
+push-access row is checked first because it is the only one the rest of the run
+cannot see: every read-only call succeeds for an account that cannot push, so a
+wrong active account stays invisible until phase 9's merge answers 404. Its `mentions` array lists live PRs that merely
 name the issue — the "spun this out of the PR I was working on" pattern — which
 is context to carry into phase 1, never a reason to stop. Then create an
 isolated workspace on a fresh branch off the default
@@ -243,6 +246,13 @@ docs-sync edits — (it runs its two axes on their own tiers — opus for code, 
 for spec). **Auto-triage** each finding: harden rather than rip out capability,
 verify nits against the **pinned** dependency versions, reject known non-issues; fix
 the valid ones; record a one-line disposition per finding for the merge summary.
+
+Two rails on rejecting a finding, both learned from a defect that reached main.
+A claim about **what exists in the repo** is checked against `origin/main` — the
+base the review pinned — never against the worktree, which may predate a merge.
+And a finding's **evidence and its claim are separate**: a reviewer citing the
+wrong commit for a real primitive is still right, so re-derive the claim before
+rejecting it.
 This self-review plus green CI *is* the review gate — don't skim it. The
 CodeRabbit rounds in phase 7 are a second pair of eyes on top, not a
 substitute for it.
@@ -254,7 +264,11 @@ Run `scripts/local-gate.sh` green before opening the PR — it mirrors the check
 CI actually runs (bundle-fingerprint staleness, the full `npm test` suite
 including browser smoke, bundle reproducibility when bundle inputs changed, and
 the verification-must-not-dirty-the-repo check) and prints per-check pass/fail
-with only the failing lines. Run it inline: it projects its own output, so a
+with only the failing lines. It also checks the one thing **CI cannot**: that
+the branch has seen every commit on its base. CI tests the merge ref, so a
+branch that predates a merge still goes green — while every "does this already
+exist?" question you answer from the worktree gets the pre-merge answer. Red
+there means rebase onto the base, re-run this gate, then open the PR. Run it inline: it projects its own output, so a
 subagent adds nothing. The one thing it can't run locally is the macOS/Windows
 legs of the CI matrix — *anticipate* those (phase 3's OS caveat).
 **Small lane:** `scripts/local-gate.sh --small <test-file>` per

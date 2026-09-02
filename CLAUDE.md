@@ -58,15 +58,19 @@ Squash-merge PRs with the PR title as the Conventional-Commit subject (`feat(gat
 
 ## Code review
 
-**GitHub Copilot reviews on request** — it is a requested reviewer, not a webhook, so a PR sits unreviewed until someone asks:
+**GitHub Copilot reviews on request** — it is a requested reviewer, not a webhook, so a PR sits unreviewed until someone asks. One POST makes the request; the second call reads it back:
 
 ```bash
-gh api -X POST "repos/{owner}/{repo}/pulls/<n>/requested_reviewers" \
+PR=219
+gh api -X POST "repos/{owner}/{repo}/pulls/$PR/requested_reviewers" \
   -f "reviewers[]=copilot-pull-request-reviewer[bot]"
-gh api "repos/{owner}/{repo}/pulls/<n>" --jq '.requested_reviewers | map(.login)'   # read it back
+gh api "repos/{owner}/{repo}/issues/$PR/timeline" --paginate \
+  --jq '.[] | select(.event == "review_requested") | .requested_reviewer.login'   # read it back
 ```
 
-**Always read the request back.** The POST answers `200` and adds **nobody** when Copilot code review is not enabled for the account — an empty `requested_reviewers` is the only signal that the reviewer will never come. Treat a silent add as *reviewer unavailable* and mark the exit degraded; do not wait on a round that was never queued.
+**Read the request back off the timeline, not off `requested_reviewers`.** Copilot never appears in `requested_reviewers` — that array comes back `[]` on a request that queued perfectly and delivered a review three minutes later, so reading it proves nothing, and calling that *unavailable* aborts a round already on its way. The `review_requested` event is the durable proof, and it names the reviewer **`Copilot`** while the review it eventually posts is authored by **`copilot-pull-request-reviewer[bot]`** — two identities for one reviewer, so match whichever the endpoint you are reading actually uses.
+
+A round takes **two to four minutes**. No `review_requested` event means the request never landed: retry once, then treat the reviewer as unavailable and mark the exit degraded.
 
 Copilot posts **one review per request** and does not re-review on push. After a round of fixes, request again — that is what makes the next round, and it is why rounds are counted rather than assumed.
 

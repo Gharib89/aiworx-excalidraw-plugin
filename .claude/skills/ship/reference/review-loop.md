@@ -8,20 +8,28 @@ policy; this file holds the mechanics.
 ## Requesting a round
 
 Copilot is a **requested reviewer, not a webhook**. Nothing arrives until you
-ask, and asking is one call:
+ask. The request is one POST; the second call is the mandatory read-back:
 
 ```bash
+PR=219
 gh api -X POST "repos/{owner}/{repo}/pulls/$PR/requested_reviewers" \
   -f "reviewers[]=copilot-pull-request-reviewer[bot]"
-gh api "repos/{owner}/{repo}/pulls/$PR" --jq '.requested_reviewers | map(.login)'
+gh api "repos/{owner}/{repo}/issues/$PR/timeline" --paginate \
+  --jq '.[] | select(.event == "review_requested") | .requested_reviewer.login'
 ```
 
-**The read-back is the whole point of the second call.** The POST answers `200`
-and adds **nobody** when Copilot code review is not enabled for the account, so
-the response body proves nothing. A `requested_reviewers` that comes back
-without `copilot-pull-request-reviewer[bot]` means the round was never queued:
-mark the exit **degraded** and carry on to phase 8. Waiting is the one thing
-that cannot help.
+**Read the timeline, not `requested_reviewers`.** The POST's own response proves
+nothing, and neither does `requested_reviewers`: Copilot never appears there.
+That array comes back `[]` on a request that queued perfectly and delivered its
+review two and a half minutes later — so treating an empty array as *not
+enabled* abandons a round that was already on its way. The `review_requested`
+event is the proof the request landed.
+
+The two endpoints name the same reviewer differently: the timeline event says
+**`Copilot`**, the review it posts is authored by
+**`copilot-pull-request-reviewer[bot]`**, and the check run is
+`copilot-pull-request-reviewer`. Match whichever the endpoint you are reading
+uses.
 
 One request yields **one review**. Copilot does not re-review on push, so each
 round after the first starts by requesting again — which is why a run counts its
@@ -72,14 +80,15 @@ manufactures rows that look like round N+1 arriving. `poll-pr.sh` counts only
 
 Read the request-back first, because the two causes need opposite handling:
 
-- **Never queued** (`requested_reviewers` came back without Copilot): the
-  reviewer is **unavailable**, not late. Retry the request once; if it still
-  adds nobody, proceed on green CI and mark the merge summary **degraded**, and
-  say in it that Copilot review is not enabled for the account so the human can
-  fix it at the source. Do not spend a second poll window on it.
-- **Queued but quiet** (Copilot is in `requested_reviewers`, no review yet):
-  keep polling. `reviewer_blocked` carries any banner the reviewer posted about
-  quota or queueing; non-null with `done: false` means waiting, not missing.
+- **Never queued** (no `review_requested` event on the timeline): the reviewer
+  is **unavailable**, not late. Retry the request once; if no event appears,
+  proceed on green CI and mark the merge summary **degraded**, saying that the
+  request never landed so the human can fix it at the source. Do not spend a
+  second poll window on it.
+- **Queued but quiet** (the event is there, no review yet): keep polling — a
+  round normally takes two to four minutes. `reviewer_blocked` surfaces a
+  reviewer comment about rate limits or quota (the three phrases
+  `poll-pr.sh` matches); non-null with `done: false` means waiting, not missing.
 
 A review body that is only an error notice with zero comments is the same
 failure as never queueing: re-request once, then degraded.

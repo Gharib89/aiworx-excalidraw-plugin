@@ -287,10 +287,10 @@ PR) so a scheduled run won't re-pick it.
 (per project instructions — never an assumption). **Here: GitHub Copilot,
 requested per round, until converged — soft cap four rounds.** Request the
 review, **read the request back**, triage the round, push the fixes, and request
-again; stop when a round returns nothing actionable. An empty
-`requested_reviewers` after the POST means Copilot is unavailable, not slow —
-exit degraded rather than wait. Convergence, the cap, the request call, poll
-loop, and the unavailable-reviewer rails:
+again; stop when a round returns nothing actionable. Read the request back off
+the PR **timeline** — Copilot never shows up in `requested_reviewers`, so an
+empty array there says nothing about whether the round is coming. Convergence,
+the cap, the request call, poll loop, and the unavailable-reviewer rails:
 **[reference/review-loop.md](reference/review-loop.md)**.
 
 **8 · CI.** CI runs from PR-open. `scripts/poll-pr.sh <pr>` covers this phase: it

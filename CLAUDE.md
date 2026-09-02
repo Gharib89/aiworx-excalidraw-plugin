@@ -58,13 +58,23 @@ Squash-merge PRs with the PR title as the Conventional-Commit subject (`feat(gat
 
 ## Code review
 
-**CodeRabbit reviews every ready (non-draft) PR automatically** (`.coderabbit.yaml`) — it reviews on open and posts an incremental review after every push; nothing to request. A PR still silent minutes after opening means the reviewer never ran — trigger one with a `@coderabbitai review` comment.
+**GitHub Copilot reviews on request** — it is a requested reviewer, not a webhook, so a PR sits unreviewed until someone asks:
+
+```bash
+gh api -X POST "repos/{owner}/{repo}/pulls/<n>/requested_reviewers" \
+  -f "reviewers[]=copilot-pull-request-reviewer[bot]"
+gh api "repos/{owner}/{repo}/pulls/<n>" --jq '.requested_reviewers | map(.login)'   # read it back
+```
+
+**Always read the request back.** The POST answers `200` and adds **nobody** when Copilot code review is not enabled for the account — an empty `requested_reviewers` is the only signal that the reviewer will never come. Treat a silent add as *reviewer unavailable* and mark the exit degraded; do not wait on a round that was never queued.
+
+Copilot posts **one review per request** and does not re-review on push. After a round of fixes, request again — that is what makes the next round, and it is why rounds are counted rather than assumed.
 
 **Drive it until converged, soft cap four rounds.** Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
 
-**Triage every comment.** CodeRabbit does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
+**Triage every comment.** Copilot does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
 
-CodeRabbit is a second pair of eyes. **The gate** is a deliberate self-review (`code-review` skill) on the diff plus green CI — give it the same attention as the code it covers.
+Copilot is a second pair of eyes. **The gate** is a deliberate self-review (`code-review` skill) on the diff plus green CI — give it the same attention as the code it covers.
 
 ## Agent skills
 

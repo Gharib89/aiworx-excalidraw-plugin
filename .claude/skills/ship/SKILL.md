@@ -254,7 +254,7 @@ And a finding's **evidence and its claim are separate**: a reviewer citing the
 wrong commit for a real primitive is still right, so re-derive the claim before
 rejecting it.
 This self-review plus green CI *is* the review gate — don't skim it. The
-CodeRabbit rounds in phase 7 are a second pair of eyes on top, not a
+Copilot rounds in phase 7 are a second pair of eyes on top, not a
 substitute for it.
 
 **5 · Local gate.** *Precondition:* phase 3 passed **or** the class is `docs` — if
@@ -284,12 +284,13 @@ template**, fill it in honestly; otherwise write a plain body that keeps the
 PR) so a scheduled run won't re-pick it.
 
 **7 · Review-bot loop.** **Only if the repo has an automated reviewer configured**
-(per project instructions — never an assumption). **Here: CodeRabbit, automatic,
-until converged — soft cap four rounds.** It reviews on PR-open and re-reviews
-every push: triage each round, push the fixes, and stop when a round returns
-nothing actionable. A PR still silent minutes after opening means the reviewer
-never ran — trigger it with `@coderabbitai review`, don't count silence as a
-pass. Convergence, the cap, poll loop, and the infra-flake rails:
+(per project instructions — never an assumption). **Here: GitHub Copilot,
+requested per round, until converged — soft cap four rounds.** Request the
+review, **read the request back**, triage the round, push the fixes, and request
+again; stop when a round returns nothing actionable. An empty
+`requested_reviewers` after the POST means Copilot is unavailable, not slow —
+exit degraded rather than wait. Convergence, the cap, the request call, poll
+loop, and the unavailable-reviewer rails:
 **[reference/review-loop.md](reference/review-loop.md)**.
 
 **8 · CI.** CI runs from PR-open. `scripts/poll-pr.sh <pr>` covers this phase: it
@@ -316,7 +317,7 @@ worktree. Summary format and merge mechanics:
   the floor, revocation.
 - `reference/implement.md` — phases 1–3: spec precedence, change classification,
   external-claim verification, verify-where-it-failed (the OS caveat).
-- `reference/review-loop.md` — phase 7: the CodeRabbit loop, convergence and
-  the soft cap, triage rails and infra-flake handling.
+- `reference/review-loop.md` — phase 7: the Copilot request-and-triage loop,
+  convergence and the soft cap, triage rails and unavailable-reviewer handling.
 - `reference/merge-gate.md` — phase 9: the merge-summary template and the
   squash-merge / cleanup mechanics.

@@ -30,7 +30,15 @@ The two endpoints name the same reviewer differently: the timeline event says
 **`Copilot`**, the review it posts is authored by
 **`copilot-pull-request-reviewer[bot]`**, and the check run is
 `copilot-pull-request-reviewer`. Match whichever the endpoint you are reading
-uses.
+uses. The timeline payload, observed rather than assumed:
+
+```json
+{ "id": 175728472, "login": "Copilot", "type": "Bot" }
+```
+
+Filtering that event on `copilot-pull-request-reviewer[bot]` matches nothing,
+which reads as *never queued* on every round — so the login you POST is not the
+login you read back, however much it looks like it should be.
 
 One request yields **one review**. Copilot does not re-review on push, so each
 round after the first starts by requesting again — which is why a run counts its

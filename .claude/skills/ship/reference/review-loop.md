@@ -15,7 +15,8 @@ PR=219
 gh api -X POST "repos/{owner}/{repo}/pulls/$PR/requested_reviewers" \
   -f "reviewers[]=copilot-pull-request-reviewer[bot]"
 gh api "repos/{owner}/{repo}/issues/$PR/timeline" --paginate \
-  --jq '.[] | select(.event == "review_requested") | .requested_reviewer.login'
+  --jq '[.[] | select(.event == "review_requested"
+                  and .requested_reviewer.login == "Copilot")] | length'
 ```
 
 **Read the timeline, not `requested_reviewers`.** The POST's own response proves

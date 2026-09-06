@@ -50,7 +50,8 @@ In rough order of impact:
 
 **Before phase 0, before the worktree**, write the run's task list into the
 scratch file (the one that later holds the design/plan): a ten-item markdown
-checklist, one line per phase. Name it `ship-<issue>.md` and put it in the
+checklist, one line per phase. Name it `ship-<issue>.md` (`ship-<slug>.md` when
+the argument was a task spec rather than a number) and put it in the
 scratchpad directory the harness names in its environment block, the
 session-scoped temp directory outside the repo; with none named, use the OS temp
 directory. The file is the source of truth. It survives a mid-run context summary and depends
@@ -58,9 +59,9 @@ on no tool the harness might withhold. Mirror it into the harness task tools
 (`TaskCreate` per item; `TaskUpdate` to change status; `TaskList` to re-read)
 only when they are already loaded or one `ToolSearch` probe
 (`select:TaskCreate,TaskUpdate,TaskList`) loads them. A probe that returns
-nothing is the normal case on Claude 5-family models: the harness drops these
-tools there unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set. Treat that as the
-answer and proceed on the file alone.
+nothing is the normal case on Claude 5-family models: the harness omits the task
+tools by default unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set. Treat that as
+the answer and proceed on the file alone.
 
 One item per phase, exactly one `in_progress` at a time (the one `- [ ]` line
 carrying an `in_progress` suffix), each marked `completed` (`- [x]`) only when

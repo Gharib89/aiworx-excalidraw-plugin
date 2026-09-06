@@ -78,7 +78,13 @@ dist_unchanged() {
 base_fresh_check() {
   git fetch -q origin "${BASE#origin/}" 2>/dev/null
   local behind
-  behind=$(git log --oneline "HEAD..$BASE" 2>/dev/null) || return 0
+  # An unresolvable base fails: a check that could not ask its question must not
+  # answer "fresh". Offline is fine — the fetch is best-effort and the last
+  # known ref still compares — but a missing ref is a real failure.
+  if ! behind=$(git log --oneline "HEAD..$BASE" 2>&1); then
+    echo "cannot resolve $BASE, so freshness went unchecked: ${behind%%$'\n'*}"
+    return 1
+  fi
   if [ -n "$behind" ]; then
     echo "branch has not seen these commits on $BASE — rebase onto it, re-run this gate, then open the PR:"
     printf '%s\n' "$behind"

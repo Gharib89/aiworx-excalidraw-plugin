@@ -58,13 +58,30 @@ Squash-merge PRs with the PR title as the Conventional-Commit subject (`feat(gat
 
 ## Code review
 
-**CodeRabbit reviews every ready (non-draft) PR automatically** (`.coderabbit.yaml`) — it reviews on open and posts an incremental review after every push; nothing to request. A PR still silent minutes after opening means the reviewer never ran — trigger one with a `@coderabbitai review` comment.
+**GitHub Copilot reviews on request** — it is a requested reviewer, not a webhook, so a PR sits unreviewed until someone asks. One POST makes the request; the second call reads it back:
+
+```bash
+PR=219
+gh api -X POST "repos/{owner}/{repo}/pulls/$PR/requested_reviewers" \
+  -f "reviewers[]=copilot-pull-request-reviewer[bot]"
+gh api "repos/{owner}/{repo}/issues/$PR/timeline" --paginate \
+  --jq '[.[] | select(.event == "review_requested"
+                  and .requested_reviewer.login == "Copilot")] | length'   # rounds requested so far
+```
+
+**Read the request back off the timeline, not off `requested_reviewers`.** Copilot never appears in `requested_reviewers` — that array comes back `[]` on a request that queued perfectly and delivered a review three minutes later, so reading it proves nothing, and calling that *unavailable* aborts a round already on its way. The `review_requested` event is the durable proof, and it names the reviewer **`Copilot`** while the review it eventually posts is authored by **`copilot-pull-request-reviewer[bot]`** — two identities for one reviewer, so match whichever the endpoint you are reading actually uses.
+
+Count only Copilot's own events — an unfiltered `review_requested` list reports success on a request for someone else entirely. The count is the number of rounds requested so far, so it should rise by one per request.
+
+A round takes **two to four minutes**. A count that did not rise means the request never landed: retry once, then treat the reviewer as unavailable and mark the exit degraded.
+
+Copilot posts **one review per request** and does not re-review on push. After a round of fixes, request again — that is what makes the next round, and it is why rounds are counted rather than assumed.
 
 **Drive it until converged, soft cap four rounds.** Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
 
-**Triage every comment.** CodeRabbit does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
+**Triage every comment.** Copilot does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
 
-CodeRabbit is a second pair of eyes. **The gate** is a deliberate self-review (`code-review` skill) on the diff plus green CI — give it the same attention as the code it covers.
+Copilot is a second pair of eyes. **The gate** is a deliberate self-review (`code-review` skill) on the diff plus green CI — give it the same attention as the code it covers.
 
 ## Agent skills
 

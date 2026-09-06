@@ -18,3 +18,4 @@ bench/**/transcript.jsonl
 # the grader keeps its raw samples and stderr beside the grade it merged them into
 bench/**/grade-*.jsonl
 bench/**/grade-*.log
+bench/**/grade-*.json.part

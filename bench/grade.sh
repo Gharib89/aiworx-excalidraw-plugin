@@ -53,6 +53,37 @@ fi
 
 body() { sed '1,/^---$/d' "$1"; }
 
+# --setting-sources project from a scratch dir loads no user settings, and no --plugin-dir
+# is passed, so the session under grading holds no skill at all. $scratch and $log are the
+# brief's, read at call time.
+grade_call() { # grade_call <prompt> <outfile>
+  (cd "$scratch" && claude -p "$1" \
+      --model "$GRADER_MODEL" --max-turns 20 --allowedTools Read \
+      --output-format json --no-session-persistence --setting-sources project \
+      < /dev/null > "$2" 2>>"$log") || echo "  grader exited $? (see $log)" >&2
+}
+
+# `model` is the pin, which is what --model asked for. modelUsage is not it: its first key
+# is whichever model the session billed first, and the CLI's own small side calls run on a
+# cheap one — reading the instrument off that records a haiku for an Opus grade. The whole
+# billed set rides along as evidence the pin was honoured.
+record() { # record <stage> <sample> <outfile>
+  GRADER_MODEL="$GRADER_MODEL" node -e '
+    const fs = require("node:fs");
+    let o = { subtype: "unparseable grader output" };
+    try { o = JSON.parse(fs.readFileSync(process.argv[3], "utf8")); } catch {}
+    console.log(JSON.stringify({
+      stage: process.argv[1],
+      sample: Number(process.argv[2]),
+      result: o.result ?? null,
+      cost_usd: o.total_cost_usd ?? 0,
+      exit: o.subtype ?? "no result",
+      model: process.env.GRADER_MODEL,
+      models_billed: Object.keys(o.modelUsage ?? {}),
+    }));
+  ' "$1" "$2" "$3" >> "$samples"
+}
+
 for slug in "${SLUGS[@]}"; do
   out="$RUNS/$slug"
   scene="$out/$slug.excalidraw"
@@ -73,41 +104,13 @@ for slug in "${SLUGS[@]}"; do
   cp "$RUBRIC" "$scratch/rubric.md"
   node "$REPO/tools/render.js" --out "$scratch" "$scene" >/dev/null 2>>"$log" \
     || { echo "  render refused the scene (see $log)" >&2; rm -rf "$scratch"; exit 1; }
-  frames=(); for f in "$scratch"/*.png; do frames+=("$(basename "$f")"); done
+  # -f per entry, because an unmatched glob expands to the literal pattern: without it the
+  # array holds one name that is not a file and the guard below can never fire
+  frames=(); for f in "$scratch"/*.png; do [ -f "$f" ] && frames+=("$(basename "$f")"); done
   [ ${#frames[@]} -gt 0 ] || { echo "  no PNG rendered from $scene" >&2; rm -rf "$scratch"; exit 1; }
   frame_list=$(printf '  %s\n' "${frames[@]}")
 
   echo "▶ $slug  ($RUN_VERSION scene, rubric $RUBRIC_VERSION, $GRADER_MODEL ×$SAMPLES, ${#frames[@]} frame(s)) → $out"
-
-  # --setting-sources project from a scratch dir loads no user settings, and no --plugin-dir
-  # is passed, so the session under grading holds no skill at all.
-  grade_call() { # grade_call <prompt> <outfile>
-    (cd "$scratch" && claude -p "$1" \
-        --model "$GRADER_MODEL" --max-turns 20 --allowedTools Read \
-        --output-format json --no-session-persistence --setting-sources project \
-        < /dev/null > "$2" 2>>"$log") || echo "  grader exited $? (see $log)" >&2
-  }
-
-  # `model` is the pin, which is what --model asked for. modelUsage is not it: its first key
-  # is whichever model the session billed first, and the CLI's own small side calls run on a
-  # cheap one — reading the instrument off that records a haiku for an Opus grade. The whole
-  # billed set rides along as evidence the pin was honoured.
-  record() { # record <stage> <sample> <outfile>
-    GRADER_MODEL="$GRADER_MODEL" node -e '
-      const fs = require("node:fs");
-      let o = { subtype: "unparseable grader output" };
-      try { o = JSON.parse(fs.readFileSync(process.argv[3], "utf8")); } catch {}
-      console.log(JSON.stringify({
-        stage: process.argv[1],
-        sample: Number(process.argv[2]),
-        result: o.result ?? null,
-        cost_usd: o.total_cost_usd ?? 0,
-        exit: o.subtype ?? "no result",
-        model: process.env.GRADER_MODEL,
-        models_billed: Object.keys(o.modelUsage ?? {}),
-      }));
-    ' "$1" "$2" "$3" >> "$samples"
-  }
 
   for i in $(seq 1 "$SAMPLES"); do
     blind="$scratch/blind-$i.json"
@@ -161,8 +164,18 @@ Reply with JSON and nothing else — no fence, no prose around it. Close \"rows\
     record informed "$i" "$informed"
   done
 
-  node "$BENCH/grade.js" "$samples" "$slug" "$RUN_VERSION" "$RUBRIC_VERSION" "${frames[@]}" \
-    > "$out/grade-$RUBRIC_VERSION.json"
+  # Written aside and moved into place, so a grader that answered nothing leaves the last
+  # grade standing rather than an empty file where a verdict used to be. grade.js refuses
+  # a run with no scorable sample, which is what makes this branch reachable.
+  part="$out/grade-$RUBRIC_VERSION.json.part"
+  if node "$BENCH/grade.js" "$samples" "$slug" "$RUN_VERSION" "$RUBRIC_VERSION" "${frames[@]}" > "$part"; then
+    mv "$part" "$out/grade-$RUBRIC_VERSION.json"
+  else
+    rm -f "$part"
+    echo "  no grade written for $slug — see $samples and $log" >&2
+    rm -rf "$scratch"
+    exit 1
+  fi
   rm -rf "$scratch"
   echo "  done: $(node -p "
     const g = require('$out/grade-$RUBRIC_VERSION.json');

@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { JUDGED_ROWS, extractJson, mergeSamples } from "../bench/grade.js";
+import { JUDGED_ROWS, extractJson, isVerdict, mergeSamples } from "../bench/grade.js";
 import { renderScore } from "../bench/score.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -68,7 +68,7 @@ check("extractJson returns null on a broken object", extractJson("{ nope") === n
 // test that sample counts as a sample that voted on nothing, and a majority of three is
 // silently decided by one.
 const rawNewlines = '{"rows":{"A3":{"verdict":"pass","evidence":"first line\nsecond line"}},"tier_b":"one\ntwo"}';
-const hasRows = (o) => o !== null && typeof o === "object" && typeof o.rows === "object" && o.rows !== null;
+const hasRows = isVerdict; // the real predicate, so tightening it is what the tests below hold
 
 check("extractJson escapes raw newlines inside a string", extractJson(rawNewlines)?.rows?.A3?.verdict === "pass");
 check(
@@ -246,6 +246,35 @@ check("the blind claims are in the sheet", sheet.includes("the checkout runtime"
 check("tier B prose is in the sheet", sheet.includes("reads well"));
 check("a brief with no grade is named as ungraded", /latency-chart/.test(sheet) && /ungraded/i.test(sheet));
 check("the sheet points at the rubric for what a row id means", sheet.includes("reference/rubric.md"));
+check("the sheet's heading qualifies the word score", sheet.startsWith("# Corpus score"), sheet.slice(0, 20));
+
+// A repaired truncation can carry a valid `rows` object with the later rows missing, so a row
+// can hold one vote out of three samples. That is not a majority and the sheet must not read
+// like one.
+const thin = grade({ A3: "pass" }, "a claim", "prose");
+const thinSheet = renderScore({
+  before: "0.7.0",
+  after: "0.12.1",
+  rubricVersion: "0.12.1",
+  graderModel: "claude-opus-5",
+  briefs: [
+    { slug: "service-map", gradeBefore: null, gradeAfter: { ...thin, samples: 3 }, advisoriesBefore: [], advisoriesAfter: [] },
+  ],
+});
+check("a row fewer samples scored than answered is marked", /\| A3 \|[^|]*\| pass! \|/.test(thinSheet));
+check("the sheet explains the thin-majority mark", thinSheet.includes("thinner than it looks"));
+
+const allBroken = mergeSamples(
+  records([
+    { claim: "a", informed: "no json at all" },
+    { claim: "b", informed: "still nothing" },
+  ]),
+);
+check(
+  "a grader that answered nothing scorable yields no samples",
+  allBroken.samples === 0 && allBroken.failed_samples === 2,
+);
+check("and every row is left without a verdict", allBroken.rows.A3.verdict === null && allBroken.rows.A3.votes.length === 0);
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nthe grading seams hold");
 process.exit(fail.length ? 1 : 0);

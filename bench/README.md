@@ -20,7 +20,7 @@ bench/
       transcript.jsonl          # git-ignored
       grade-<rubric-version>.jsonl   # git-ignored — the grader's raw samples (.log is its stderr)
   runs/<plugin-version>/advisories.json   # committed — the corpus score: check.js --json --preset over every scene, messages dropped
-  runs/<plugin-version>/score.md          # generated — judged and measured rows, before against after
+  runs/<plugin-version>/score.md          # committed — score.js's sheet: judged and measured rows, before against after
 ```
 
 `advisories.json` is the **advisory score** (ADR-0002 §7): the same measurement the author sees, pinned by `tests/advisories-baseline.js` in `test:fast`. A changed measurement or a retuned threshold fails that test and is re-pinned with `node tests/advisories-baseline.js --update` — the diff is the review.
@@ -76,7 +76,7 @@ A grade is a **pair** — scene version and rubric version — never a property 
 
 ### Reading score.md
 
-`node bench/score.js <before> <after>` writes `runs/<after>/score.md`: the judged rows from each side's grade, the measured rows from each side's `advisories.json`, and the blind claims and Tier B prose per brief. `*` marks a split — the verdict is a majority, not agreement — and `→` a row that moved. The measured half stays on one ruler too: those columns come from the snapshot the current `check.js` re-pins over every committed scene, not from what each run's `metrics.json` recorded on the day it ran.
+`node bench/score.js <before> <after>` writes `runs/<after>/score.md` — commit it, since it is the artifact a PR links. It carries the judged rows from each side's grade, the measured rows from each side's `advisories.json`, and the blind claims and Tier B prose per brief. `*` marks a split (the verdict is a majority, not agreement), `!` a row fewer samples scored than answered — a thinner majority than it looks — and `→` a row that moved. The measured half stays on one ruler too: those columns come from the snapshot the current `check.js` re-pins over every committed scene, not from what each run's `metrics.json` recorded on the day it ran.
 
 ### What counts as a regression: nothing, automatically
 

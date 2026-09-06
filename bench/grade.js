@@ -113,7 +113,7 @@ export const extractJson = (text, isValid = () => true) => {
 };
 
 /** The shape an informed sample must have to be counted at all. */
-const isVerdict = (o) => o !== null && typeof o === "object" && typeof o.rows === "object" && o.rows !== null;
+export const isVerdict = (o) => o !== null && typeof o === "object" && typeof o.rows === "object" && o.rows !== null;
 
 const verdictOf = (cell) => {
   const raw = String(cell?.verdict ?? "").trim().toLowerCase();
@@ -173,6 +173,13 @@ if (invokedDirectly) {
     process.exit(2);
   }
   const records = readFileSync(file, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  const merged = mergeSamples(records);
+  // A grader that answered nothing at all would otherwise be written out as a grade of every
+  // row `null` — a dead instrument recorded as a verdict, and committed as one.
+  if (merged.samples === 0) {
+    console.error(`${slug}: no sample was scorable (${merged.failed_samples} failed) — no grade`);
+    process.exit(1);
+  }
   console.log(
     JSON.stringify(
       {
@@ -182,7 +189,7 @@ if (invokedDirectly) {
         cli_version: execFileSync("claude", ["--version"], { encoding: "utf8" }).trim().split(" ")[0],
         date: new Date().toISOString().slice(0, 10),
         frames,
-        ...mergeSamples(records),
+        ...merged,
       },
       null,
       2,

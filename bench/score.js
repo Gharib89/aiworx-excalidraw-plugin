@@ -22,7 +22,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const RUBRIC_LINK = "skills/excalidraw-diagram/reference/rubric.md";
 
-const cell = (row) => (row === undefined ? "—" : `${row.verdict ?? "—"}${row.split ? "*" : ""}`);
+/**
+ * `*` is disagreement among the samples that scored the row. `!` is a row fewer
+ * samples scored than answered at all — a repaired truncation can carry a valid
+ * `rows` object with later rows missing, and a "majority" of one is not one.
+ */
+const cell = (row, samples) => {
+  if (row === undefined) return "—";
+  const undervoted = samples !== undefined && row.votes.length < samples;
+  return `${row.verdict ?? "—"}${row.split ? "*" : ""}${undervoted ? "!" : ""}`;
+};
 const clip = (text, n = 90) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
 const evidenceOf = (row) =>
   row?.votes?.find((v) => v.verdict === row.verdict)?.evidence ?? row?.votes?.[0]?.evidence ?? "";
@@ -31,7 +40,7 @@ const counts = (advisories) =>
 
 export const renderScore = ({ before, after, rubricVersion, graderModel, briefs }) => {
   const out = [
-    `# Score — ${before} → ${after}`,
+    `# Corpus score — ${before} → ${after}`,
     "",
     `Judged rows graded under **rubric ${rubricVersion}** by **${graderModel ?? "an unrecorded grader"}**, ` +
       "three samples per brief, majority per row. Measured rows are `check.js` advisory counts over the " +
@@ -40,7 +49,8 @@ export const renderScore = ({ before, after, rubricVersion, graderModel, briefs 
     "",
     `Row ids are the rubric's Tier A numbers (\`${RUBRIC_LINK}\`) — \`focal\` is rule 11's focal ` +
       "assignment and `claim-match` asks whether the blind reader's claim is what the brief asked for. " +
-      "`*` marks a **split**: the verdict is a majority of three, not agreement. `→` marks a row that moved.",
+      "`*` marks a **split**: the verdict is a majority, not agreement. `!` marks a row fewer samples " +
+      "scored than answered, so its majority is thinner than it looks. `→` marks a row that moved.",
     "",
     "## Judged",
     "",
@@ -58,7 +68,10 @@ export const renderScore = ({ before, after, rubricVersion, graderModel, briefs 
       const b = gradeBefore?.rows?.[id];
       const a = gradeAfter?.rows?.[id];
       const moved = b && a && b.verdict !== a.verdict ? "→" : "";
-      out.push(`| ${slug} | ${id} | ${cell(b)} | ${cell(a)} | ${clip(evidenceOf(a))} | ${moved} |`);
+      out.push(
+        `| ${slug} | ${id} | ${cell(b, gradeBefore?.samples)} | ${cell(a, gradeAfter?.samples)} | ` +
+          `${clip(evidenceOf(a))} | ${moved} |`,
+      );
     }
   }
 

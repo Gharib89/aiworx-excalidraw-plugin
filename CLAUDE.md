@@ -11,7 +11,8 @@ npm ci --omit=dev                 # all a checkout needs to run the tests
 npm ci                            # + dev deps — needed only to rebundle
 npm test
 npm run test:fast                 # ~12s, launches no Chrome — the iteration loop
-npm run test:browser              # the Chrome-dependent rest
+npm run test:browser              # the Chrome-dependent rest, suites run in parallel
+npm run test:os                   # what the macOS/Windows CI legs run: test:fast + the per-OS suites
 node tests/<area>.js              # one suite directly (e.g. tests/gate.js) — plain Node scripts
 npm run bundle                    # rebuild dist/ from tools/page.js
 node tools/bump-version.js minor  # moves plugin.json + package.json + lockfile together
@@ -19,9 +20,9 @@ node tools/version-gate.js --base origin/main   # what CI asks before it lets a 
 bench/run.sh [slug]               # a bench run: the benchmark corpus rendered headlessly at this version — manual, paid, not CI; bench/README.md
 ```
 
-CI (`.github/workflows/ci.yml`): `npm test` on a **3-OS matrix** (ubuntu / macos / windows — browser discovery and path handling are per-OS claims) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture) + a **plugin job** (the version gate below, plus `claude plugin validate . --strict` against a pinned CLI). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
+CI (`.github/workflows/ci.yml`): a **3-OS matrix** — `npm test` on ubuntu, `npm run test:os` on macos / windows (browser discovery and path handling are per-OS claims; the rest of the gate is OS-independent and runs once) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture) + a **plugin job** (the version gate below, plus `claude plugin validate . --strict` against a pinned CLI). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
 
-A **new suite must be wired into `test:fast` or `test:browser`** — `tests/test-targets.js` fails on one that is in neither, in both, or missing from disk, and it pins `test` to exactly `test:fast && test:browser` so the split can never narrow the gate. `test:fast` stays Chrome-free: `tests/chromeless.js` (in `test:browser`) re-runs every fast suite with `CHROME_PATH` pointed at nothing. Importing `tools/browser.js` is fine — only a *successful launch* breaks the fast target.
+A **new suite must be wired into `test:fast` or `test:browser`** — `tests/test-targets.js` fails on one that is in neither, in both, or missing from disk, and it pins `test` to exactly `test:fast && test:browser` so the split can never narrow the gate. `test:browser` hands its suites to `tests/lib/parallel.js` as quoted arguments (longest first); `test-targets.js` reads those arguments as the target's steps. A suite that makes a **per-OS claim** (Chrome discovery, path handling) also goes into `test:os`, or macOS/Windows never run it. `test:fast` stays Chrome-free: `tests/chromeless.js` (in `test:browser`) re-runs every fast suite with `CHROME_PATH` pointed at nothing. Importing `tools/browser.js` is fine — only a *successful launch* breaks the fast target.
 
 ## Bundle discipline
 

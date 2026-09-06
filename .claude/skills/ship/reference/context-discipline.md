@@ -69,7 +69,8 @@ its verification passed. **Stamp every flip** with the clock, never an estimate:
 append `(HH:MM→)` from `date -u +%H:%M` as the item goes `in_progress`, close it
 to `(HH:MM→HH:MM)` as it completes, and stamp a phase that re-opens (a red gate
 sending you back to 2, a review round re-entering 5) as a second range on the
-same line. The stamps are the run's timing record — the merge summary's
+same line; a range whose close reads earlier than its open crossed midnight UTC
+and is 24 h longer than it looks. The stamps are the run's timing record — the merge summary's
 `Timing:` line is read off them, and they are the only way to see which phase a
 slow run spent its hours in. This is the
 progress surface for an unattended run and the map back if context is summarized

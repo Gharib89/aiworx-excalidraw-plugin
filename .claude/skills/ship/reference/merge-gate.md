@@ -38,8 +38,8 @@ Docs-sync:   <ran: files | skipped: reason>
 CI:          <ubuntu / macos / windows / bundle> → <green | state>
 Timing:      start→PR <m>m · PR→gate <m>m · per phase: 0 <m> · 1 <m> · 2 <m> · 3 <m> · 4 <m> · 5 <m> · 6 <m> · 7 <m> · 8 <m>
              (from the checklist's stamps: start→PR is phase 0's open to phase 6's
-             close, PR→gate is phase 7's open to phase 8's close; a re-opened phase
-             sums its ranges)
+             close, PR→gate is phase 6's close to phase 8's close; a re-opened
+             phase sums its ranges)
 
 Ready to merge. Reply "merge" to squash-merge, delete the branch, and clean up.
 ```

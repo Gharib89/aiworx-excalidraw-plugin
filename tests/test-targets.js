@@ -17,7 +17,7 @@
  *      itself (it re-runs the whole target, which would double its runtime),
  *      so nothing but this assertion stops it from being quietly dropped.
  *   4. `test:os` — the subset the macOS/Windows CI legs run — names only steps
- *      the gate already has, and keeps the two per-OS Chrome-discovery proofs.
+ *      the gate already has, and keeps every suite whose claim is per-OS.
  *
  * Exits non-zero on any mismatch.
  */
@@ -111,12 +111,19 @@ const NON_SUITE_STEPS = ["node tools/palette.js", "npm run smoke"];
 {
   const gateSteps = [...fastSteps, ...browserSteps];
   const unknown = osSteps.filter((s) => s !== "npm run test:fast" && !gateSteps.includes(s));
-  check("test:os runs steps", osSteps.length > 0);
   check("every test:os step is a gate step", unknown.length === 0, unknown.join(", "));
-  check(
-    "test:os keeps the Chrome-discovery proof",
-    osSteps.includes("node tests/chromeless.js") && osSteps.includes("npm run smoke"),
-  );
+  // The suites whose claims are per-OS — Chrome discovery (the "chrome"
+  // channel, CHROME_PATH) and path handling (junctions, file-URL specifiers).
+  // Pinned by name: dropping any one of them from test:os is a narrower matrix.
+  const OS_CLAIM_STEPS = [
+    "npm run test:fast",
+    "node tests/chromeless.js",
+    "node tests/pipeline-errors.js",
+    "node tests/example-paths.js",
+    "npm run smoke",
+  ];
+  const dropped = OS_CLAIM_STEPS.filter((s) => !osSteps.includes(s));
+  check("test:os keeps every per-OS suite", dropped.length === 0, dropped.join(", "));
 }
 
 console.log(

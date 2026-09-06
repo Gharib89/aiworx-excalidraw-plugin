@@ -80,7 +80,8 @@ gated like any other.
 ```bash
 npm test                          # everything: npm run test:fast, then npm run test:browser
 npm run test:fast                 # ~12s, no Chrome: layout + wrap + gate fixtures + dark theme + library index + palette
-npm run test:browser              # the rest: failure paths, render/revise CLIs, author API, assets, browser smoke
+npm run test:browser              # the rest, suites run in parallel: failure paths, render/revise CLIs, author API, assets, browser smoke
+npm run test:os                   # what the macOS/Windows CI legs run: test:fast + the Chrome-discovery and path-handling suites
 npm run smoke                     # browser smoke suite alone
 npm run bundle                    # rebuild dist/ (bundle + loader page) from node_modules
 node tools/check.js d.excalidraw  # mechanical gate — exits non-zero listing every defect

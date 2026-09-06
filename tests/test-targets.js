@@ -16,6 +16,8 @@
  *      `test:fast` needs no Chrome. That proof cannot live in `test:fast`
  *      itself (it re-runs the whole target, which would double its runtime),
  *      so nothing but this assertion stops it from being quietly dropped.
+ *   4. `test:os` — the subset the macOS/Windows CI legs run — names only steps
+ *      the gate already has, and keeps every suite whose claim is per-OS.
  *
  * Exits non-zero on any mismatch.
  */
@@ -34,15 +36,27 @@ const check = (name, cond, detail) => {
 
 const scripts = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).scripts;
 
-/** Every `&&`-separated command a script chain runs, in order. */
+const RUNNER = "node tests/lib/parallel.js";
+
+/**
+ * Every gate step a script chain runs, in order. A `&&` chain is one step per
+ * link; a link that hands its steps to the parallel runner contributes each
+ * quoted argument instead, so the runner is transparent to every check below.
+ */
 const steps = (script) =>
   (script ?? "")
     .split("&&")
     .map((step) => step.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .flatMap((step) =>
+      step.startsWith(`${RUNNER} `)
+        ? [...step.slice(RUNNER.length).matchAll(/"([^"]+)"/g)].map((m) => m[1])
+        : [step],
+    );
 
 const fastSteps = steps(scripts["test:fast"]);
 const browserSteps = steps(scripts["test:browser"]);
+const osSteps = steps(scripts["test:os"]);
 
 // Gate steps that are not suite files under tests/. Kept explicit so dropping
 // one — the hole a tests/-only scan would never see — fails here.
@@ -88,6 +102,28 @@ const NON_SUITE_STEPS = ["node tools/palette.js", "npm run smoke"];
     "the chromeless proof stays out of test:fast",
     !fastSteps.includes("node tests/chromeless.js"),
   );
+}
+
+// ---- 4. the per-OS subset is a subset: every step it names, the gate runs ----
+// `test:os` is what the macOS/Windows CI legs run instead of the full suite. A
+// step only it names would be a suite CI's Linux leg never sees; a misspelled
+// one would silently run nothing.
+{
+  const gateSteps = [...fastSteps, ...browserSteps];
+  const unknown = osSteps.filter((s) => s !== "npm run test:fast" && !gateSteps.includes(s));
+  check("every test:os step is a gate step", unknown.length === 0, unknown.join(", "));
+  // The suites whose claims are per-OS — Chrome discovery (the "chrome"
+  // channel, CHROME_PATH) and path handling (junctions, file-URL specifiers).
+  // Pinned by name: dropping any one of them from test:os is a narrower matrix.
+  const OS_CLAIM_STEPS = [
+    "npm run test:fast",
+    "node tests/chromeless.js",
+    "node tests/pipeline-errors.js",
+    "node tests/example-paths.js",
+    "npm run smoke",
+  ];
+  const dropped = OS_CLAIM_STEPS.filter((s) => !osSteps.includes(s));
+  check("test:os keeps every per-OS suite", dropped.length === 0, dropped.join(", "));
 }
 
 console.log(

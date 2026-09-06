@@ -14,7 +14,9 @@ jobs:
   test:
     # Browser discovery and path handling are per-OS claims (the "chrome"
     # channel on macOS/Windows, junction links, file-URL module specifiers) —
-    # run the suite where those claims live, not just on Linux.
+    # the suites that make them run on every OS. The rest of the gate is
+    # OS-independent JavaScript and runs once, on Linux; the macOS runner spent
+    # five minutes re-proving it on every push.
     strategy:
       fail-fast: false
       matrix:
@@ -30,6 +32,12 @@ jobs:
       # preinstalled system Chrome.
       - run: npm ci --omit=dev
       - run: npm test
+        if: matrix.os == 'ubuntu-latest'
+      # The per-OS subset: test:fast plus the browser suites that discover
+      # Chrome and handle paths. tests/test-targets.js holds it to steps the
+      # full gate runs.
+      - run: npm run test:os
+        if: matrix.os != 'ubuntu-latest'
       - name: verification must not dirty the repo
         shell: bash
         run: test -z "$(git status --porcelain)"

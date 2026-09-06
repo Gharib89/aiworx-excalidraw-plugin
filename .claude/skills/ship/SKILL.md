@@ -141,8 +141,8 @@ delegating noisy work to subagents. **First**, read
 [reference/context-discipline.md](reference/context-discipline.md) — it opens
 with the **delegation rule** (when a subagent earns its cost), covers how to keep
 this long run from bloating the window, **and names your required first action:
-creating the run's ten-item task list** (one per phase below). Don't start phase 0
-until that list exists.
+creating the run's ten-item task list** (one per phase below). Phase 0 starts once
+that checklist exists in the scratch file.
 
 **Compose, don't reinline.** Load the `tdd` skill (phase 2), the
 `writing-for-agents` skill (phase 4, agent-facing docs only) and the

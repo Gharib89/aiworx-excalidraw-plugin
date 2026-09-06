@@ -49,9 +49,11 @@ In rough order of impact:
 ## First action — the run's task list
 
 **Before phase 0, before the worktree**, write the run's task list into the
-scratch file (the one that later holds the design/plan) in the session's
-scratchpad directory: a ten-item markdown checklist, one line per phase. The
-file is the source of truth. It survives a mid-run context summary and depends
+scratch file (the one that later holds the design/plan): a ten-item markdown
+checklist, one line per phase. Name it `ship-<issue>.md` and put it in the
+scratchpad directory the harness names in its environment block, the
+session-scoped temp directory outside the repo; with none named, use the OS temp
+directory. The file is the source of truth. It survives a mid-run context summary and depends
 on no tool the harness might withhold. Mirror it into the harness task tools
 (`TaskCreate` per item; `TaskUpdate` to change status; `TaskList` to re-read)
 only when they are already loaded or one `ToolSearch` probe
@@ -60,8 +62,9 @@ nothing is the normal case on Claude 5-family models: the harness drops these
 tools there unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set. Treat that as the
 answer and proceed on the file alone.
 
-One item per phase, exactly one `in_progress` at a time (`- [>]` in the file),
-each marked `completed` (`- [x]`) only when its verification passed. This is the
+One item per phase, exactly one `in_progress` at a time (the one `- [ ]` line
+carrying an `in_progress` suffix), each marked `completed` (`- [x]`) only when
+its verification passed. This is the
 progress surface for an unattended run and the map back if context is summarized
 mid-run — without it, a mid-run summary leaves you unable to tell which phase you
 were in, so you skip or repeat one. A **small-lane** run keeps the same ten items — mark each collapsed phase

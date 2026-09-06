@@ -312,7 +312,8 @@ worktree. Summary format and merge mechanics:
 ## Reference files
 
 - `reference/context-discipline.md` — the delegation rule; keeping the long run
-  from bloating context; the required first-action task list.
+  from bloating context; the required first-action task list and its per-phase
+  clock stamps.
 - `reference/small-lane.md` — the reduced spine for small changes: what collapses,
   the floor, revocation.
 - `reference/implement.md` — phases 1–3: spec precedence, change classification,

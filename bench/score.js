@@ -32,9 +32,20 @@ const cell = (row, samples) => {
   const undervoted = samples !== undefined && row.votes.length < samples;
   return `${row.verdict ?? "—"}${row.split ? "*" : ""}${undervoted ? "!" : ""}`;
 };
-const clip = (text, n = 90) => (text.length > n ? `${text.slice(0, n - 1)}…` : text);
+/**
+ * The evidence is a grader's free prose in a table cell, and score.md is committed: a `|` in
+ * it would end the cell early and a newline would end the row. Both are folded in rather
+ * than dropped, because what the grader saw is the column's whole point.
+ */
+const clip = (text, n = 90) => {
+  const flat = String(text ?? "").replace(/\s+/g, " ").trim();
+  const cut = flat.length > n ? `${flat.slice(0, n - 1)}…` : flat;
+  return cut.replace(/\|/g, "\\|");
+};
+/** A row that reached no verdict has no majority evidence, and one dissent printed beside the
+ *  blank would read as support for a verdict nobody reached. */
 const evidenceOf = (row) =>
-  row?.votes?.find((v) => v.verdict === row.verdict)?.evidence ?? row?.votes?.[0]?.evidence ?? "";
+  row?.verdict ? (row.votes.find((v) => v.verdict === row.verdict)?.evidence ?? "") : "";
 const counts = (advisories) =>
   (advisories ?? []).reduce((t, a) => ({ ...t, [a.code]: (t[a.code] ?? 0) + 1 }), {});
 

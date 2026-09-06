@@ -50,6 +50,14 @@ SLUGS=("$@")
 if [ ${#SLUGS[@]} -eq 0 ]; then
   SLUGS=(); for d in "$RUNS"/*/; do s=$(basename "$d"); [ -f "$d/$s.excalidraw" ] && SLUGS+=("$s"); done
 fi
+# A run directory with no committed scene is the normal state of a version that was never
+# rendered, so discovery finding nothing is not "nothing to do" — it is the wrong RUN_VERSION.
+# Without this the loop body never runs and the script exits 0, reporting a grade it never made.
+[ ${#SLUGS[@]} -gt 0 ] || { echo "no scene to grade under $RUNS (no <slug>/<slug>.excalidraw)" >&2; exit 2; }
+
+# $scratch is reassigned per brief and removed at the end of each one; the trap covers the
+# paths that leave early — a render refusal, a dead grader, or a Ctrl-C mid-call.
+trap 'rm -rf "${scratch:-}"' EXIT
 
 body() { sed '1,/^---$/d' "$1"; }
 
@@ -103,11 +111,11 @@ for slug in "${SLUGS[@]}"; do
   # taken from the authoring run.
   cp "$RUBRIC" "$scratch/rubric.md"
   node "$REPO/tools/render.js" --out "$scratch" "$scene" >/dev/null 2>>"$log" \
-    || { echo "  render refused the scene (see $log)" >&2; rm -rf "$scratch"; exit 1; }
+    || { echo "  render refused the scene (see $log)" >&2; exit 1; }
   # -f per entry, because an unmatched glob expands to the literal pattern: without it the
   # array holds one name that is not a file and the guard below can never fire
   frames=(); for f in "$scratch"/*.png; do [ -f "$f" ] && frames+=("$(basename "$f")"); done
-  [ ${#frames[@]} -gt 0 ] || { echo "  no PNG rendered from $scene" >&2; rm -rf "$scratch"; exit 1; }
+  [ ${#frames[@]} -gt 0 ] || { echo "  no PNG rendered from $scene" >&2; exit 1; }
   frame_list=$(printf '  %s\n' "${frames[@]}")
 
   echo "▶ $slug  ($RUN_VERSION scene, rubric $RUBRIC_VERSION, $GRADER_MODEL ×$SAMPLES, ${#frames[@]} frame(s)) → $out"
@@ -173,7 +181,6 @@ Reply with JSON and nothing else — no fence, no prose around it. Close \"rows\
   else
     rm -f "$part"
     echo "  no grade written for $slug — see $samples and $log" >&2
-    rm -rf "$scratch"
     exit 1
   fi
   rm -rf "$scratch"

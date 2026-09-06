@@ -264,6 +264,34 @@ const thinSheet = renderScore({
 check("a row fewer samples scored than answered is marked", /\| A3 \|[^|]*\| pass! \|/.test(thinSheet));
 check("the sheet explains the thin-majority mark", thinSheet.includes("thinner than it looks"));
 
+// The evidence is a grader's free prose dropped into a table cell, and score.md is a
+// committed artifact: a `|` in it would end the cell early and a newline would end the row.
+const messy = grade({ A3: "pass" }, "a claim", "prose");
+messy.rows.A3.votes = [row("pass", "the title | subtitle pair\nsits above the frame")];
+const oneBrief = (gradeAfter) =>
+  renderScore({
+    before: "0.7.0",
+    after: "0.12.1",
+    rubricVersion: "0.12.1",
+    graderModel: "claude-opus-5",
+    briefs: [{ slug: "service-map", gradeBefore: null, gradeAfter, advisoriesBefore: [], advisoriesAfter: [] }],
+  });
+const judgedRow = (sheet) => sheet.split("\n").find((l) => l.startsWith("| service-map | A3 |")) ?? "";
+const messyRow = judgedRow(oneBrief({ ...messy, samples: 1 }));
+check("a pipe in the evidence is escaped rather than ending the cell", messyRow.replace(/\\\|/g, "").split("|").length === 8, messyRow);
+check("a newline in the evidence stays on its own row", messyRow.includes("pair sits above"), messyRow);
+
+// A 1-1-1 reaches no verdict at all. Printing one of the three dissenting evidences beside
+// the blank would read as support for a verdict that was never reached.
+const noMajority = grade({ A3: "pass" }, "a claim", "prose");
+noMajority.rows.A3 = { verdict: null, split: true, votes: [row("pass", "it passes"), row("fail", "it fails"), row("n-a", "unscorable")] };
+const noMajorityRow = judgedRow(oneBrief({ ...noMajority, samples: 3 }));
+check(
+  "a row that reached no verdict carries no evidence",
+  !/it passes|it fails|unscorable/.test(noMajorityRow),
+  noMajorityRow,
+);
+
 const allBroken = mergeSamples(
   records([
     { claim: "a", informed: "no json at all" },

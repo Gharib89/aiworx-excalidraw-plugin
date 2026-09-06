@@ -13,7 +13,7 @@
  * tests/ suite scan (tests/test-targets.js) does not read it as a suite.
  */
 import { spawn } from "node:child_process";
-import { availableParallelism } from "node:os";
+import os from "node:os";
 
 const steps = process.argv.slice(2);
 if (steps.length === 0) {
@@ -23,7 +23,9 @@ if (steps.length === 0) {
 // A Chrome launch is a few hundred MB and a couple of cores for a moment; four
 // at once fits every CI runner in the matrix. Measured on an 8-core box: 4
 // workers 147s, 3 workers 165s, 2 workers 162s, sequential 360s.
-const workers = Math.max(1, Math.min(4, availableParallelism()));
+// availableParallelism arrived in Node 18.14; the engines range starts at 18.0.
+const cores = os.availableParallelism?.() ?? os.cpus().length;
+const workers = Math.max(1, Math.min(4, cores));
 
 const runStep = (step) =>
   new Promise((resolve) => {

@@ -14,3 +14,7 @@ node_modules/
 
 # bench runs commit the scene, SVG and metrics; the transcript is review output
 bench/**/transcript.jsonl
+
+# the grader keeps its raw samples and stderr beside the grade it merged them into
+bench/**/grade-*.jsonl
+bench/**/grade-*.log

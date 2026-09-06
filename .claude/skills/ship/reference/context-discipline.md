@@ -65,7 +65,22 @@ the answer and proceed on the file alone.
 
 One item per phase, exactly one `in_progress` at a time (the one `- [ ]` line
 carrying an `in_progress` suffix), each marked `completed` (`- [x]`) only when
-its verification passed. This is the
+its verification passed. **Stamp every flip** with the clock, never an estimate.
+The stamps go at the end of the line, after the `in_progress` suffix, each range
+in its own parentheses, read from `date -u +%H:%M`:
+
+```
+- [ ] 5 · Local gate — … in_progress (10:12→)          # opened
+- [x] 5 · Local gate — … (10:12→10:19)                  # closed, suffix gone
+- [x] 2 · Implement — … (08:31→09:40) (10:20→10:33)     # re-opened by a red gate
+```
+
+A phase that re-opens (a red gate sending you back to 2, a review round
+re-entering 5) appends a second range; a range whose close reads earlier than
+its open crossed midnight UTC and is 24 h longer than it looks. The stamps are
+the run's timing record — the merge summary's `Timing:` line is read off them,
+and they are the only way to see which phase a slow run spent its hours in.
+This is the
 progress surface for an unattended run and the map back if context is summarized
 mid-run — without it, a mid-run summary leaves you unable to tell which phase you
 were in, so you skip or repeat one. A **small-lane** run keeps the same ten items — mark each collapsed phase

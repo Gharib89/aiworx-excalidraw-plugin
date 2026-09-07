@@ -1,0 +1,116 @@
+{
+  "slug": "service-map",
+  "run_version": "0.7.0",
+  "rubric_version": "0.12.2",
+  "cli_version": "2.1.263",
+  "date": "2026-09-07",
+  "frames": [
+    "service-map.png"
+  ],
+  "grader_model": "claude-opus-5",
+  "samples": 3,
+  "failed_samples": 0,
+  "cost_usd": 2.7547879999999996,
+  "blind_claims": [
+    "A checkout request enters through a single public API gateway and fans out into two independent internal paths — Payments (synchronous, to Stripe and a Redis customer cache) and Orders (writing to Postgres and emitting an order-placed event that Notifications consumes asynchronously) — so the only synchronous work on the user's critical path is payment and order persistence, with everything downstream of the event decoupled.",
+    "A checkout request enters through one public gateway and fans out into two independent branches — Payments, which charges Stripe and reads a Redis customer cache, and Orders, which writes Postgres and emits an `order-placed` event that Notifications consumes asynchronously — so the only coupling between the synchronous purchase path and downstream notification work is the Kafka topic.",
+    "A checkout request enters through one public gateway and fans out into two independent branches — a synchronous payments path that hits Stripe and the Redis customer cache, and an orders path that writes to Postgres and emits an `order-placed` event to Kafka, with notifications happening asynchronously downstream rather than in the request itself."
+  ],
+  "rows": {
+    "A3": {
+      "verdict": "fail",
+      "split": false,
+      "votes": [
+        {
+          "verdict": "fail",
+          "evidence": "Title \"Checkout Service — Runtime Request Flow\" states the scope but is in Title Case, not sentence case."
+        },
+        {
+          "verdict": "fail",
+          "evidence": "Title \"Checkout Service — Runtime Request Flow\" names the scope but is title case, not sentence case."
+        },
+        {
+          "verdict": "fail",
+          "evidence": "Title \"Checkout Service — Runtime Request Flow\" does state the scope (checkout service, runtime request path) but is set in title case — Service, Runtime, Request and Flow are all capitalised — where the rule requires sentence case."
+        }
+      ]
+    },
+    "A4": {
+      "verdict": "pass",
+      "split": false,
+      "votes": [
+        {
+          "verdict": "pass",
+          "evidence": "Four-swatch legend (grey Client / blue Internal service / cyan Data-event store / purple External API) matches every node stroke exactly (#5B5B58, #3A44D4, #0198CB, #792A8E); the one non-default stroke, the dashed Postgres→Redis line, is decoded in place by \"cache warm (async)\", and all nine arrowheads are the same filled triangle."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "Legend rows for all four role hues (grey Client, blue Internal service, cyan Data/event store, purple External API) match every box's stroke and fill, and the only non-default stroke — the dashed Postgres→Redis line — is decoded in place by \"cache warm (async)\"."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "Four role hues (grey Web App, indigo services, cyan Redis/Postgres/Kafka, purple Stripe) each appear in the bottom legend with fill and stroke matching the nodes exactly (#F1F1EF/#EEF6FF/#E1FCFF/#FFF0FF against #5B5B58/#3A44D4/#0198CB/#792A8E), all nine arrowheads are the one identical filled triangle, and the single non-default stroke — the dashed Postgres→Redis line — is decoded in place by its own label \"cache warm (async)\"; nothing in the legend contradicts a stroke."
+        }
+      ]
+    },
+    "A7": {
+      "verdict": "pass",
+      "split": false,
+      "votes": [
+        {
+          "verdict": "pass",
+          "evidence": "All nine bound arrows carry an intent label — HTTPS, REST, REST, charge, reads customer, writes, order-placed, cache warm (async), consumes — with no headless connector (9 arrowheads / 9 connectors / 9 labels)."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "All nine bound arrows are labeled: HTTPS, REST, REST, charge, reads customer, writes, order-placed, cache warm (async), consumes; no headless lines."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "All nine arrows bound between shapes carry a label — HTTPS, REST, REST, charge, reads customer, writes, order-placed, cache warm (async), consumes — and the SVG shows nine bodies with nine matching arrowhead paths, so there are no headless lines; \"HTTPS\" and the two \"REST\" labels name transport rather than intent, which is thin, but they are labels."
+        }
+      ]
+    },
+    "focal": {
+      "verdict": "fail",
+      "split": false,
+      "votes": [
+        {
+          "verdict": "fail",
+          "evidence": "No focal assignment exists: all nine node outlines and all eight solid arrows are stroke-width 2, with only the dashed cache-warm line at 2.5, so the API Gateway the brief makes the central public entrypoint carries no more weight than Stripe or Redis."
+        },
+        {
+          "verdict": "fail",
+          "evidence": "All boxes and arrows sit at one weight with the single heaviest stroke on the dashed \"cache warm (async)\" arrow, so the brief-central API Gateway is drawn no heavier than Stripe or Redis and the top of the ladder lands on a peripheral async link."
+        },
+        {
+          "verdict": "fail",
+          "evidence": "Every node outline and every arrow is drawn at stroke-width 2; the only strokes lifted above that base are the 2.5px dashed Postgres→Redis \"cache warm (async)\" arrow and its arrowhead, so the picture's one point of emphasis is a peripheral async warming detail while the API Gateway and the checkout request path the brief makes central sit at the same weight as Stripe and the legend swatches."
+        }
+      ]
+    },
+    "claim-match": {
+      "verdict": "pass",
+      "split": true,
+      "votes": [
+        {
+          "verdict": "pass",
+          "evidence": "The claim reads back the brief's whole topology — one public entrypoint, gateway fan-out to Payments (Stripe, Redis) and Orders (Postgres, order-placed event), Notifications consuming asynchronously — though \"two independent internal paths\" glosses the Postgres→Redis cache-warm link the brief asked for and the sync/critical-path framing is the reader's own inference."
+        },
+        {
+          "verdict": "fail",
+          "evidence": "Claim's core framing of \"two independent branches\" whose \"only coupling is the Kafka topic\" contradicts the brief's Postgres-warms-Redis link, which couples the Orders datastore to the Payments cache."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "The claim recovers every relation the brief asked for — one public gateway entry from the web app, fan-out to Payments (Stripe plus the Redis customer cache) and Orders (writes Postgres, emits order-placed to Kafka), notifications async downstream via the Kafka consumer; calling the two branches \"independent\" glosses over the brief's Postgres→Redis cache warm, but that edge is out of the request path and the diagram itself marks it \"(async)\", so the reading holds."
+        }
+      ]
+    }
+  },
+  "tier_b": [
+    "One abstraction level per diagram: holds — client, two internal services, three data/event stores, one external SaaS and one worker are all one container-level tier, and every box is directly connected to the checkout request path the title names.\n\nArchitecture elements carry a type or technology line: every box has a second line, but the services get roles rather than technology (\"Orders Service — internal service\", \"Payments Service — internal service\", \"Notifications — Kafka consumer\"); only the stores name their tech (Postgres — orders database, Kafka — order-placed topic, Redis — customer cache). The three service boxes are where the rubric's \"Orders — Postgres 16\" upgrade is missing.\n\nSequence flows left to right, hierarchy top to bottom, entry point leading: this is a request sequence drawn top-to-bottom, and the entry point leads at the top right rather than leading the reading direction — the whole graph hangs off the right edge and the upper-left third of the canvas is empty, so the eye starts in blank space.\n\nRelationship semantics stated once per diagram: not settled. The title says \"Request Flow\" (data flow), but the edge labels mix protocol (HTTPS, REST), action (writes, charge, reads customer, consumes) and event name (order-placed), and a second unstated channel rides along — dashed means async on Postgres→Redis, yet the equally async Kafka→Notifications \"consumes\" edge is solid.\n\nA label sits beside the drawing it names: mostly fine — box labels sit inside shapes that have room. The pinch is under Orders and Payments, where \"writes\"/\"order-placed\" and \"charge\"/\"reads customer\" sit as tight adjacent pairs at the same y, and \"cache warm (async)\" is knocked out of the middle of its own dashed elbow, which is what makes that edge easy to miss (cf. the reader's \"independent paths\").\n\nBand-comparison content weight, the small-multiples inversion, and \"charts state the delta\" do not apply — single panel, no small multiples, no chart.",
+    "Label beside the drawing, not on it: \"cache warm (async)\" is dropped directly onto its own dashed line, with dash fragments colliding with the text on both sides and the elbow corner reading as a stray glyph — move it above the segment.\n\nLabel beside the drawing (second instance): the two \"REST\" labels sit side by side at the same y, the left one far from the diagonal it belongs to, so the reader must trace strokes to tell which hop is which; \"charge\" likewise sits on top of the Payments→Stripe diagonal.\n\nRelationship semantics stated once: the arrows mix two conventions — \"reads customer\" points toward Redis (dependency direction) while \"consumes\" points away from Kafka (data direction) — and neither title nor legend declares which is in force.\n\nSequence/hierarchy orientation: hierarchy runs top-to-bottom with Web App leading, which is right, but the entry column is pinned to the right margin, leaving the top-left third of the canvas empty so the entrypoint reads as tucked into a corner.\n\nOne abstraction level: clean — client, gateway, two services, three stores, one external API, one worker; every element is directly connected to the checkout scope the title states.\n\nType/technology line: every box carries a second line, but \"internal service\" under both Orders and Payments merely repeats its legend row instead of naming a runtime, and Postgres, Redis and Kafka carry no versions — \"Postgres — orders database\" names less than \"Postgres 16\".\n\nBand content weight and the small-multiples inversion do not apply: single panel, no band. Charts state the delta does not apply: no chart.",
+    "**Panels of one band read at comparable content weight** — does not apply: the file is a single unframed panel, so there is no row to compare across, and per the rubric per-frame centring cannot fail.\n\n**A label sits beside the drawing it names, not on top of it** — Mostly handled correctly: node names and their type lines sit inside boxes that have room for them, and mid-line arrow labels (\"consumes\", \"cache warm (async)\") are given a masked gap in the stroke rather than being overprinted. The one blemish is that the mask on the cache-warm line leaves a stranded dash fragment to the right of the label, which reads at a glance as a stray tick mark rather than part of the connector; a label placed just above the horizontal run would avoid cutting the line at all.\n\n**One abstraction level per diagram** — Clean. Every element is a runtime participant of the checkout path: client, gateway, two services, three data/event stores, one external API, one worker. Nothing supporting has wandered in from deployment or code level, and the only outside-the-boundary element, Web App, is directly connected to the scope the title states.\n\n**Sequence flows left to right, hierarchy top to bottom, entry point leading** — Orientation is top-to-bottom with Web App leading, defensible for a portrait doc-inline surface. What is off is horizontal placement: the entry column (Web App → API Gateway → Orders) is pinned to the right edge at x≈467 of a 648-unit canvas, so the reader's eye must start in the top-right corner and the flow then fans leftward and downward. The entire upper-left quadrant below the title is empty, and the title itself starts at x≈108 over that void, so the entry point leads but does not sit where the reader looks first.\n\n**Relationship semantics are stated once per diagram** — This is the weakest Tier B item here. The title says \"Request Flow\", but the arrows carry three different semantics with nothing distinguishing them: synchronous calls (\"HTTPS\", \"REST\", \"charge\", \"reads customer\"), data writes (\"writes\", \"cache warm\"), and event flow (\"order-placed\", \"consumes\"). The legend types only the boxes and says nothing about what an arrow means, so a new backend engineer has to infer from each label whether an edge is a call, a write, or a subscription — and the solid stroke shared by the synchronous REST hops and the asynchronous Kafka \"order-placed\"/\"consumes\" hops actively works against that inference, while the one dashed edge implies dashed-means-async without the other async edges honouring it.\n\n**Charts state the delta** — Does not apply; there is no chart, axis or ordered scale in the picture.\n\n**The small-multiples inversion** — Does not apply; there are no consecutive panels, so there is no repeated layout to invert.\n\n**Architecture elements carry a type or technology line** — Largely satisfied and the diagram's clear strength: all nine boxes carry a second line (\"browser / client\", \"orders database\", \"order-placed topic\", \"customer cache\", \"Kafka consumer\", \"external API\"). It stops short on the three boxes where it would matter most to a new engineer — \"Orders Service / internal service\", \"Payments Service / internal service\" and \"API Gateway / public entrypoint\" name the role rather than the technology, so the reader learns Postgres, Redis, Kafka and Stripe by name but not what the gateway or the two services are actually built on."
+  ]
+}

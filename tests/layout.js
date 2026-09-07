@@ -1179,6 +1179,20 @@ const skipping = async (opts) => {
       `engine ${engine.g.height} vs fractioned ${fractioned.g.height}, ` +
         `outside ${JSON.stringify(fractioned.outside)}`);
   }
+  // `g` is sized from ELK's section points, but the drawn endpoint is the
+  // house's: `resolveArrow` keeps ELK's cross coordinate and displaces the flow
+  // one by `standoff`. That displacement cannot escape the box, because
+  // `arrowBetween` refuses a standoff over half the separation — so the endpoint
+  // stays inside the layer gap, inside the node envelope. Held here across a
+  // standoff wider than the corridor, which is the configuration that looks like
+  // it should leak.
+  {
+    for (const standoff of [20, 29]) {
+      const { g, outside } = await cycle({ direction: "right", edgeGap: 10, standoff });
+      check(`a standoff wider than the corridor stays inside the box (standoff ${standoff})`,
+        outside.length === 0, `${g.width}x${g.height}, outside: ${JSON.stringify(outside)}`);
+    }
+  }
   // the control, pinned as literals: a graph whose routes stay inside the node
   // envelope is byte-for-byte what it was before the group learned about routes
   {

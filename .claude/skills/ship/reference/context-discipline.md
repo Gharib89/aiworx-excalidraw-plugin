@@ -59,9 +59,8 @@ on no tool the harness might withhold. Mirror it into the harness task tools
 (`TaskCreate` per item; `TaskUpdate` to change status; `TaskList` to re-read)
 only when they are already loaded or one `ToolSearch` probe
 (`select:TaskCreate,TaskUpdate,TaskList`) loads them. A probe that returns
-nothing is the normal case on Claude 5-family models: the harness omits the task
-tools by default unless `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set. Treat that as
-the answer and proceed on the file alone.
+nothing is an answer, not a fault — the harness offers the task tools only when
+`CLAUDE_CODE_ENABLE_TODO_TOOLS=1` is set — so proceed on the file alone.
 
 One item per phase, exactly one `in_progress` at a time (the one `- [ ]` line
 carrying an `in_progress` suffix), each marked `completed` (`- [x]`) only when

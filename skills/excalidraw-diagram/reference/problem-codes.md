@@ -147,8 +147,8 @@ One font failure carries no code at all, and reading the render is how you meet
 it: **every family renders as identical, vaguely serif text.** The warm-up
 failed, so every measurement in the file was taken against fallback metrics and
 `foreign-font` has nothing to say — the families are the house pair, they simply
-never loaded. The warm now refuses loudly with a `FontIntegrityError`, so a file
-showing this predates that guard: re-run its generator with the current tools. A
+never loaded. The warm refuses with a `FontIntegrityError`, so a file showing
+this was built by older tools: re-run its generator with the current ones. A
 layout nudged back into place against fallback metrics breaks again the moment
 the real fonts load.
 
@@ -172,8 +172,7 @@ Emitted by `revise.js` after a successful rewrite — the **fidelity ledger**, t
 account of what the round-trip changed beyond what you asked for. A pass
 re-measures text with the real fonts, repairs bindings and frame membership,
 re-centers bound labels onto their arrows, purges deleted elements and prunes
-image payloads nothing references any more. All of that used to happen in
-silence, so the only way to learn what a revise did was to diff JSON.
+image payloads nothing references any more.
 
 None of these is a failure: the file was written. A pass that changed nothing
 the ledger tracks prints one line saying so — never silence, because a silent

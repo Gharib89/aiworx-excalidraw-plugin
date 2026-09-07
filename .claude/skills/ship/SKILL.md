@@ -15,15 +15,16 @@ a final human merge gate. You run `/ship <issue>`, walk away, and come back to a
 PR implemented test-first, browser-verified, self-reviewed, and CI-green — every
 decision summarized for you to approve before the merge.
 
-This skill is **generic** — everything repo-specific lives in the repo's
-**project instructions** (`CLAUDE.md`). **Read them first** and pull what the
+The spine is generic; the repo's **project instructions** (`CLAUDE.md`) are the
+authority on everything repo-specific. **Read them first** and pull what the
 phases below need; if any is missing, surface the gap — don't guess: the
 **test command** (run from a worktree), the **browser-verification** story
 (system Chrome, `CHROME_PATH`), the **full local-gate set CI runs** (not a fixed
 triad), **docs-sync rules**, the **commit-subject convention**, and **whether a
 review bot exists** (`CLAUDE.md`'s *Code review* section is the authority — it
-decides whether phase 7 runs and on what terms). This copy also ships
-the repo-specific deterministic steps as executables — see *Scripts* below.
+decides whether phase 7 runs and on what terms). This copy is this repo's own:
+it names the repo's surfaces inline and ships its deterministic steps as
+executables — see *Scripts* below.
 
 ## Scripts — deterministic steps are encoded, not prose
 
@@ -247,7 +248,7 @@ for spec). **Auto-triage** each finding: harden rather than rip out capability,
 verify nits against the **pinned** dependency versions, reject known non-issues; fix
 the valid ones; record a one-line disposition per finding for the merge summary.
 
-Two rails on rejecting a finding, both learned from a defect that reached main.
+Two rails on rejecting a finding.
 A claim about **what exists in the repo** is checked against `origin/main` — the
 base the review pinned — never against the worktree, which may predate a merge.
 And a finding's **evidence and its claim are separate**: a reviewer citing the

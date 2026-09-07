@@ -200,8 +200,8 @@ Three things to know:
   itself to the same rule: `regster:` or any other unknown key is refused with
   the accepted set (`out`, `build`, `svg`, `register`, `preset`) rather than dropped.
 
-Omit `register` and every element keeps whatever it set for itself, exactly as
-before. `withAuthoring`'s `author()` takes it too, per diagram — a band whose
+Omit `register` and every element keeps whatever it set for itself.
+`withAuthoring`'s `author()` takes it too, per diagram — a band whose
 panels share one finish passes the same register to each.
 
 ## Output presets
@@ -245,9 +245,8 @@ at `sublabel`, so an arrow label tracks the preset with nothing said. A `label:
 
 Two things to know:
 
-- **`fit` is the default and changes nothing.** Omitting `preset` and passing
-  `"fit"` are the same run, and every diagram authored before presets existed
-  lays out identically under it.
+- **`fit` is the default and names no surface.** Omitting `preset` and passing
+  `"fit"` are the same run: the picture is whatever size its content came out.
 - **An unknown name is an error, not a fallback.** `preset: "slide-4x3"` throws a
   `SkeletonError` naming the valid set, before any browser work — a misspelling
   that quietly produced a doc-sized picture for a slide is the failure worth
@@ -582,8 +581,8 @@ return [g, ...arrows];                     // g places like any group; spread th
   nodes, so it is the only party that knows the corridor it left between them:
   an edge **skipping** layers goes *around* the nodes in between rather than
   through them, and a **two-way pair** gets a port each instead of one shared
-  line. Both were `arrow-crossing` / `text-struck-by-arrow` refusals you used to
-  hand-route past.
+  line. Routed by hand, both are `arrow-crossing` / `text-struck-by-arrow`
+  refusals.
 
   An engine route is held relative to `g`, so composing the graph into a band
   carries it — unlike `via`, it needs no thought about the **last mover**. Write
@@ -616,7 +615,7 @@ return [g, ...arrows];                     // g places like any group; spread th
   - **A fraction takes the whole path back.** An `originAt` / `landAt` revokes
     that edge's engine route and leaves it the straight run, because the corridor
     was cut for the engine's ports. So a fraction is picked against a straight
-    line, exactly as before `graph` had routes. (A `via` revokes the route too,
+    line. (A `via` revokes the route too,
     but keeps its own waypoints — the straight run is what a revocation with no
     waypoints behind it falls to.) Both fractions
     run along whichever edge **faces** the other node, so the gap they open is a

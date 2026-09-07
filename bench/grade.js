@@ -35,83 +35,6 @@ export const JUDGED_ROWS = ["A3", "A4", "A7", "focal", "claim-match"];
 
 const VERDICTS = new Set(["pass", "fail", "n-a"]);
 
-/**
- * Two slips a grader's JSON actually arrives with, both cheap to repair and
- * both worth repairing: a lost sample is a vote missing from a majority of
- * three. Raw newlines inside a string are escaped in place, and a tail that
- * closed one container too few is closed — two of the first smoke run's three
- * samples ended one `}` short of balanced, with everything before it intact.
- * Nothing else is repaired: a sample this cannot parse is a failed sample.
- */
-const repairs = (text) => {
-  let escaped = "";
-  const stack = [];
-  let inString = false;
-  let backslash = false;
-  for (const ch of text) {
-    if (backslash) {
-      escaped += ch;
-      backslash = false;
-      continue;
-    }
-    if (ch === "\\") {
-      escaped += ch;
-      backslash = true;
-      continue;
-    }
-    if (ch === '"') {
-      inString = !inString;
-      escaped += ch;
-      continue;
-    }
-    if (inString) {
-      if (ch < " ") escaped += ch === "\n" ? "\\n" : ch === "\r" ? "\\r" : ch === "\t" ? "\\t" : "";
-      else escaped += ch;
-      continue;
-    }
-    if (ch === "{" || ch === "[") stack.push(ch === "{" ? "}" : "]");
-    else if (ch === "}" || ch === "]") stack.pop();
-    escaped += ch;
-  }
-  const closed = escaped + (inString ? '"' : "") + stack.reverse().join("");
-  return closed === text ? [] : [escaped, closed];
-};
-
-/**
- * A grader answers in prose around its JSON as often as not; find the object.
- * `isValid` is the shape the caller is actually after, and it is load-bearing:
- * an unparseable outer object leaves a *nested* one that parses perfectly and
- * carries none of the verdicts, so without a shape test a broken sample counts
- * as a sample that voted on nothing — a majority of three silently decided by
- * one, reported as zero failures. Rejected candidates fall through to the next,
- * and a sample nothing matches is a failed sample.
- */
-export const extractJson = (text, isValid = () => true) => {
-  const body = String(text ?? "").replace(/```[a-z]*\n?/gi, "");
-  const accept = (candidate) => {
-    try {
-      const parsed = JSON.parse(candidate);
-      return isValid(parsed) ? { parsed } : null;
-    } catch {
-      return null;
-    }
-  };
-  for (let i = body.indexOf("{"); i !== -1; i = body.indexOf("{", i + 1)) {
-    // widest first, so a truncated tail is repaired rather than a complete fragment
-    // inside it being preferred; last of all, the tail with no closing brace at all
-    const slices = [];
-    for (let j = body.lastIndexOf("}"); j > i; j = body.lastIndexOf("}", j - 1)) slices.push(body.slice(i, j + 1));
-    slices.push(body.slice(i));
-    for (const slice of slices) {
-      for (const candidate of [slice, ...repairs(slice)]) {
-        const hit = accept(candidate);
-        if (hit) return hit.parsed;
-      }
-    }
-  }
-  return null;
-};
-
 /** The shape an informed sample must have to be counted at all. */
 export const isVerdict = (o) => o !== null && typeof o === "object" && typeof o.rows === "object" && o.rows !== null;
 
@@ -128,9 +51,9 @@ export const mergeSamples = (records) => {
   const scored = [];
   let failed = 0;
   for (const record of bySample("informed")) {
-    const parsed = extractJson(record.result, isVerdict);
-    if (parsed === null) failed++;
-    else scored.push(parsed);
+    // `result` is the CLI's schema-validated object, or whatever a failed call left behind
+    if (isVerdict(record.result)) scored.push(record.result);
+    else failed++;
   }
 
   const rows = {};
@@ -158,9 +81,7 @@ export const mergeSamples = (records) => {
     cost_usd: records.reduce((sum, r) => sum + (r.cost_usd ?? 0), 0),
     blind_claims: bySample("blind").map((r) => String(r.result ?? "").trim()),
     rows,
-    // a grader that closed `rows` one brace too late wrote `tier_b` inside it — the
-    // balance repair puts the object back together, but a step lower than intended
-    tier_b: scored.map((s) => String(s.tier_b ?? s.rows?.tier_b ?? "").trim()),
+    tier_b: scored.map((s) => String(s.tier_b ?? "").trim()),
   };
 };
 

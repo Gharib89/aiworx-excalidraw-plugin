@@ -64,12 +64,19 @@ body() { sed '1,/^---$/d' "$1"; }
 # --setting-sources project from a scratch dir loads no user settings, and no --plugin-dir
 # is passed, so the session under grading holds no skill at all. $scratch and $log are the
 # brief's, read at call time.
-grade_call() { # grade_call <prompt> <outfile>
-  (cd "$scratch" && claude -p "$1" \
+# A third argument is a JSON Schema the CLI holds the answer to (`--json-schema`): the verdict
+# arrives as `structured_output`, and a sample the grader cannot fit to it ends with subtype
+# error_max_structured_output_retries and counts as a failed sample — nothing scrapes prose.
+grade_call() { # grade_call <prompt> <outfile> [json-schema]
+  local schema=(); [ -n "${3:-}" ] && schema=(--json-schema "$3")
+  (cd "$scratch" && claude -p "$1" "${schema[@]}" \
       --model "$GRADER_MODEL" --max-turns 20 --allowedTools Read \
       --output-format json --no-session-persistence --setting-sources project \
       < /dev/null > "$2" 2>>"$log") || echo "  grader exited $? (see $log)" >&2
 }
+
+cell='{"type":"object","properties":{"verdict":{"enum":["pass","fail","n-a"]},"evidence":{"type":"string"}},"required":["verdict","evidence"]}'
+VERDICT_SCHEMA="{\"type\":\"object\",\"properties\":{\"rows\":{\"type\":\"object\",\"properties\":{\"A3\":$cell,\"A4\":$cell,\"A7\":$cell,\"focal\":$cell,\"claim-match\":$cell},\"required\":[\"A3\",\"A4\",\"A7\",\"focal\",\"claim-match\"]},\"tier_b\":{\"type\":\"string\"}},\"required\":[\"rows\",\"tier_b\"]}"
 
 # `model` is the pin, which is what --model asked for. modelUsage is not it: its first key
 # is whichever model the session billed first, and the CLI's own small side calls run on a
@@ -83,7 +90,7 @@ record() { # record <stage> <sample> <outfile>
     console.log(JSON.stringify({
       stage: process.argv[1],
       sample: Number(process.argv[2]),
-      result: o.result ?? null,
+      result: o.structured_output ?? o.result ?? null,   // the validated object for informed, prose for blind
       cost_usd: o.total_cost_usd ?? 0,
       exit: o.subtype ?? "no result",
       model: process.env.GRADER_MODEL,
@@ -126,8 +133,8 @@ for slug in "${SLUGS[@]}"; do
 
 Read these images, in reading order:
 $frame_list
-Then reply with ONE sentence: the claim you read this picture as making — what it says, not
-what it contains. No preamble, no list, no caveats." "$blind"
+Then reply with a single sentence: the claim you read this picture as making — what it says,
+not what it contains." "$blind"
     record blind "$i" "$blind"
     claim=$(node -e '
       const fs = require("node:fs");
@@ -166,9 +173,8 @@ A row you are unsure about is scored on what you can see, never \`n-a\`.
 Then judge Tier B in prose: every Tier B item that applies to this picture, one line each,
 naming what you saw. It is never counted.
 
-Reply with JSON and nothing else — no fence, no prose around it. Close \"rows\" before
-\"tier_b\", and keep every newline inside a string written as \\n:
-{\"rows\":{\"A3\":{\"verdict\":\"pass|fail|n-a\",\"evidence\":\"one line naming what you saw\"},\"A4\":{...},\"A7\":{...},\"focal\":{...},\"claim-match\":{...}},\"tier_b\":\"your Tier B prose\"}" "$informed"
+Each row is a verdict — pass, fail or n-a — with one line of evidence naming what you saw;
+tier_b is your Tier B prose." "$informed" "$VERDICT_SCHEMA"
     record informed "$i" "$informed"
   done
 

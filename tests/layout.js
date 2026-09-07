@@ -1132,13 +1132,14 @@ const skipping = async (opts) => {
 // every mover spaces off.
 {
   // a -> b -> c -> a: the cycle edge is the one ELK routes around the outside
-  const cycle = async (opts) => {
+  const cycle = async (opts, edgeOpts) => {
     const [a, b, c] = ["a", "b", "c"].map(node);
-    const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [c, a]], opts);
-    const resolved = resolveArrows(arrows);
-    const pts = resolved.flatMap(pathOf);
+    const { g, arrows } = await graph([a, b, c],
+      [[a, b], [b, c], [c, a, ...(edgeOpts ? [edgeOpts] : [])]], opts);
+    // resolved on copies, so the caller still holds deferred arrows to move
+    const pts = resolveArrows(arrows.map((arrow) => ({ ...arrow }))).flatMap(pathOf);
     return {
-      a, b, c, g, arrows: resolved, pts,
+      a, b, c, g, arrows, pts,
       outside: pts.filter(([px, py]) => px < 0 || py < 0 || px > g.width || py > g.height),
     };
   };
@@ -1161,16 +1162,22 @@ const skipping = async (opts) => {
   // the band idiom again, on a fixture that overhangs: the routes still travel
   // with the group they were cut against
   {
-    const [a, b, c] = ["a", "b", "c"].map(node);
-    const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [c, a]],
-      { direction: "right", edgeGap: 40 });
-    const before = resolveArrows(arrows.map((arrow) => ({ ...arrow }))).map(pathOf);
+    const { g, arrows, pts } = await cycle({ direction: "right", edgeGap: 40 });
     row([g, { type: "rectangle", id: "legend", width: 80, height: 40 }], { x: 400, y: 250, gap: 30 });
-    const moved = resolveArrows(arrows).map(pathOf);
+    const moved = resolveArrows(arrows).flatMap(pathOf);
     check("an overhanging graph's routes survive a band-level mover",
-      JSON.stringify(moved) ===
-        JSON.stringify(before.map((path) => path.map(([px, py]) => [px + 400, py + 250]))),
+      JSON.stringify(moved) === JSON.stringify(pts.map(([px, py]) => [px + 400, py + 250])),
       JSON.stringify(moved));
+  }
+  // the box follows the picture: a fraction revokes that edge's route, so the
+  // corridor ELK cut for it is not ink this group has to cover
+  {
+    const engine = await cycle({ direction: "right", edgeGap: 40 });
+    const fractioned = await cycle({ direction: "right", edgeGap: 40 }, { originAt: 0.5 });
+    check("a fraction-revoked edge leaves the group no taller than its nodes need",
+      fractioned.g.height < engine.g.height && fractioned.outside.length === 0,
+      `engine ${engine.g.height} vs fractioned ${fractioned.g.height}, ` +
+        `outside ${JSON.stringify(fractioned.outside)}`);
   }
   // the control, pinned as literals: a graph whose routes stay inside the node
   // envelope is byte-for-byte what it was before the group learned about routes

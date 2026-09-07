@@ -536,9 +536,9 @@ return [g, ...arrows];                     // g places like any group; spread th
   edge routes around the outside of the layout and reaches past the outermost
   node; `g`'s extent takes that in. So `column([g, note], { gap: 24 })` clears
   the routes by the gap you named — stack against `g` and the gap is the gap,
-  with none to guess and no `text-struck-by-arrow` to chase. Path geometry only:
-  an edge you route yourself (`via`, or its own `route`) draws none of the
-  engine's path and adds nothing to the box.
+  with none to guess and no `text-struck-by-arrow` to chase. The box follows the
+  picture: an edge drawing no engine route adds nothing to it, whether you routed
+  it yourself (`via`, or its own `route`) or revoked it with a fraction.
 - `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
   left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
   layers themselves. `edgeGap` and `edgeLayerGap` are those same two axes for the

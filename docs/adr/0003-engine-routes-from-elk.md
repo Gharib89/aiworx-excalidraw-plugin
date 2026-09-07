@@ -148,9 +148,12 @@ to leave, while `graph()` holds it at the moment it builds the group. **Includin
 the ink** — stroke width, arrowheads, a bound label riding an outer segment —
 was rejected as the wrong owner: ink is what the gate measures, and a group that
 grew by half a stroke would move every band that composes one. Path geometry
-only, so the extent is exactly what the route record already carries. An edge the
-author routes (`via`, or its own `route`) draws none of ELK's path and adds
-nothing.
+only, so the extent is exactly what the route record already carries.
+
+The extent follows the **picture**, not the record: an edge that draws no engine
+route adds nothing to the box. That takes in an edge the author routes (`via`, or
+its own `route`) and — by decision 5 — one whose `originAt`/`landAt` revokes the
+route at resolve, which is the case the band actually carries.
 
 This amends the shape of `g`, not the contract: `{ g, arrows }` and every option
 are as decision 2 and the consequences above describe them. It is a **visual**

@@ -1125,6 +1125,72 @@ const skipping = async (opts) => {
     `${pathOf(landed.skip).at(-1)[0]} vs ${landed.c.x + 0.1 * landed.c.width}`);
 }
 
+// ---- graph: the group is sized to its engine routes, not just its nodes ----
+// A back edge routed around the outside of a layered graph is ink the author
+// stacks against, and only `graph()` knows how far out it swung. The claims are
+// about the resolved arrow points against `g`'s own box, because that box is what
+// every mover spaces off.
+{
+  // a -> b -> c -> a: the cycle edge is the one ELK routes around the outside
+  const cycle = async (opts) => {
+    const [a, b, c] = ["a", "b", "c"].map(node);
+    const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [c, a]], opts);
+    const resolved = resolveArrows(arrows);
+    const pts = resolved.flatMap(pathOf);
+    return {
+      a, b, c, g, arrows: resolved, pts,
+      outside: pts.filter(([px, py]) => px < 0 || py < 0 || px > g.width || py > g.height),
+    };
+  };
+  for (const opts of [
+    { direction: "right" }, { direction: "right", edgeGap: 40 }, { direction: "down", edgeGap: 40 },
+  ]) {
+    const { g, outside } = await cycle(opts);
+    check(`a route swinging past the nodes is inside the group's box (${JSON.stringify(opts)})`,
+      outside.length === 0, `${g.width}x${g.height}, outside: ${JSON.stringify(outside)}`);
+  }
+  // the group is what it looks like: a mover spaces the next child off the ink
+  {
+    const { g, pts } = await cycle({ direction: "right", edgeGap: 40 });
+    const legend = { type: "rectangle", id: "legend", width: 80, height: 40 };
+    column([g, legend], { gap: 30 });
+    check("a child stacked under an overhanging graph clears its route",
+      legend.y >= Math.max(...pts.map(([, py]) => py)) + 30,
+      `legend at ${legend.y}, route bottom ${Math.max(...pts.map(([, py]) => py))}`);
+  }
+  // the band idiom again, on a fixture that overhangs: the routes still travel
+  // with the group they were cut against
+  {
+    const [a, b, c] = ["a", "b", "c"].map(node);
+    const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [c, a]],
+      { direction: "right", edgeGap: 40 });
+    const before = resolveArrows(arrows.map((arrow) => ({ ...arrow }))).map(pathOf);
+    row([g, { type: "rectangle", id: "legend", width: 80, height: 40 }], { x: 400, y: 250, gap: 30 });
+    const moved = resolveArrows(arrows).map(pathOf);
+    check("an overhanging graph's routes survive a band-level mover",
+      JSON.stringify(moved) ===
+        JSON.stringify(before.map((path) => path.map(([px, py]) => [px + 400, py + 250]))),
+      JSON.stringify(moved));
+  }
+  // the control, pinned as literals: a graph whose routes stay inside the node
+  // envelope is byte-for-byte what it was before the group learned about routes
+  {
+    const [a, b, c] = ["a", "b", "c"].map(node);
+    const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]]);
+    const paths = resolveArrows(arrows).map(pathOf);
+    check("a graph with no overhang keeps its extent",
+      g.width === 140 && g.height === 270, `${g.width}x${g.height}`);
+    check("a graph with no overhang keeps its node offsets",
+      JSON.stringify([a, b, c].map((n) => [n.x, n.y])) === "[[20,0],[0,110],[20,220]]",
+      JSON.stringify([a, b, c].map((n) => [n.x, n.y])));
+    check("a graph with no overhang keeps its arrow points",
+      JSON.stringify(paths) ===
+        JSON.stringify([[[60, 60], [60, 100]], [[60, 170], [60, 210]],
+          [[100, 60], [130, 60], [130, 170], [100, 170], [100, 210]]]),
+      JSON.stringify(paths));
+  }
+}
+
 // ---- graph: placement picks which edges the engine straightens ----
 // House rule 9 counts bends **per arrow**, and so does `too-many-bends` — never
 // the total. The two strategies spend the same bends differently, so the claim is

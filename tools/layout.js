@@ -726,6 +726,15 @@ const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" }
  * single mid-gap jog, `"direct"` for the straight run. A `via` or an
  * `originAt`/`landAt` revokes it, because the author is then placing the path.
  *
+ * **`g` covers its routes, not just its nodes.** A back edge routed around the
+ * outside of the layout reaches past the outermost node, so the group's extent is
+ * the bounding box of the placed nodes *and* every engine route it draws — which
+ * means an author stacks against `g` with `column`/`row`/`stack` and clears the
+ * routes without guessing a gap. Path geometry only: stroke width and arrowheads
+ * are ink and stay the gate's business. An edge that draws no engine route
+ * contributes none — whether the author routed it (`via`, or its own `route`) or
+ * revoked it with a fraction — so the box follows the picture.
+ *
  * Two consequences an author meets in practice:
  * - ELK spaced its ports for the *arrows*, knowing nothing of their labels — this
  *   module measures no text, so `graph` never had a width to give it. A labelled
@@ -935,22 +944,7 @@ export async function graph(nodes, edges = [], {
   // returns in. Read by index rather than by the `n${i}` ids, which exist for
   // the edges to name.
   //
-  // ELK also pads its root, so the placed nodes are pulled back flush against
-  // the origin: a group carrying that padding would space every panel that
-  // composed it by an amount its author never wrote.
   const placed = laid.children.map((child) => ({ x: Math.round(child.x), y: Math.round(child.y) }));
-  const originX = Math.min(...placed.map((p) => p.x));
-  const originY = Math.min(...placed.map((p) => p.y));
-  nodes.forEach((node, i) => place(node, placed[i].x - originX, placed[i].y - originY));
-
-  const g = {
-    kind: "layout-group",
-    x: 0,
-    y: 0,
-    width: Math.max(...nodes.map((node, i) => node.x + sizes[i].width)),
-    height: Math.max(...nodes.map((node, i) => node.y + sizes[i].height)),
-    children: nodes,
-  };
 
   // The corridor ELK left between the nodes it placed, in the group's own frame:
   // the same rounding the nodes took, so a bend and the endpoint it lines up with
@@ -960,6 +954,57 @@ export async function graph(nodes, edges = [], {
   // precisely to name them, and unlike `children` there is nothing here that
   // needs the array order to be ELK's.
   const sections = new Map((laid.edges ?? []).map((edge) => [edge.id, edge.sections]));
+  // One routing decision per edge, taken before the group is sized because the
+  // group is sized to the routes it will draw. `draws` is the narrower claim:
+  // `section` is the route this graph records, `draws` says the picture shows it.
+  const routing = wired.map(({ opts }, i) => {
+    const merged = { ...arrowDefaults, ...opts };
+    // an edge carrying its own waypoints has already said who routes it, so the
+    // engine default steps aside rather than colliding with them
+    const hasVia = Array.isArray(merged.via) && merged.via.length > 0;
+    const asked = merged.route ?? (hasVia ? undefined : "engine");
+    const [section, ...rest] = sections.get(`e${i}`) ?? [];
+    // one section per edge is what a 1:1 edge gets; a split route is a shape this
+    // reader has no answer for, so leave the edge to the straight run
+    const readable = asked === "engine" && section && !rest.length ? section : undefined;
+    // an endpoint the author placed revokes the route at resolve, so the corridor
+    // ELK cut for it is a path this picture never draws — sizing the group to it
+    // would space the next panel off ink that is not there
+    const placedEnd = merged.originAt !== undefined || merged.landAt !== undefined;
+    return { merged, asked, section: readable, draws: Boolean(readable) && !placedEnd };
+  });
+  // Every point of every route the picture draws, in ELK's frame and rounded the
+  // way the nodes are, so the group's own edges land on whole pixels too.
+  const routePoints = routing.flatMap(({ section, draws }) => (draws
+    ? [section.startPoint, ...(section.bendPoints ?? []), section.endPoint]
+      .map((p) => [Math.round(p.x), Math.round(p.y)])
+    : []));
+
+  // ELK pads its root, so what it laid out is pulled back flush against the
+  // origin: a group carrying that padding would space every panel that composed
+  // it by an amount its author never wrote. The routes are pulled with the nodes
+  // — one swinging above or left of the outermost node owns that corner of the
+  // group, and pulling only the nodes flush would leave it on a negative
+  // coordinate, outside the very box it is meant to be inside.
+  const originX = Math.min(...placed.map((p) => p.x), ...routePoints.map(([px]) => px));
+  const originY = Math.min(...placed.map((p) => p.y), ...routePoints.map(([, py]) => py));
+  nodes.forEach((node, i) => place(node, placed[i].x - originX, placed[i].y - originY));
+
+  const g = {
+    kind: "layout-group",
+    x: 0,
+    y: 0,
+    width: Math.max(
+      ...nodes.map((node, i) => node.x + sizes[i].width),
+      ...routePoints.map(([px]) => px - originX),
+    ),
+    height: Math.max(
+      ...nodes.map((node, i) => node.y + sizes[i].height),
+      ...routePoints.map(([, py]) => py - originY),
+    ),
+    children: nodes,
+  };
+
   const toGroup = (p) => [Math.round(p.x) - originX, Math.round(p.y) - originY];
   // The **cut**: one record shared by every route out of this graph, holding the
   // layout they were all cut against, and what `engineHolds` reads to tell a moved
@@ -972,10 +1017,8 @@ export async function graph(nodes, edges = [], {
     boxes: nodes.map((node) => asPlaced(node, g)),
   };
   const engineRouteFor = (i) => {
-    const [section, ...rest] = sections.get(`e${i}`) ?? [];
-    // one section per edge is what a 1:1 edge gets; a split route is a shape this
-    // reader has no answer for, so leave the edge to the straight run
-    if (!section || rest.length) return undefined;
+    const { section } = routing[i];
+    if (!section) return undefined;
     const cross = cut.horizontal ? 1 : 0;
     return {
       cut,
@@ -987,13 +1030,9 @@ export async function graph(nodes, edges = [], {
 
   return {
     g,
-    arrows: wired.map(({ source, target, opts }, i) => {
-      const merged = { ...arrowDefaults, ...opts };
-      // an edge carrying its own waypoints has already said who routes it, so the
-      // engine default steps aside rather than colliding with them
-      const hasVia = Array.isArray(merged.via) && merged.via.length > 0;
-      const asked = merged.route ?? (hasVia ? undefined : "engine");
-      const engineRoute = asked === "engine" ? engineRouteFor(i) : undefined;
+    arrows: wired.map(({ source, target }, i) => {
+      const { merged, asked } = routing[i];
+      const engineRoute = engineRouteFor(i);
       // nothing readable came back for this edge, so say the straight run out loud
       // — the same answer a route gone stale resolves to, reached one pass earlier
       const route = asked === "engine" && !engineRoute ? "direct" : asked;

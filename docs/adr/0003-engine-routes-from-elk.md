@@ -5,6 +5,8 @@
 - **Context**: ticket #200; decided in #194, mechanics researched in #188
 - **Reverses**: the "the house draws the edges, not ELK" principle stated in
   `tools/layout.js` since `graph()` landed
+- **Amended**: ticket #220 — the cut's group is sized to its routes (see
+  [Amendment](#amendment--the-cuts-group-is-sized-to-its-routes-220-2026-09-07))
 
 ## Context
 
@@ -124,3 +126,33 @@ The house still **owns** the edges; ELK **routes** them.
 - The corridor check is O(nodes) per edge at resolve. Diagrams are tens of
   elements; a graph large enough for that to matter is out of `graph()`'s stated
   scope already (flat, `layered` only).
+
+## Amendment — the cut's group is sized to its routes (#220, 2026-09-07)
+
+Decision 3 holds an engine route in the graph group's own frame, and the group
+was sized to the **nodes** ELK placed. A back edge routed around the outside of
+the layout therefore reached past the box every mover spaces off, and the author
+stacking a note under the graph had to guess a gap and re-run until the gate
+stopped saying `text-struck-by-arrow` — 2px past the box at the defaults, 32px
+at `edgeGap: 40`. So the group's extent is now the bounding box of the placed
+nodes **together with** every engine route `graph()` hands out: the origin the
+nodes are pulled flush against is the minimum over both, and `width`/`height`
+reach the maximum over both. A graph whose routes stay inside the node envelope
+is unchanged, node offsets and bends included, which is why every committed band
+keeps its geometry.
+
+Two alternatives were rejected. **Documenting the gap** — telling the author to
+leave room — fails on information: the overhang is a number only ELK knows, and
+only after it has routed, so the author cannot compute what the prose asks them
+to leave, while `graph()` holds it at the moment it builds the group. **Including
+the ink** — stroke width, arrowheads, a bound label riding an outer segment —
+was rejected as the wrong owner: ink is what the gate measures, and a group that
+grew by half a stroke would move every band that composes one. Path geometry
+only, so the extent is exactly what the route record already carries. An edge the
+author routes (`via`, or its own `route`) draws none of ELK's path and adds
+nothing.
+
+This amends the shape of `g`, not the contract: `{ g, arrows }` and every option
+are as decision 2 and the consequences above describe them. It is a **visual**
+break in the same sense the original change was — a graph with an overhang
+regenerates with different offsets inside its group — and no API break.

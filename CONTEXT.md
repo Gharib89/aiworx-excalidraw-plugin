@@ -105,7 +105,7 @@ is the one ingestion path, and what it returns goes straight into `graph`.
 _Avoid_: import, conversion
 
 **Layout group**:
-A `stack`/`column`/`row` positioning construct. It places children but is not an Excalidraw group and cannot be an arrow target.
+A `stack`/`column`/`row` positioning construct. It places children but is not an Excalidraw group and cannot be an arrow target. Its extent covers everything it placed, which for a `graph` group takes in the **engine route** of every edge it routed — so a mover spaces the next panel off the routes as well as the nodes.
 _Avoid_: group (unqualified)
 
 **Last mover**:

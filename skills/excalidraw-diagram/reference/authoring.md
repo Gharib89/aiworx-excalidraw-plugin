@@ -532,6 +532,13 @@ return [g, ...arrows];                     // g places like any group; spread th
   the node **objects**, not ids. Options in the third slot merge over the shared
   arrow options in the call, so one call styles every arrow and a single edge
   overrides what it needs.
+- **`g` covers its routes, not just its nodes.** A handback or layer-skipping
+  edge routes around the outside of the layout and reaches past the outermost
+  node; `g`'s extent takes that in. So `column([g, note], { gap: 24 })` clears
+  the routes by the gap you named — stack against `g` and the gap is the gap,
+  with none to guess and no `text-struck-by-arrow` to chase. Path geometry only:
+  an edge you route yourself (`via`, or its own `route`) draws none of the
+  engine's path and adds nothing to the box.
 - `direction` is the flow — `"down"` (default) layers top to bottom, `"right"`
   left to right. `gap` spaces nodes **within** a layer, `layerGap` spaces the
   layers themselves. `edgeGap` and `edgeLayerGap` are those same two axes for the

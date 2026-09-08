@@ -281,9 +281,9 @@ Excalidraw document is rejected with a `DocumentError`, a revision that would
 fail the gate with a `GateError`, and neither writes anything.
 
 Every successful pass ends with its **fidelity ledger**, the account of what the
-round-trip changed beyond what you asked for — and two of its entries throw
+round-trip changed beyond what you asked for — and some of its entries throw
 something away. [reference/problem-codes.md](reference/problem-codes.md) names
-every ledger code, which two those are, and the document `--json` prints
+every ledger code, which of them are lossy, and the document `--json` prints
 instead.
 
 [reference/authoring.md](reference/authoring.md) carries the recipe for a label

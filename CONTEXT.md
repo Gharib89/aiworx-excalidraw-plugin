@@ -43,8 +43,9 @@ _Avoid_: error code, rule id
 
 **Fidelity ledger**:
 The account `revise.js` prints of what a round-trip changed beyond what was asked
-— text remeasured, bindings and frame membership repaired, bound labels
-re-centered, elements purged, image payloads pruned. Its codes are a third
+— text remeasured, stroke jitter repainted from a re-derived seed, bindings and
+frame membership repaired, bound labels re-centered, elements purged, image
+payloads pruned. Its codes are a third
 namespace beside the gate's element-level and file-level ones: same append-only
 contract, same entry shape, but an entry reports a repair the pass made rather
 than a defect it refuses over. A pass that changed nothing says so in one line —

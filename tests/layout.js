@@ -1028,8 +1028,7 @@ const crossings = (arrow, shapes) => {
 // used to be refused as `arrow-crossing` and hand-routed around b with `via`
 const skipping = async (opts, skipOpts) => {
   const [a, b, c] = ["a", "b", "c"].map(node);
-  const edges = [[a, b], [b, c], skipOpts ? [a, c, skipOpts] : [a, c]];
-  const { g, arrows } = await graph([a, b, c], edges, opts);
+  const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c, skipOpts]], opts);
   const resolved = resolveArrows(arrows);
   return { a, b, c, g, arrows: resolved, skip: resolved[2] };
 };
@@ -1223,42 +1222,45 @@ const descends = (arrow) => {
   const ys = pathOf(arrow).map(([, y]) => y);
   return ys.every((y, i) => i === 0 || y >= ys[i - 1]);
 };
-// the default standoff and the default corridor are the same 10px, so the clamp has
-// nothing to pull there and the drop it collapses into keeps doing the whole job —
-// pinned as literal points, because "unchanged" is the claim
+// A bend outside the span between the two endpoints *is* the backtrack, so counting
+// those tells "clamped" from "nothing to clamp" without restating ELK's coordinates
+// here — the same reason the claims above are scored with the gate's own helpers.
+const outsideSpan = (arrow, flow = 1) => {
+  const pts = pathOf(arrow);
+  const [s, e] = [pts[0][flow], pts.at(-1)[flow]];
+  const dir = Math.sign(e - s);
+  return pts.slice(1, -1).filter((p) => (s - p[flow]) * dir > 0 || (p[flow] - e) * dir > 0);
+};
+// the default standoff and the default corridor are the same 10px, so no bend falls
+// outside the span at all: the clamp has nothing to pull, and the route stays the one
+// the duplicate drop alone already reached
 {
   const { skip } = await skipping({});
-  check("the default corridor resolves to the same points the drop alone reached",
-    JSON.stringify(pathOf(skip)) === "[[100,60],[130,60],[130,170],[100,170],[100,210]]",
-    JSON.stringify(pathOf(skip)));
+  check("the default corridor leaves the clamp nothing to pull",
+    outsideSpan(skip).length === 0, JSON.stringify(pathOf(skip)));
+  check("and spends its three bends going around the node between",
+    pathOf(skip).length - 2 === 3, JSON.stringify(pathOf(skip)));
 }
-{
-  const { a, b, c, skip } = await skipping({ standoff: 20 });
+// both ways in: a standoff raised past the corridor, and — since #202 made the
+// corridor the author's too — the corridor lowered under an untouched standoff. The
+// same backtrack from either side, so the same clamp answers both.
+for (const [entry, opts] of [
+  ["a standoff wider than the corridor", { standoff: 20 }],
+  ["a corridor narrower than the standoff", { edgeLayerGap: 0, standoff: 10 }],
+]) {
+  const { a, b, c, skip } = await skipping(opts);
   const pts = pathOf(skip);
-  check("a standoff wider than the corridor draws no segment against the flow",
-    descends(skip), JSON.stringify(pts));
-  check("the bend the corridor left behind the start is pulled onto the start's flow line",
+  check(`${entry} draws no segment against the flow`, descends(skip), JSON.stringify(pts));
+  check(`${entry} leaves no bend behind the start`,
+    outsideSpan(skip).length === 0, JSON.stringify(pts));
+  check(`${entry} pulls that bend onto the start's own flow line`,
     pts[1][1] === pts[0][1], JSON.stringify(pts));
-  check("the clamped route still clears every node in the graph",
+  check(`${entry} still clears every node in the graph`,
     crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
   // the clamp collapses the backtrack corner onto the endpoint, where the existing
-  // duplicate drop removes it — so the route costs exactly what the clean one costs
-  check("and spends the same three bends the clean corridor spends",
+  // duplicate drop removes it — so the route costs what the clean corridor costs
+  check(`${entry} spends the same three bends the clean corridor spends`,
     pts.length - 2 === 3, JSON.stringify(pts));
-}
-// the same geometry is reachable from the other side — since #202 the corridor is
-// the author's too, so lowering it under an untouched standoff arrives at the same
-// backtrack, and must arrive at the same clamp
-{
-  const { a, b, c, skip } = await skipping({ edgeLayerGap: 0, standoff: 10 });
-  const pts = pathOf(skip);
-  check("a corridor narrower than the standoff draws no segment against the flow either",
-    descends(skip), JSON.stringify(pts));
-  check("its leading bend is pulled onto the start's flow line too",
-    pts[1][1] === pts[0][1], JSON.stringify(pts));
-  check("the route out of a flattened corridor clears every node",
-    crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
-  check("and spends three bends as well", pts.length - 2 === 3, JSON.stringify(pts));
 }
 // The tail is the same claim mirrored: ELK's last bend turns back toward the target
 // one corridor below the node it passed, and a standoff deeper than that leaves the
@@ -1275,6 +1277,8 @@ const descends = (arrow) => {
     descends(skip), JSON.stringify(pts));
   check("the bend left past the end is pulled back onto the end's flow line",
     pts.at(-2)[1] === pts.at(-1)[1], JSON.stringify(pts));
+  check("so neither end leaves a bend outside the span",
+    outsideSpan(skip).length === 0, JSON.stringify(pts));
   check("the route clamped at both ends clears every node",
     crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
   // both corners collapse onto their endpoint and drop, so the route keeps only the
@@ -1295,10 +1299,12 @@ for (const [axis, direction, size] of [["along y", "down", { height: 50.3 }], ["
   const flow = direction === "right" ? 0 : 1;
   const [a, b, c] = ["a", "b", "c"].map((id) => ({ ...node(id), ...size }));
   const { arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]], { direction });
-  const pts = pathOf(resolveArrows(arrows)[2]);
-  const overshoot = Math.abs(pts[1][flow] - pts[0][flow]);
-  check(`a measured box leaves the leading bend a fraction outside the span ${axis}`,
-    overshoot > 0 && overshoot < 1, `${overshoot} — ${JSON.stringify(pts)}`);
+  const skip = resolveArrows(arrows)[2];
+  const start = pathOf(skip)[0][flow];
+  const outside = outsideSpan(skip, flow);
+  check(`a measured box leaves the leading run a fraction outside the span ${axis}, and the clamp leaves it there`,
+    outside.length > 0 && outside.every((p) => Math.abs(p[flow] - start) < 1),
+    `${JSON.stringify(outside)} — ${JSON.stringify(pathOf(skip))}`);
 }
 
 // ---- graph: placement picks which edges the engine straightens ----

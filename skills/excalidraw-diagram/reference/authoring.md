@@ -960,7 +960,7 @@ reproducible. The geometry, the text and the colours are untouched by it; only
 the stroke wobble moves, and only that once. The ledger reports that pass as
 `stroke-jitter-repainted` with the count of elements repainted
 ([problem-codes.md](problem-codes.md)); every pass after it finds the seeds
-already derived and stays silent.
+already derived, so no later pass carries that entry.
 
 Every repair in that list lands in the **fidelity ledger**, printed after the
 artifacts it accounts for:

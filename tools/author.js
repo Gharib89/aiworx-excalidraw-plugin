@@ -351,6 +351,22 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
     }
     throw noSuchItemError();
   }
+  // The new id is a function of the old one, so the old ones have to be there
+  // and have to be distinct: a library missing them would collapse its elements
+  // onto one derived id and remap their references into each other. Under the
+  // random ids this replaced the collapse could not happen, so the file's own
+  // defect stayed invisible until the gate rejected the wreckage downstream.
+  const sourceIds = source.map((e) => e.id);
+  const usable = sourceIds.filter((id) => typeof id === "string" && id !== "");
+  if (usable.length !== sourceIds.length || new Set(usable).size !== usable.length) {
+    throw new LibraryError(
+      `item ${JSON.stringify(item)} has elements without a distinct id`,
+      {
+        where: path,
+        next: "Re-export the item from Excalidraw, which gives every element its own id.",
+      },
+    );
+  }
   const nth = String(spliceOrdinal++);
   const idMap = new Map(source.map((e) => [e.id, stableId("splice", nth, e.id)]));
   const groupMap = new Map();

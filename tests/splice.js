@@ -92,11 +92,22 @@ const library = (name, doc) => {
     `const splices = [spliceLibraryItem(${JSON.stringify(LIB)}), spliceLibraryItem(${JSON.stringify(LIB)})];`,
     `console.log(JSON.stringify(splices.map((s) => [s.ids, [...new Set(s.children.flatMap((e) => e.groupIds))]])));`,
   ].join("\n"));
-  const runProbe = () => spawnSync(process.execPath, [probe], { encoding: "utf8" }).stdout.trim();
+  // A probe that failed to start prints nothing, which reads exactly like a
+  // probe that ran and printed nothing — so the exit status is checked first
+  // and its stderr is what the failure reports.
+  const runProbe = () => {
+    const r = spawnSync(process.execPath, [probe], { encoding: "utf8" });
+    return { ok: r.status === 0, out: (r.stdout ?? "").trim(), why: (r.stderr ?? "").trim().split("\n").slice(-2).join(" / ") };
+  };
   const [firstRun, secondRun] = [runProbe(), runProbe()];
-  check("a fresh process splices to the same ids",
-    firstRun.length > 0 && firstRun === secondRun,
-    firstRun.length ? `${JSON.parse(firstRun)[0][0][0]} …` : "the probe printed nothing");
+  const ranClean = firstRun.ok && secondRun.ok;
+  check("the determinism probe runs clean in a fresh process", ranClean,
+    ranClean ? undefined : (firstRun.why || secondRun.why || "no stderr"));
+  if (ranClean) {
+    check("a fresh process splices to the same ids",
+      firstRun.out.length > 0 && firstRun.out === secondRun.out,
+      firstRun.out.length ? `${JSON.parse(firstRun.out)[0][0][0]} …` : "the probe printed nothing");
+  }
 }
 
 // ---- 2. offset and extent ----
@@ -159,6 +170,26 @@ const library = (name, doc) => {
   const hollow = library("hollow", { type: "excalidrawlib", version: 2, libraryItems: [{ name: "hollow", elements: [] }] });
   const noElements = throwsWith("LibraryError", () => spliceLibraryItem(hollow));
   check("an item with no elements is a LibraryError", noElements.ok, noElements.detail);
+
+  // The spliced id is derived from the source id (#227), so a source id that is
+  // absent or shared would collapse two elements onto one id and cross-wire
+  // their references. Refused at the library boundary, where the defect is.
+  const idless = library("idless", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{ name: "idless", elements: [el("a"), { ...el("b"), id: undefined }] }],
+  });
+  const noId = throwsWith("LibraryError", () => spliceLibraryItem(idless));
+  check("an element with no id is a LibraryError", noId.ok, noId.detail);
+  check("the id refusal says what is missing and how to get it back",
+    noId.message?.includes("without a distinct id") && noId.message.includes("Re-export"),
+    noId.message);
+
+  const twins = library("twins", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{ name: "twins", elements: [el("a"), el("a")] }],
+  });
+  const shared = throwsWith("LibraryError", () => spliceLibraryItem(twins));
+  check("two elements sharing one id is a LibraryError", shared.ok, shared.detail);
 }
 
 // ---- 4. v1 library format, and binding sanitisation ----

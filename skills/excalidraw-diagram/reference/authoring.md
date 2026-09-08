@@ -10,6 +10,7 @@ use. This table is the whole surface; the sections below detail each one.
 |---|---|---|---|
 | `measure` | `await measure([{ text, fontSize, fontFamily }, …])` | one `{ width, height }` per item, at the real rendered size | [Measuring](#measuring) |
 | `wrap` | `await wrap(text, maxWidth, { fontSize, fontFamily })` | `{ text, width, height, lines }`, never wider than `maxWidth` | [Measuring](#measuring) |
+| `label` | `await label(text, { fontSize, fontFamily })` | an arrow label carrying its own `{ width, height }` — what lets `graph` space the engine's ports around it | [Measuring](#measuring) |
 | `palette` | constant | the brand palette: `roles`, `grey`, `ink`, `canvas`, `fontFamily` | [palette.md](palette.md) |
 | `PROSE` | constant | the `fontFamily` of the house prose face | [palette.md](palette.md) |
 | `CODE` | constant | the `fontFamily` of the house code face | [palette.md](palette.md) |

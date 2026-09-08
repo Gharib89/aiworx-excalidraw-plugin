@@ -362,6 +362,13 @@ const FIT_RAMP = PRESETS[DEFAULT_PRESET].ramp;
  * A bare string takes the ramp's `sublabel` rung — an edge annotation, one step
  * below the words inside a node — so raising the preset raises it too, while an
  * author who named a `fontSize` keeps the more specific statement.
+ *
+ * A measured label — one the build's `label()` helper returned — also carries a
+ * `width`/`height`, and those are dropped here: the extent exists so `graph` can
+ * tell ELK how much room the label needs, and the pipeline re-measures bound text
+ * on every pass. An author-supplied dimension surviving onto the element would
+ * fight that measurement rather than inform it. `labelExtent` reads it off the
+ * spec before this runs.
  */
 function labelSpec(label, ramp) {
   const spec = typeof label === "string" ? { text: label } : label;
@@ -370,7 +377,35 @@ function labelSpec(label, ramp) {
       where: "arrowBetween", next: 'Pass a string or { text: "…" } for label.',
     });
   }
-  return { fontSize: ramp.sublabel, fontFamily: palette.fontFamily.prose, ...spec };
+  const { width, height, ...rest } = spec;
+  return { fontSize: ramp.sublabel, fontFamily: palette.fontFamily.prose, ...rest };
+}
+
+/**
+ * The room a label needs, for the one party that can spend it: ELK. A measured
+ * label carries its own `width`/`height` — `build`'s `label()` helper measures the
+ * text and puts them there — and that extent is the only thing this module ever
+ * learns about a label's size, because it measures no text itself.
+ *
+ * `undefined` for a bare string, for an object with no extent, and for a
+ * non-positive or non-finite one: every case that leaves ELK exactly as
+ * uninformed as it was before, which is what keeps an unmeasured label's layout
+ * byte-identical.
+ *
+ * The `text` travels with the extent because ELK **discards a label with no
+ * text** — measured here, on elkjs 0.12: an edge label carrying width and height
+ * but an empty `text` reserves nothing at all, and the layout comes back
+ * identical to one with no labels. ELK does not measure the string; it spends the
+ * extent it was given. The text is what makes the label real to it.
+ */
+function labelExtent(label) {
+  if (!label || typeof label !== "object") return undefined;
+  const { text, width, height } = label;
+  if (typeof text !== "string" || text === "") return undefined;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return undefined;
+  }
+  return { text, width, height };
 }
 
 /**
@@ -766,11 +801,23 @@ const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" }
  * contributes none — whether the author routed it (`via`, or its own `route`) or
  * revoked it with a fraction — so the box follows the picture.
  *
- * One consequence an author meets in practice: ELK spaced its ports for the
- * *arrows*, knowing nothing of their labels — this module measures no text, so
- * `graph` never had a width to give it. A labelled fan can still put one arrow
- * through a neighbour's label, and that is what an `originAt`/`landAt` is still
- * for.
+ * **What ELK knows about a label is its extent, and only that.** A label the
+ * build's `label()` helper measured carries its own `width`/`height`, and `graph`
+ * hands that on as an ELK edge label placed **inline** — so the engine spaces its
+ * ports and corridors around the room the label will take, and a labelled fan
+ * clears its neighbours' labels without a fraction. A bare-string label, or an
+ * object with no extent, tells ELK nothing and lays out exactly as it always did.
+ * This module still measures no text: the extent arrives measured from the caller,
+ * the same way a node's does.
+ *
+ * ELK's own label *coordinates* are ignored. A bound label rides at the middle of
+ * its own arrow and the pipeline re-centres it there on every pass; only the
+ * extent was ever ELK's to spend.
+ *
+ * What is still the author's problem: a **two-way pair** whose legs run the same
+ * diagonal. A label rides at the middle of its own leg, which is where the other
+ * leg passes, so no extent moves it clear — take the label off the pair and let
+ * the two arrowheads say it.
  *
  * Positions are rounded to whole pixels, so the same input regenerates the same
  * artifact byte for byte. ELK is deterministic on its own; the rounding closes
@@ -782,8 +829,11 @@ const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" }
  * rather than the nodes: how far a route stays off what it passes across the flow
  * — the corridor width — and along it, which is where it turns inside a layer
  * gap. Both default to the engine's own 10px, the same margin the default
- * `standoff` keeps. Flat graphs only, and `layered` only; nested children and the
- * other ELK algorithms are out of scope by design.
+ * `standoff` keeps. `routeGap` is the third of that family and the only one
+ * between two *routes* rather than a route and a node: how far the legs of a fan
+ * stay off each other, on both axes at once. Widening it spreads the departures a
+ * shared source would otherwise stack. Flat graphs only, and `layered` only;
+ * nested children and the other ELK algorithms are out of scope by design.
  *
  * Two options shape the routes rather than space them:
  * - `placement` decides how a node settles along its layer. `"balanced"`
@@ -808,7 +858,8 @@ const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" }
  */
 export async function graph(nodes, edges = [], {
   direction = "down", gap = 40, layerGap = 60, entry, exit, modelOrder = true,
-  placement = "balanced", edgeGap = 10, edgeLayerGap = 10, sharedPorts = false,
+  placement = "balanced", edgeGap = 10, edgeLayerGap = 10, routeGap = 10,
+  sharedPorts = false,
   ...arrowDefaults
 } = {}, ramp = FIT_RAMP) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
@@ -828,6 +879,7 @@ export async function graph(nodes, edges = [], {
   }
   for (const [name, value] of [
     ["gap", gap], ["layerGap", layerGap], ["edgeGap", edgeGap], ["edgeLayerGap", edgeLayerGap],
+    ["routeGap", routeGap],
   ]) {
     if (!Number.isFinite(value) || value < 0) {
       throw new LayoutError(`${name} must be a finite number of pixels, got ${shown(value)}`, {
@@ -939,6 +991,10 @@ export async function graph(nodes, edges = [], {
       // route stays off what it passes across the flow, and along it
       "elk.spacing.edgeNode": edgeGap,
       "elk.layered.spacing.edgeNodeBetweenLayers": edgeLayerGap,
+      // and once more between two routes rather than a route and a node: what
+      // keeps the legs of a fan off each other on both axes at once
+      "elk.spacing.edgeEdge": routeGap,
+      "elk.layered.spacing.edgeEdgeBetweenLayers": routeGap,
       "elk.layered.nodePlacement.strategy": ELK_PLACEMENT[placement],
       "elk.layered.mergeEdges": sharedPorts,
       // the author's listing order, spent only where the graph itself leaves a
@@ -957,11 +1013,22 @@ export async function graph(nodes, edges = [], {
         ...(constraint && { layoutOptions: { "elk.layered.layering.layerConstraint": constraint } }),
       };
     }),
-    edges: wired.map(({ source, target }, i) => ({
-      id: `e${i}`,
-      sources: [`n${index.get(source)}`],
-      targets: [`n${index.get(target)}`],
-    })),
+    edges: wired.map(({ source, target, opts }, i) => {
+      // the one thing about a label this module can pass on: the room it needs.
+      // Inline is hard-wired rather than optional — the house has one on-arrow
+      // text form, the bound label, and it sits *on* the line by construction, so
+      // ELK reserving room beside the path instead would space the fan against a
+      // label the picture never draws there.
+      const extent = labelExtent({ ...arrowDefaults, ...opts }.label);
+      return {
+        id: `e${i}`,
+        sources: [`n${index.get(source)}`],
+        targets: [`n${index.get(target)}`],
+        ...(extent && {
+          labels: [{ ...extent, layoutOptions: { "elk.edgeLabels.inline": true } }],
+        }),
+      };
+    }),
   }).catch((err) => {
     if (pinned.size) throw pinRefusal(err);
     throw err;

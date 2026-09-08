@@ -167,6 +167,35 @@ export function makeWrap(measure) {
   };
 }
 
+/**
+ * An arrow label that carries its own extent.
+ *
+ * `arrowBetween` takes a bare string and sizes it at the ramp's `sublabel` rung
+ * on the house prose face; this measures that same text at those same defaults
+ * and returns the string *with* the `width` and `height` it came out at. The
+ * result goes straight into an edge's `label:` — it is a superset of the label
+ * spec, valid anywhere one is — and `graph` is the reader that needs it: an
+ * extent is the only thing it can tell the layout engine about a label, so a
+ * measured label is what lets ELK space its ports around one instead of through
+ * it.
+ *
+ * The extent never reaches the drawn element. The pipeline re-measures bound text
+ * on every pass, so `arrowBetween` drops the dimensions when it builds the
+ * skeleton — a measured label and a bare string draw identically, and only the
+ * engine's spacing tells them apart.
+ */
+export function makeLabel(measure, ramp) {
+  return async function label(text, { fontSize = ramp.sublabel, fontFamily = PROSE } = {}) {
+    if (typeof text !== "string" || text === "") {
+      throw new WrapError(`needs a non-empty string to measure, got ${JSON.stringify(text)}`, {
+        where: "label", next: "Pass the label's text as a string.",
+      });
+    }
+    const [m] = await measure([{ text, fontSize, fontFamily }]);
+    return { text, fontSize, fontFamily, width: m.width, height: m.height };
+  };
+}
+
 const IMAGE_MIME = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -812,6 +841,7 @@ async function gateAndWrite(ex, { out, elements, appState, files, svg, recentere
 export const buildContext = (ex, files, preset = DEFAULT_PRESET) => ({
   measure: ex.measureText,
   wrap: makeWrap(ex.measureText),
+  label: makeLabel(ex.measureText, PRESETS[preset].ramp),
   palette,
   PROSE,
   CODE,

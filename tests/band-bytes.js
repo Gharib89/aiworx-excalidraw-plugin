@@ -7,8 +7,8 @@
  * change reach any picture it should not have?" is answerable from
  * `git status` instead of a throwaway normalising script.
  *
- * It regenerates **out of tree** — a temp checkout that symlinks `tools/` and
- * `brand/` and copies `examples/` — for two reasons: CI asserts verification
+ * It regenerates **out of tree** (a temp checkout that symlinks `tools/` and
+ * `brand/` and copies `examples/`) for two reasons: CI asserts verification
  * never dirties a tracked file, and a generator writes next to its own script,
  * so copying the script is what moves the write somewhere else without changing
  * the generators' contract. `tests/example-paths.js` is the precedent.
@@ -46,7 +46,7 @@ const BANDS = [
 function scratchCheckout(tag) {
   const checkout = mkdtempSync(join(tmpdir(), `${tag}-`));
   for (const dir of ["tools", "brand"]) symlinkSync(join(root, dir), join(checkout, dir), "junction");
-  // package.json carries `"type": "module"` — without it the copied generators
+  // package.json carries `"type": "module"`. Without it the copied generators
   // resolve down a different path than a real checkout takes.
   copyFileSync(join(root, "package.json"), join(checkout, "package.json"));
   cpSync(join(root, "examples"), join(checkout, "examples"), { recursive: true });
@@ -72,13 +72,13 @@ for (const [generator, artifact] of BANDS) {
     const after = readFileSync(join(regenerated, "examples", artifact + ext));
     check(`${artifact}${ext}: regenerates byte-identical`, before.equals(after),
       before.equals(after) ? `${before.length} bytes`
-        : `${before.length} vs ${after.length} bytes — run the generator and commit the reflow, or a change moved the picture`);
+        : `${before.length} vs ${after.length} bytes. Run the generator and commit the reflow, or a change moved the picture`);
   }
 }
 
 // ---- 2. two independent regenerations render to identical PNGs ----
 // One band is enough: the claim is about the seed, which every band shares.
-// triage-graph is the cheapest — two frames and no image payload.
+// triage-graph is the cheapest: two frames and no image payload.
 {
   const [, artifact] = BANDS[2];
   const second = scratchCheckout("band-bytes-2");

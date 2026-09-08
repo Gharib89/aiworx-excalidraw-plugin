@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The identity contract (#227, tools/identity.js) — the half that needs no
+ * The identity contract (#227, tools/identity.js), the half that needs no
  * browser. Chrome-free by construction: it reads the committed artifacts and
  * exercises the pure derivations, so it runs in `test:fast`. Its companion
  * `tests/band-bytes.js` regenerates the bands and compares bytes.
@@ -8,7 +8,7 @@
  * Two claims:
  *
  *   1. the derivations are pure, varied, and in Excalidraw's own integer range
- *   2. every committed artifact already obeys them — no wall-clock `updated`,
+ *   2. every committed artifact already obeys them: no wall-clock `updated`,
  *      no `created` off the clock, and `seed` a function of the element's id,
  *      distinct per element so Rough.js jitter stays varied
  *

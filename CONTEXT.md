@@ -80,7 +80,7 @@ _Avoid_: orphan
 
 **Derived identity**:
 An element's `id`, `seed`, `versionNonce` and `updated` computed from the diagram
-rather than minted from the RNG or the clock — what makes a diagram regenerate
+rather than minted from the RNG or the clock: what makes a diagram regenerate
 byte for byte, so a diff on a committed band means geometry actually moved.
 `seed` drives Rough.js jitter, so it is derived from a hash of the element's id
 rather than fixed: identical between runs, varied between elements, which makes a

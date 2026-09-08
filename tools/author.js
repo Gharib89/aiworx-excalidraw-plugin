@@ -71,7 +71,7 @@ export class LibraryError extends NamedError {}
  * used to be guaranteed; the ordinal buys the same distinctness deterministically,
  * because a generator makes its calls in a fixed order and the nth splice of a
  * run is always the nth. The library's path deliberately stays out of the
- * derivation — it is absolute, so it differs per machine.
+ * derivation: it is absolute, so it differs per machine.
  */
 let spliceOrdinal = 0;
 
@@ -399,7 +399,7 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
  * Rename every element the converter named for itself, deterministically.
  *
  * `convertToExcalidrawElements` keeps the ids the author spelled (the call
- * passes `regenerateIds: false`) and mints a random one for the rest — in
+ * passes `regenerateIds: false`) and mints a random one for the rest, in
  * practice the text element an `arrowBetween` `label:` creates, which every
  * band uses. A random id is a random `seed`, since the seed is a hash of the
  * id, so those elements repainted their strokes on every run.
@@ -861,7 +861,7 @@ function writeTogether(pairs) {
  */
 async function gateAndWrite(ex, { out, elements, appState, files, svg, recentered = [], quiet = false }) {
   // Both the authoring and the revise path write through here, and the SVG
-  // export below reads `seed` — so this is the one moment at which every
+  // export below reads `seed`, so this is the one moment at which every
   // volatile field can be pinned for both files at once (tools/identity.js).
   pinVolatile(elements, files);
   const doc = { type: "excalidraw", version: 2, source: "aiworx-excalidraw", elements, appState, files };

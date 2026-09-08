@@ -775,7 +775,7 @@ row([logo, figure], { gap: 56, align: "end" });          // places like any item
 frame.children = ["logo", ...figure.ids];                // ids derived per insertion
 ```
 
-Every id — element and group — is regenerated per splice from the insertion's
+Every id (element and group) is regenerated per splice from the insertion's
 ordinal, so one item places twice without collision and both insertions come
 back with the same ids next run; bindings and `boundElements` that point outside
 the item are dropped rather than left dangling for the gate to reject. The
@@ -929,7 +929,7 @@ which `check.js` reports as overlapping frames, not as a binding problem.
 **Re-running a generator is a no-op unless something moved.** Element identity is
 derived from the diagram, never from the RNG or the clock: `id`, `seed`,
 `versionNonce` and `updated` all come back the same, so the `.excalidraw` and its
-`.svg` are byte-identical run to run. Use that — commit a band, change the
+`.svg` are byte-identical run to run. Use that: commit a band, change the
 generator, re-run it, and the diff shows exactly the geometry you moved and
 nothing else. `seed` drives the hand-drawn jitter and is a hash of the element's
 id, so the strokes stay varied between elements while staying fixed between runs;

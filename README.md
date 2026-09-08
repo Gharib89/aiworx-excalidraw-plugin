@@ -209,7 +209,7 @@ Authoring is deterministic: an element's `id`, `seed`, `versionNonce` and
 clock, so re-running a generator rewrites the `.excalidraw` and its `.svg` byte
 for byte. A diff on a committed artifact therefore means the picture actually
 changed. `seed` drives the hand-drawn jitter, so it is a hash of the element's id
-rather than a constant — varied between elements, fixed between runs.
+rather than a constant: varied between elements, fixed between runs.
 `tests/band-bytes.js` regenerates every band under `examples/` out of tree and
 fails on any byte difference.
 

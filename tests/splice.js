@@ -8,7 +8,9 @@
  *      the library does hold
  *   2. both library shapes splice: v2 `libraryItems` and legacy v1 `library`
  *   3. every id is regenerated per splice — element ids and group ids — so the
- *      same item places twice without colliding with itself or the scene
+ *      same item places twice without colliding with itself or the scene, and
+ *      the ids are derived rather than random, so a fresh process splicing the
+ *      same item gets the same ids back (#227)
  *   4. internal references follow the remap (frameId, containerId, bindings,
  *      boundElements) and references pointing outside the item are dropped
  *   5. the item lands with its top-left corner at `at` and reports its extent
@@ -23,10 +25,11 @@
  * needs a specific shape is written inline, so the expectation and the input
  * read together.
  */
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spliceLibraryItem, PROSE } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -78,6 +81,22 @@ const library = (name, doc) => {
     groupsA.size === 1 && !groupsA.has("fig-group"),
     [...groupsA].join(", "));
   check("two splices get distinct group ids", [...groupsA].every((g) => !groupsB.has(g)));
+
+  // Distinct is only half the contract since #227: the ids have to be the same
+  // ones next run, or a band carrying a spliced item can never regenerate byte
+  // for byte. Distinctness comes from the insertion ordinal now, not randomness,
+  // so it takes a second process to tell a derived id from a minted one.
+  const probe = join(outDir, "insertion-ordinal.mjs");
+  writeFileSync(probe, [
+    `import { spliceLibraryItem } from ${JSON.stringify(pathToFileURL(join(root, "tools/author.js")).href)};`,
+    `const splices = [spliceLibraryItem(${JSON.stringify(LIB)}), spliceLibraryItem(${JSON.stringify(LIB)})];`,
+    `console.log(JSON.stringify(splices.map((s) => [s.ids, [...new Set(s.children.flatMap((e) => e.groupIds))]])));`,
+  ].join("\n"));
+  const runProbe = () => spawnSync(process.execPath, [probe], { encoding: "utf8" }).stdout.trim();
+  const [firstRun, secondRun] = [runProbe(), runProbe()];
+  check("a fresh process splices to the same ids",
+    firstRun.length > 0 && firstRun === secondRun,
+    firstRun.length ? `${JSON.parse(firstRun)[0][0][0]} …` : "the probe printed nothing");
 }
 
 // ---- 2. offset and extent ----

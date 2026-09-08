@@ -342,5 +342,34 @@ const role = (name, extra = {}) => ({ strokeColor: ROLES[name].stroke, backgroun
   check("a 1.252× spread is judged raw, not after rounding to 1.25", find(hair, "panel-width-drift")?.drift === 1.25, detail(hair));
 }
 
+// ---- 12. uncovered-glyph: a character no vendored face carries ----
+// The prose face ships no U+2713/U+2717, so a ✓ or ✗ is measured in whatever
+// font the machine supplies and the width is not the repo's. A presence
+// finding: it names the character, never a width.
+{
+  const drift = adviseDocument(doc([text("t", 0, 0, 200, 25, { text: "✓ ok" })]));
+  check("a glyph outside the prose face's vendored subset is reported", only(drift, "uncovered-glyph"), detail(drift));
+  const one = find(drift, "uncovered-glyph");
+  check("uncovered-glyph names the text element", one?.elements.join() === "t", JSON.stringify(one?.elements));
+  check("uncovered-glyph carries the codepoint and the family that lacks it",
+    JSON.stringify(one?.codepoints) === JSON.stringify(["U+2713"]) && one?.family === "Nunito", JSON.stringify(one));
+  check("uncovered-glyph's message names the character and its codepoint",
+    one?.message.includes("✓") && one?.message.includes("U+2713") && one?.message.includes("Nunito"), one?.message);
+
+  const both = find(adviseDocument(doc([text("t", 0, 0, 200, 25, { text: "✗ no ✓ yes" })])), "uncovered-glyph");
+  check("one finding per element carries every uncovered codepoint it draws",
+    JSON.stringify(both?.codepoints) === JSON.stringify(["U+2717", "U+2713"]), JSON.stringify(both?.codepoints));
+
+  const covered = adviseDocument(doc([text("t", 0, 0, 200, 25, { text: "+ ok × no − minus" })]));
+  check("characters the vendored subset carries are not reported", covered.length === 0, detail(covered));
+
+  const codeFace = adviseDocument(doc([text("t", 0, 0, 200, 25, { text: "✓ ok", fontFamily: 3 })]));
+  check("the same character is judged against the element's own family",
+    codeFace.length === 0, detail(codeFace));
+
+  const foreign = adviseDocument(doc([text("t", 0, 0, 200, 25, { text: "✓ ok", fontFamily: 999 })]));
+  check("a family dist/ ships no face for is not judged", foreign.length === 0, detail(foreign));
+}
+
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nall advisory cases pass");
 process.exit(fail.length ? 1 : 0);

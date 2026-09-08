@@ -1,0 +1,34 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "tests/fixtures",
+  "appState": {
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {},
+  "elements": [
+    {
+      "id": "tick",
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 120,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "strokeWidth": 2,
+      "fillStyle": "solid",
+      "opacity": 100,
+      "text": "✓ shipped",
+      "originalText": "✓ shipped",
+      "fontSize": 20,
+      "fontFamily": 6,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "autoResize": true,
+      "lineHeight": 1.25
+    }
+  ]
+}

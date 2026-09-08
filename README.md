@@ -109,7 +109,10 @@ Beside the problems, every file that reaches the rules carries its
 **advisories** (`tools/advise.js`): measurements against the house rules —
 arrow–arrow crossings, aspect against the preset, arrow clearance, bends, font
 floors, stroke weight, hue count, `pass`/`fail` by hue alone, panel width drift
-across a band — reported on stdout after the stats line and never refused over,
+across a band, a character the vendored fonts carry no glyph for (`tools/glyphs.js`
+reads the coverage out of the committed woff2 files' own `cmap`, so a tick or an
+arrow that would be measured in the machine's own font is named) — reported on
+stdout after the stats line and never refused over,
 so the exit code never reads them. A quantity finding carries the value it
 measured and the bound it was judged against; a presence finding (a crossing, a
 `pass`/`fail` told apart by hue alone, an arrow thinner than its shape) names

@@ -299,7 +299,11 @@ _Avoid_: brand setup, palette wizard, first-run prompt
 ### Rendering session
 
 **Warm / re-warm**:
-Loading the fonts into the browser session before any text is measured; re-warming when text introduces glyphs the warmed faces do not cover.
+Loading the fonts into the browser session before any text is measured; re-warming when text introduces a character the session has not warmed for. Warming is per character seen, not per glyph carried: a character no face carries is warmed for and still not covered (**glyph coverage**).
+
+**Glyph coverage**:
+Which characters the vendored woff2 files actually carry, read from each file's own `cmap` rather than from the `unicodeRange` Excalidraw declares beside it: the declarations over-claim, and they live in a devDependency the gate cannot reach. A character outside coverage is taken from whatever font the machine supplies, so its measured width is the machine's and not the plugin's; the gate reports it as `uncovered-glyph` and never refuses. The house pair carries no tick, cross or arrow.
+_Avoid_: unicode range, subset (unqualified), font support
 
 **Fingerprint / stale bundle**:
 The hash stamped into the committed browser bundle over its exact inputs. A mismatch means the bundle is stale and every browser call refuses to run.

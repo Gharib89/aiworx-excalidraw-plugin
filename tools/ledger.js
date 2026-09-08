@@ -75,6 +75,32 @@ export function buildLedger({ before, after, recentered = [] }) {
     note("text-metrics-recomputed", `recomputed text metrics on ${named(remeasured)}`, remeasured);
   }
 
+  // The seed feeds Rough.js jitter, so re-deriving one repaints every stroke on
+  // that element — the largest change a pass can make to how the picture looks,
+  // and the app-minted wobble it replaces is gone for good. Silent on a
+  // generated diagram, whose seeds are already derived (CONTEXT.md, **Derived
+  // identity**); it fires on the first pass over a file the Excalidraw app
+  // minted the ids for, and on no pass after that.
+  // `seed` alone: pinVolatile also rewrites `versionNonce` and `updated`, which
+  // are reconciliation and clock bookkeeping with no visual effect and move on
+  // essentially every pass, so reporting them would bury the ledger in noise.
+  const repainted = now
+    .filter((e) => {
+      const was = wasById.get(e.id);
+      return was !== undefined && was.seed !== e.seed;
+    })
+    .map((e) => e.id);
+  if (repainted.length) {
+    // The count, not `named()`: a first pass repaints every element in the file,
+    // so an inline list of 200 ids is noise rather than something to act on. The
+    // ids are still in `elements`, which is what that field means.
+    note(
+      "stroke-jitter-repainted",
+      `repainted hand-drawn stroke jitter on ${repainted.length} ${plural(repainted.length, "element")}`,
+      repainted,
+    );
+  }
+
   // What a binding points at, not how it is aimed: focus and gap drift with
   // every re-measurement, and that drift is not a repair anyone needs told. A
   // null in boundElements names nothing, so clearing one is not a repair either

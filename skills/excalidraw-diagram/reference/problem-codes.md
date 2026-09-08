@@ -181,6 +181,7 @@ run reads exactly like a run that did nothing.
 | code | status | `elements` | extra fields | reports that |
 |---|---|---|---|---|
 | `text-metrics-recomputed` | live | [text, …] | — | a text's measured box moved by more than half a pixel — the fonts decided this, not you |
+| `stroke-jitter-repainted` | live | [element, …] | — | an element's `seed` was re-derived from its id, repainting its hand-drawn stroke jitter — the wobble a drawing app minted, replaced on the first pass and stable after it |
 | `binding-repaired` | live | [element, …] | — | what a binding points at changed — an arrow's start/end target, a bound label's `containerId`, or an element's `boundElements` back-reference: a dangling binding dropped, a one-sided one healed |
 | `frame-membership-repaired` | live | [element, …] | `moves` | an element's `frameId` changed — stale membership the geometry no longer supports, cleared and re-inferred |
 | `label-recentered` | live | [text, …] | `labels` | a bound label was re-centered onto its arrow's path, undoing a hand move |
@@ -205,10 +206,19 @@ a repair worth reporting. `binding-repaired` reads only *what* a binding points
 at, never how it is aimed — `focus` and `gap` drift with every re-measurement,
 and a `null` in `boundElements` names nothing, so clearing one is not a repair.
 
-Two of these are genuinely lossy and worth reading closely:
-`image-payload-dropped` throws bytes away, and `element-dropped` ends a
-tombstone's chance of coming back. The rest restore what the pipeline
-guarantees.
+`stroke-jitter-repainted` reads `seed` alone. The same pass re-derives
+`versionNonce` and `updated`, but those are reconciliation and clock
+bookkeeping with no visual effect and they move on nearly every pass, so
+reporting them would bury the ledger. Its message carries the **count** where
+the others name their ids inline — a first pass over a file drawn in the app
+repaints every element in it, and a list of 200 ids names nothing you can act
+on — and `elements` still carries them all.
+
+Three of these are genuinely lossy and worth reading closely:
+`image-payload-dropped` throws bytes away, `element-dropped` ends a
+tombstone's chance of coming back, and `stroke-jitter-repainted` replaces a
+wobble only the app that minted it could reproduce. The rest restore what the
+pipeline guarantees.
 
 ## Advisory codes
 

@@ -76,6 +76,61 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
   }
 }
 
+// ---- stroke jitter: the seed the derivation re-minted, repainting every stroke ----
+{
+  const box = (id, over = {}) => ({ id, type: "rectangle", x: 0, y: 0, width: 10, height: 10, seed: 111, ...over });
+  const before = { elements: [box("r1"), box("r2")], files: {} };
+  const after = { elements: [box("r1", { seed: 222 }), box("r2", { seed: 333 })], files: {} };
+  const { entries } = buildLedger({ before, after, recentered: [] });
+  const e = byCode(entries, "stroke-jitter-repainted");
+  check("a re-derived seed is reported", e !== undefined, codes(entries).join(", "));
+  check("every repainted element is named", JSON.stringify(e?.elements) === '["r1","r2"]', JSON.stringify(e?.elements));
+  // The count, not an inline id list: a first pass repaints every element in the
+  // file, and 200 ids in a message is noise rather than something to act on.
+  check("the jitter line counts them without naming them",
+    e?.message === "repainted hand-drawn stroke jitter on 2 elements", e?.message);
+}
+
+// A generated diagram already carries derived seeds, and so does any file on its
+// second pass — the normal case, which has to stay silent or the entry costs
+// something on every run.
+{
+  const box = (over = {}) => ({ id: "r1", type: "rectangle", x: 0, y: 0, width: 10, height: 10, seed: 111, ...over });
+  const { entries } = buildLedger({
+    before: { elements: [box()], files: {} },
+    after: { elements: [box()], files: {} },
+    recentered: [],
+  });
+  check("an unmoved seed reports nothing", entries.length === 0, codes(entries).join(", "));
+}
+
+// `pinVolatile` rewrites `versionNonce` and `updated` too, and those move on
+// essentially every pass with no visual effect. Only the seed feeds the jitter.
+{
+  const box = (over = {}) => ({
+    id: "r1", type: "rectangle", x: 0, y: 0, width: 10, height: 10, seed: 111, versionNonce: 7, updated: 1700000000, ...over,
+  });
+  const { entries } = buildLedger({
+    before: { elements: [box()], files: {} },
+    after: { elements: [box({ versionNonce: 99, updated: 1 })], files: {} },
+    recentered: [],
+  });
+  check("a moved versionNonce and updated are not a repaint", entries.length === 0, codes(entries).join(", "));
+}
+
+// An element with no before counterpart was not repainted — there is no earlier
+// wobble to have replaced. Same lookup idiom the metrics check uses.
+{
+  const box = (over = {}) => ({ id: "r-new", type: "rectangle", x: 0, y: 0, width: 10, height: 10, seed: 222, ...over });
+  const { entries } = buildLedger({
+    before: { elements: [], files: {} },
+    after: { elements: [box()], files: {} },
+    recentered: [],
+  });
+  check("an element absent from the before document is not a repaint",
+    !codes(entries).includes("stroke-jitter-repainted"), codes(entries).join(", "));
+}
+
 // ---- bindings: restore drops what points at nothing and syncs the back-references ----
 {
   const arrow = (over = {}) => ({ id: "a1", type: "arrow", x: 0, y: 0, width: 10, height: 0, ...over });
@@ -251,7 +306,7 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
 {
   const before = {
     elements: [
-      text("t1"),
+      text("t1", { seed: 111 }),
       { id: "a1", type: "arrow", x: 0, y: 0, width: 10, height: 0, startBinding: { elementId: "gone" } },
       text("t2", { frameId: "f-old" }),
       { id: "r1", type: "rectangle", x: 0, y: 0, width: 5, height: 5, isDeleted: true },
@@ -259,16 +314,20 @@ const byCode = (entries, code) => entries.find((e) => e.code === code);
     files: { f1: { id: "f1", dataURL: "data:image/png;base64,AAAA" } },
   };
   const after = {
-    elements: [text("t1", { width: 140 }), { id: "a1", type: "arrow", x: 0, y: 0, width: 10, height: 0 }, text("t2")],
+    elements: [
+      text("t1", { width: 140, seed: 222 }),
+      { id: "a1", type: "arrow", x: 0, y: 0, width: 10, height: 0 },
+      text("t2"),
+    ],
     files: {},
   };
   const { entries } = buildLedger({ before, after, recentered: [{ id: "t9", containerId: "a9" }] });
-  check("every kind of repair is reported once", entries.length === 6, `${entries.length} entries`);
+  check("every kind of repair is reported once", entries.length === 7, `${entries.length} entries`);
   check("the entries come out in a fixed order",
-    codes(entries).join(",") === "text-metrics-recomputed,binding-repaired,frame-membership-repaired," +
-      "label-recentered,element-dropped,image-payload-dropped",
+    codes(entries).join(",") === "text-metrics-recomputed,stroke-jitter-repainted,binding-repaired," +
+      "frame-membership-repaired,label-recentered,element-dropped,image-payload-dropped",
     codes(entries).join(","));
-  check("the formatted ledger is one line per entry", formatLedger(entries).length === 6,
+  check("the formatted ledger is one line per entry", formatLedger(entries).length === 7,
     `${formatLedger(entries).length} lines`);
 }
 

@@ -21,7 +21,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { NamedError, UsageError, DocumentError } from "../tools/errors.js";
+import { NamedError, UsageError, DocumentError, shown } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, AssetError, LibraryError,
   makeWrap, makeLabel, spliceLibraryItem, authorDiagram,
@@ -243,11 +243,39 @@ await thrown("download with a handle that is not a library source",
 // error: the check reached its verdict and then failed to say so.
 const circular = {};
 circular.self = circular;
+// Circular defeats JSON.stringify, so each of these reaches the String fallback
+// and defeats that too. The bare-object case is the one that matters: it needs no
+// hostile code at all, just Object.create(null) and a self-reference, because a
+// value with no prototype has no toString to convert it.
+const throwingToString = { toString() { throw new Error("boom"); } };
+throwingToString.self = throwingToString;
+const throwingPrimitive = { [Symbol.toPrimitive]() { throw new Error("boom"); } };
+throwingPrimitive.self = throwingPrimitive;
+const noPrototype = Object.create(null);
+noPrototype.self = noPrototype;
+
+const UNPRINTABLE = [
+  ["a BigInt", 1n],
+  ["a circular object", circular],
+  ["a circular object with no prototype", noPrototype],
+  ["a circular object with a throwing toString", throwingToString],
+  ["a circular object with a throwing Symbol.toPrimitive", throwingPrimitive],
+];
+
+// The seam itself, exhaustively: it is the one place the guarantee lives, so a
+// value it cannot render still has to come back as a string rather than a throw.
+for (const [name, bad] of UNPRINTABLE) {
+  let rendered;
+  try { rendered = shown(bad); } catch (e) { rendered = e; }
+  check(`shown renders ${name}`, typeof rendered === "string" && rendered !== "",
+    rendered instanceof Error ? `threw ${rendered.name}: ${rendered.message}` : String(rendered));
+}
+
 // The build never runs — each of these refuses in the options validation ahead
 // of it — so a driver that hands out no page at all is enough to stay chromeless.
 const noPage = (fn) => fn({});
 
-for (const [name, bad] of [["a BigInt", 1n], ["a circular object", circular]]) {
+for (const [name, bad] of UNPRINTABLE) {
   await thrown(`splice with ${name} text mode`,
     () => spliceLibraryItem(join(root, "no-such.excalidrawlib"), { text: bad }), LibraryError);
   await thrown(`label with ${name}`, () => makeLabel(fakeMeasure, { sublabel: 16 })(bad), WrapError);

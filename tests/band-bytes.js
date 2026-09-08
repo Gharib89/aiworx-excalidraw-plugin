@@ -96,13 +96,15 @@ function firstDifference([nameA, a], [nameB, b]) {
  * the pair agrees, and it is what the tree holds at `name`.
  */
 function holdToBytes(name, a, b) {
-  check(`${name}: two runs in a row agree`, a.equals(b),
-    a.equals(b) ? `${a.length} bytes`
+  const agree = a.equals(b);
+  check(`${name}: two runs in a row agree`, agree,
+    agree ? `${a.length} bytes`
       : `${a.length} vs ${b.length} bytes, ${firstDifference(["run 1", a], ["run 2", b])}`);
 
   const committed = readFileSync(join(root, name));
-  check(`${name}: matches the committed bytes`, committed.equals(a),
-    committed.equals(a) ? `${committed.length} bytes`
+  const matches = committed.equals(a);
+  check(`${name}: matches the committed bytes`, matches,
+    matches ? `${committed.length} bytes`
       : `${committed.length} vs ${a.length} bytes, ${firstDifference(["committed", committed], ["regenerated", a])}`);
 }
 

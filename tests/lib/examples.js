@@ -17,20 +17,27 @@ export const artifacts = (root, dir = "examples") =>
   );
 
 /**
- * Every band under `examples/` as `{ generator, artifact }`, both relative to
- * the plugin root and `artifact` without its extension.
+ * Every band under `examples/` as `{ generator, artifact, dark }`, the first two
+ * relative to the plugin root and `artifact` without its extension.
  *
  * A generator is named `gen-<slug>.js` and writes `<slug>.excalidraw` beside
- * itself, which is what lets one walk find both halves. A band that breaks the
+ * itself, which is what lets one walk find both halves. A committed
+ * `<slug>-dark.svg` beside them declares the band has a dark render, which is
+ * what `dark` reports: adding one to another band later is a matter of
+ * committing the file under that name, no suite edit. A band that breaks the
  * convention goes missing from the suites, so the caller checks the walk found
  * something before trusting a green run.
  */
-export const bands = (root, dir = "examples") =>
-  readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) => {
+export const bands = (root, dir = "examples") => {
+  const entries = readdirSync(join(root, dir), { withFileTypes: true });
+  return entries.flatMap((e) => {
     if (e.isDirectory()) return bands(root, `${dir}/${e.name}`);
     const slug = /^gen-(.+)\.js$/.exec(e.name)?.[1];
-    return slug ? [{ generator: `${dir}/${e.name}`, artifact: `${dir}/${slug}` }] : [];
+    if (!slug) return [];
+    const dark = entries.some((s) => s.name === `${slug}-dark.svg`);
+    return [{ generator: `${dir}/${e.name}`, artifact: `${dir}/${slug}`, dark }];
   });
+};
 
 /**
  * Make `dir` a plugin root the example generators can run inside: `tools/` and

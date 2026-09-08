@@ -394,14 +394,14 @@ function labelSpec(label, ramp) {
  *
  * The `text` travels with the extent because ELK **discards a label with no
  * text** — measured here, on elkjs 0.12: an edge label carrying width and height
- * but an empty `text` reserves nothing at all, and the layout comes back
- * identical to one with no labels. ELK does not measure the string; it spends the
- * extent it was given. The text is what makes the label real to it.
+ * but no `text` reserves nothing at all, and the layout comes back identical to
+ * one with no labels. ELK does not measure the string; it spends the extent it
+ * was given. The text is only what makes the label real to it, which is why no
+ * check on it belongs here — `labelSpec` is what refuses a label without text.
  */
 function labelExtent(label) {
   if (!label || typeof label !== "object") return undefined;
   const { text, width, height } = label;
-  if (typeof text !== "string" || text === "") return undefined;
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     return undefined;
   }

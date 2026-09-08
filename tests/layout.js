@@ -990,7 +990,9 @@ const rejectsLayoutError = async (fn) => {
     await rejectsLayoutError(() => graph([a, b], [[a, b]], { placement: "compact" })));
   check("graph refuses corridor spacings that are not pixel counts",
     await rejectsLayoutError(() => graph([a, b], [], { edgeGap: -1 })) &&
-      await rejectsLayoutError(() => graph([a, b], [], { edgeLayerGap: NaN })));
+      await rejectsLayoutError(() => graph([a, b], [], { edgeLayerGap: NaN })) &&
+      await rejectsLayoutError(() => graph([a, b], [], { routeGap: -1 })) &&
+      await rejectsLayoutError(() => graph([a, b], [], { routeGap: "wide" })));
   check("graph refuses a sharedPorts that is not a yes or a no",
     await rejectsLayoutError(() => graph([a, b], [[a, b]], { sharedPorts: 1 })));
   // the engine catches this one, and left alone it answers with a Java class
@@ -1360,6 +1362,75 @@ for (const [axis, direction, size] of [["along y", "down", { height: 50.3 }], ["
     `along ${tight.along} -> ${deep.along}, across ${tight.across} -> ${deep.across}`);
   check("graph edgeGap leaves the turn along the flow where it was",
     wide.along === tight.along, `${tight.along} -> ${wide.along}`);
+}
+
+// ---- graph: routeGap is the same corridor idea between two routes ----
+{
+  // a -> b -> c -> d with a -> c and a -> d both skipping: two routes run down
+  // the same corridor, so what separates them is the route-to-route spacing
+  const twoSkips = async (opts) => {
+    const [a, b, c, d] = ["a", "b", "c", "d"].map(node);
+    const { arrows } = await graph([a, b, c, d], [[a, b], [b, c], [c, d], [a, c], [a, d]], opts);
+    const [inner, outer] = resolveArrows(arrows).slice(3).map(pathOf);
+    const rightmost = (pts) => Math.max(...pts.map(([px]) => px));
+    return rightmost(outer) - rightmost(inner);
+  };
+  const tight = await twoSkips({});
+  const wide = await twoSkips({ routeGap: 40 });
+  check("graph routeGap widens the space two routes down one corridor keep from each other",
+    wide > tight && wide >= 40, `${tight} -> ${wide}`);
+  check("graph routeGap defaults to the engine's own 10px",
+    (await twoSkips({ routeGap: 10 })) === tight, `${tight}`);
+}
+
+// ---- graph: a measured label is the one thing about a label the engine can spend ----
+{
+  // the engine is told a label exists only when the label carries its own
+  // extent. Every other form leaves the layout exactly where it was, which is
+  // what keeps an unmeasured band's artifact byte-identical.
+  const laidOut = async (label) => {
+    const [a, b, c] = ["a", "b", "c"].map(node);
+    const { g } = await graph([a, b, c], [[a, b], [b, c], [a, c, label === undefined ? {} : { label }]]);
+    return `${g.width}x${g.height}`;
+  };
+  const bare = await laidOut(undefined);
+  check("a bare-string label tells the engine nothing", (await laidOut("blocked")) === bare, bare);
+  check("a label object with no extent tells the engine nothing",
+    (await laidOut({ text: "blocked" })) === bare, bare);
+  check("a non-positive extent tells the engine nothing",
+    (await laidOut({ text: "blocked", width: 0, height: 20 })) === bare, bare);
+  const measured = await laidOut({ text: "blocked", width: 96, height: 20 });
+  check("a measured label's extent reaches the engine", measured !== bare, `${bare} -> ${measured}`);
+  const wider = await laidOut({ text: "blocked", width: 200, height: 20 });
+  check("and a wider label buys more room than a narrow one", wider !== measured,
+    `${measured} -> ${wider}`);
+}
+
+// ---- the extent is the engine's; the drawn label is the pipeline's ----
+{
+  // the pipeline re-measures bound text on every pass, so an author-supplied
+  // dimension on the element would fight that measurement rather than inform it
+  const measured = { text: "blocked", fontSize: 13, width: 96, height: 20 };
+  const [a, b] = ["a", "b"].map(node);
+  Object.assign(a, { x: 0, y: 0 });
+  Object.assign(b, { x: 0, y: 200 });
+  const direct = arrowBetween(a, b, { label: measured });
+  check("arrowBetween keeps a measured label's extent off the drawn label",
+    direct.label.width === undefined && direct.label.height === undefined,
+    Object.keys(direct.label).sort().join(","));
+  check("and keeps everything else the label said", direct.label.text === "blocked"
+    && direct.label.fontSize === 13, JSON.stringify(direct.label));
+
+  const [c, d, e] = ["c", "d", "e"].map(node);
+  const { arrows } = await graph([c, d, e], [[c, d], [d, e], [c, e, { label: measured }]]);
+  const viaGraph = resolveArrows(arrows)[2];
+  check("graph does the same for the label it forwarded to the engine",
+    viaGraph.label.width === undefined && viaGraph.label.height === undefined,
+    Object.keys(viaGraph.label).sort().join(","));
+  // the caller's own object is theirs; a helper that ate its extent would break
+  // the next panel that reuses it
+  check("and neither mutates the label the author handed over",
+    measured.width === 96 && measured.height === 20, JSON.stringify(measured));
 }
 
 // ---- graph: sharedPorts merges a fan onto one port instead of one each ----

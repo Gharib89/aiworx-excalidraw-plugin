@@ -130,7 +130,9 @@ rebuilds by hand what already exists — the first three live under
 - `standoff` is the gap an arrow keeps from both shapes it spans.
 - `label: { text, strokeColor: palette.ink }` gives an edge label ink of its own.
   A label inherits the arrow's `strokeColor` by default, so a role-coloured
-  arrow fails step 4's contrast rule through its own label.
+  arrow fails step 4's contrast rule through its own label. On a `graph` edge,
+  pass `await label(text)` instead of the bare text and the engine spaces its
+  routes around the room the label needs.
 - A frame lists its `children` by id and then sizes itself around them. One
   without that list is a `SkeletonError` at the door.
 

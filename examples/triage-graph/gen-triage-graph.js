@@ -5,25 +5,30 @@
  * visible working rather than described.
  *
  * The same seven states and eight transitions are laid out twice, one per
- * frame, so `direction`, `gap` and `layerGap` can be seen doing the work: the
- * node set and the edge list are shared, and only the layout options — and the
- * per-edge offsets those options force, which is a lesson of its own — differ.
- * `placement` is the one layout option deliberately *equal* in both, because
- * what it buys is not a difference between the pictures: see `LAYOUTS`.
+ * frame, so `direction`, `gap`, `layerGap` and `routeGap` can be seen doing the
+ * work: the node set and the edge list are shared, and only the layout options
+ * differ. `placement` and `routeGap` are the two deliberately *equal* in both,
+ * because what they buy is not a difference between the pictures: see `LAYOUTS`.
  *
- * Every edge that names no offset takes `graph()`'s engine route: the corridor
- * ELK left when it placed the nodes, read back rather than redrawn. That is the
- * half of the old hand-routing that is gone — no `via` anywhere in this file.
+ * **Every** edge here takes `graph()`'s engine route: the corridor ELK left when
+ * it placed the nodes, read back rather than redrawn. No `via` anywhere in this
+ * file and — since the labels started carrying their own extent — no
+ * `originAt` / `landAt` either, so nothing in this band revokes a route.
+ *
+ * That is what the `label()` helper buys. It measures the text and hands back
+ * the string with its `width` and `height`, `graph()` passes that extent to the
+ * engine, and the engine spaces its ports around the room the labels will take.
+ * The fractions this file used to carry existed only because ELK was never told
+ * the labels were there; told, it clears them itself.
  *
  * The machine is drawn honestly, cycles included. `agent-working` hands back to
  * `needs-triage`, and `needs-triage` ↔ `needs-info` is a two-way pair — see the
  * note above `transitions` for which legs the triage-labels doc states and which
  * are read off it. The engine gives the pair its own two ports, so the arrows
- * never share a line; what it cannot do is keep an arrow off a neighbour's
- * *label*, because ELK spaced those ports for the arrows and was never told the
- * labels exist. That, and nothing else, is what the `originAt` / `landAt` in
- * this file are for — and where not even a fraction opens a gap, the label
- * comes off instead, which is why the pair is the one unlabelled transition.
+ * never share a line; what an extent cannot buy is room *between* two legs
+ * running the same diagonal, because a bound label rides at the middle of its
+ * own leg, which is where the other leg passes. The label comes off instead,
+ * which is why the pair is the one unlabelled transition.
  *
  * `needs-triage` leads both pictures because `graph()` reads the order the states
  * were listed in — `modelOrder`, on by default — and that order picks which edge
@@ -80,24 +85,23 @@ const STATES = [
 // nodes, which is the only place they can come from consistently under two
 // different `direction`s.
 //
-// `offsets` is the one thing the engine route cannot supply. ELK spaced its ports
-// for the *arrows*, never having been told the labels exist — `graph()` takes its
-// nodes already measured but its labels as text, and layout.js measures no text —
-// so the fan out of `needs-triage` puts a neighbouring arrow through a label at
-// 0px clearance. A fraction revokes that edge's engine route and hands the path
-// back, which is why these numbers still read the way they always did.
+// Every label goes through `label()`, which measures it. That is the whole
+// difference between this file and the one that carried four `originAt` /
+// `landAt`: a measured label hands `graph()` a `width` and `height`, `graph()`
+// hands them to the engine, and the engine spaces its ports around the room the
+// label needs instead of through it. The fractions were only ever standing in
+// for a width nobody had measured.
 //
-// They live with the layout rather than here because a fraction runs along the
-// *facing* edge, and which edge faces depends on `direction`: 0.2 is a fifth of
-// the way across the bottom of a box laid out "down", and a fifth of the way down
-// its side laid out "right". One set of numbers cannot serve both pictures.
-const transitions = ({ tag, offsets = {} }, [triage, info, ready, human, working, wontfix, closed]) => {
-  const at = (name) => ({ id: `${tag}-${name}`, ...(offsets[name] ?? {}) });
+// The extent does not reach the drawn label — the pipeline re-measures bound text
+// every pass and owns that size. It is spent once, on the layout, and dropped.
+const transitions = async ({ tag }, [triage, info, ready, human, working, wontfix, closed], label) => {
+  const at = (name) => ({ id: `${tag}-${name}` });
   // A label rides at the middle of its own arrow, so its width is what decides
-  // whether a neighbouring edge can pass. Set smaller than the state names on
-  // purpose: at the body size these read as wide as the boxes they sit between,
-  // and no amount of offsetting opens a gap for them.
-  const says = (text) => ({ text, fontSize: 13 });
+  // whether a neighbouring edge can pass — and now the width the engine is told
+  // about. Set smaller than the state names on purpose: at the body size these
+  // read as wide as the boxes they sit between, and a fan asked to clear labels
+  // that wide spreads further than the picture has room for.
+  const says = async (text) => ({ label: await label(text, { fontSize: 13 }) });
   return [
     // The two-way pair, and the one transition here that carries no label. The
     // engine gives the pair two ports of its own, so the legs never share a
@@ -105,90 +109,80 @@ const transitions = ({ tag, offsets = {} }, [triage, info, ready, human, working
     // diagonally apart, and two legs between diagonally-opposite boxes run
     // close to the same diagonal. A bound label rides at the middle of its own
     // leg, which is where the other leg passes, so a label between them is
-    // `text-struck-by-arrow` at 0px clearance for *every* fraction: an
-    // originAt / landAt moves an endpoint along one edge and barely moves the
-    // midpoint. Labelling one direction only is the remedy the authoring
-    // reference names, and here even one is one too many — the pair reads from
-    // its two arrowheads, and the meanings are in docs/agents/triage-labels.md.
+    // `text-struck-by-arrow` at 0px clearance whatever room the engine reserves
+    // for it: an extent moves the two legs apart, and the midpoint each label
+    // rides at moves with them. Labelling one direction only is the remedy the
+    // authoring reference names, and here even one is one too many — the pair
+    // reads from its two arrowheads, and the meanings are in
+    // docs/agents/triage-labels.md.
     [triage, info, at("ask")],
     [info, triage, at("answered")],
-    [triage, ready, { ...at("ready"), label: says("fully specified") }],
-    // needs-triage leaves by one and the same edge four times over. Left alone
-    // every one of those arrows departs from the middle of it and stacks the
-    // labels on one spot, so the offsets fan the departures out. `modelOrder`
-    // fixes the targets in the order they are listed above, which is what makes
-    // one set of fractions hold: the fan departs the *facing* edge, so the
-    // nearest target takes the largest fraction and the farthest the smallest,
-    // and the legs spread instead of crossing.
-    [triage, human, { ...at("human"), label: says("human only") }],
+    [triage, ready, { ...at("ready"), ...(await says("fully specified")) }],
+    // needs-triage leaves by one and the same edge four times over — the fan
+    // that used to need a fraction per leg. Two of those legs carry a measured
+    // label, and that is what the engine spaces them by. `modelOrder` fixes the
+    // targets in the order they are listed above, so the legs leave in reading
+    // order and spread instead of crossing.
+    [triage, human, { ...at("human"), ...(await says("human only")) }],
     [triage, wontfix, at("wontfix")],                   // unlabelled because the arrowhead says it all
-    [ready, working, { ...at("claim"), label: says("/ship claims it") }],
-    [working, triage, { ...at("handback"), label: says("blocked") }],   // the cycle
-    [working, closed, { ...at("merged"), label: says("merged") }],
+    [ready, working, { ...at("claim"), ...(await says("/ship claims it")) }],
+    [working, triage, { ...at("handback"), ...(await says("blocked")) }],   // the cycle
+    [working, closed, { ...at("merged"), ...(await says("merged")) }],
   ];
 };
 
-// One entry per frame. The band's whole claim is that these four options — and
+// One entry per frame. The band's whole claim is that these five options — and
 // nothing else — separate the two pictures, so the caption under each graph is
 // built from this object rather than typed beside it: a drawn caption that can
 // drift from the call it describes is a lie the gate cannot catch.
 //
 // `placement` is the same value in both, because it is not what separates them:
-// it is what makes the handback edge drawable at all. Under the default
-// "balanced" placement that edge came back with three direction changes in each
-// frame — `too-many-bends` twice over, the only advisory this band could not
-// offset its way out of, because a bend count is the engine's to spend and no
-// fraction moves it.
+// it is what keeps the labels clear. Under the default "balanced" placement the
+// engine settles `needs-triage`'s fan close enough together that two labels take
+// an arrow through them — `text-struck-by-arrow`, measured at 0px and 2.3px
+// clearance — however much room the extents ask for, because the strategy is
+// what decides where along its layer a node lands and therefore how far apart
+// the legs leave. "straight" is bought, not free: it spends bends on the
+// `human` and `handback` legs, which is the `too-many-bends` advisory this band
+// carries in both frames and the trade `placement` names in the reference.
 const LAYOUTS = [
   {
     tag: "down",
-    opts: { direction: "down", gap: 110, layerGap: 96, placement: "straight" },
-    offsets: {
-      ask: { originAt: 0.22, landAt: 0.8 },
-      ready: { originAt: 0.92 },
-      human: { originAt: 0.62 },
-      wontfix: { originAt: 0.34 },
-    },
+    opts: { direction: "down", gap: 150, layerGap: 60, routeGap: 20, placement: "straight" },
     title: "graph() lays out the triage labels",
     frame: 'direction "down" — the triage state machine, cycles and all',
-    note: "Every unoffset edge follows the corridor the engine left when it placed the nodes — "
-      + "read back, not redrawn, so no edge here is hand-routed. placement \"straight\" is what "
-      + "lets the handback edge take that corridor in two bends instead of three: the engine "
-      + "spends the same bends on the short edges to keep the long one straight, which is the "
-      + "one thing an originAt / landAt cannot buy. What the fractions still do is the engine's "
-      + "blind spot — spread the four legs leaving needs-triage across its facing edge and move "
-      + "them clear of each other's labels, which ELK spaced its ports without ever being told "
-      + "about. needs-triage leads because modelOrder makes the order the states were listed in "
-      + "the tie-break, and that order picks which edge of the cycle gives way — the picture "
-      + "opens where an issue really opens.",
+    note: "Every edge follows the corridor the engine left when it placed the nodes — read "
+      + "back, not redrawn, so nothing here is hand-routed and nothing here is hand-nudged. "
+      + "The five labels come from label(), which measures the text and hands graph() a width "
+      + "and a height; graph() gives the engine those, and the engine spaces its ports around "
+      + "the room they need. That is what retired the four originAt / landAt this band used to "
+      + "carry: a fraction was only ever standing in for a width nobody had measured, and it "
+      + "cost the edge its engine route to do it. needs-triage leads because modelOrder makes "
+      + "the order the states were listed in the tie-break, and that order picks which edge of "
+      + "the cycle gives way — the picture opens where an issue really opens.",
   },
   {
     tag: "right",
-    opts: { direction: "right", gap: 80, layerGap: 190, placement: "straight" },
-    offsets: {
-      ask: { originAt: 0.12, landAt: 0.78 },
-      ready: { originAt: 0.35 },
-      human: { originAt: 0.72 },
-      wontfix: { originAt: 0.95 },
-      claim: { originAt: 0.55, landAt: 0.32 },
-    },
+    opts: { direction: "right", gap: 100, layerGap: 40, routeGap: 20, placement: "straight" },
     title: "same nodes, same edges, laid out sideways",
     frame: 'direction "right" — the same graph, respaced',
-    note: "Same states, same transitions, three different numbers — placement is the fourth "
-      + "option and deliberately the same in both. gap spaces the states inside a layer, "
-      + "layerGap spaces the layers themselves, and direction turns the flow on its side. The "
-      + "engine routes follow on their own, because they are read back from the layout rather "
-      + "than written beside it — every originAt / landAt above still had to be picked again, "
-      + "because a fraction runs along whichever edge now faces its target.",
+    note: "Same states, same transitions, three different numbers — placement and routeGap are "
+      + "the same in both. gap spaces the states inside a layer, layerGap spaces the layers "
+      + "themselves, routeGap spaces two routes sharing one corridor, and direction turns the "
+      + "flow on its side. The engine routes and the label clearances both follow on their own, "
+      + "which is the whole point: the fractions this panel used to carry had to be picked "
+      + "again from scratch here, because a fraction runs along whichever edge now faces its "
+      + "target — a measured extent is read the same way in either direction.",
   },
 ];
 
-const caption = ({ direction, gap, layerGap, placement }) =>
-  `direction: "${direction}" · gap: ${gap} · layerGap: ${layerGap} · placement: "${placement}"`;
+const caption = ({ direction, gap, layerGap, routeGap, placement }) =>
+  `direction: "${direction}" · gap: ${gap} · layerGap: ${layerGap} · routeGap: ${routeGap}`
+  + ` · placement: "${placement}"`;
 
 await authorDiagram({
   out: join(here, "triage-graph.excalidraw"),
-  build: async ({ measure, wrap, graph, row, column, box, palette: p, PROSE, CODE }) => {
+  build: async ({ measure, wrap, label, graph, row, column, box, palette: p, PROSE, CODE }) => {
     const text = async (str, { fontSize = 16, fontFamily = PROSE, color = p.ink } = {}) => {
       const [m] = await measure([{ text: str, fontSize, fontFamily }]);
       return { type: "text", text: str, fontSize, fontFamily, strokeColor: color,
@@ -213,7 +207,7 @@ await authorDiagram({
     const panels = [];
     for (const [i, layout] of LAYOUTS.entries()) {
       const nodes = await states(layout.tag);
-      const { g, arrows } = await graph(nodes, transitions(layout, nodes), {
+      const { g, arrows } = await graph(nodes, await transitions(layout, nodes, label), {
         ...layout.opts,
         standoff: 10, strokeColor: p.grey.stroke, strokeWidth: 2, endArrowhead: "triangle",
       });

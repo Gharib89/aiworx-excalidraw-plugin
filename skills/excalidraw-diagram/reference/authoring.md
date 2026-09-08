@@ -10,6 +10,7 @@ use. This table is the whole surface; the sections below detail each one.
 |---|---|---|---|
 | `measure` | `await measure([{ text, fontSize, fontFamily }, …])` | one `{ width, height }` per item, at the real rendered size | [Measuring](#measuring) |
 | `wrap` | `await wrap(text, maxWidth, { fontSize, fontFamily })` | `{ text, width, height, lines }`, never wider than `maxWidth` | [Measuring](#measuring) |
+| `label` | `await label(text, { fontSize, fontFamily })` | an arrow label carrying its own `{ width, height }` — what lets `graph` space the engine's ports around it | [Measuring](#measuring) |
 | `palette` | constant | the brand palette: `roles`, `grey`, `ink`, `canvas`, `fontFamily` | [palette.md](palette.md) |
 | `PROSE` | constant | the `fontFamily` of the house prose face | [palette.md](palette.md) |
 | `CODE` | constant | the `fontFamily` of the house code face | [palette.md](palette.md) |
@@ -22,7 +23,7 @@ use. This table is the whole surface; the sections below detail each one.
 | `uniformWidth` | `uniformWidth(measurements, { padding, round })` | one width for the whole set — the widest item plus padding, on the `round` pitch | [Composing layout](#composing-layout) |
 | `arrowBetween` | `arrowBetween(a, b, { standoff, route, via, label, originAt, landAt, ...style })` | a deferred arrow spanning both shapes, placed once every mover has run | [Composing layout](#composing-layout) |
 | `fanOut` | `fanOut(source, targets, { spread, ...arrowOpts })` | an array of deferred arrows, one per target, landings spread evenly off one shared origin | [Composing layout](#composing-layout) |
-| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, edgeGap, edgeLayerGap, entry, exit, modelOrder, placement, sharedPorts, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
+| `graph` | `await graph(nodes, edges, { direction, gap, layerGap, edgeGap, edgeLayerGap, routeGap, entry, exit, modelOrder, placement, sharedPorts, ...arrowOpts })` | `{ g, arrows }` — a group whose nodes a layout engine placed in layers, and one deferred arrow per edge, each on the engine's own route | [Laying out a graph](#laying-out-a-graph) |
 | `fromMermaid` | `await fromMermaid(source)` | `{ nodes, edges }` built from a mermaid flowchart, in the shape `graph` takes | [Ingesting mermaid](#ingesting-mermaid) |
 | `flatten` | `flatten(nodes)` | the elements inside nested groups, unrolled flat | [Composing layout](#composing-layout) |
 | `image` | `await image(path, { width, height, ...props })` | an image element; the bytes land in the document's `files` | [Real assets](#real-assets-images-and-library-items) |
@@ -138,6 +139,23 @@ await authorDiagram({
 `wrap` measures word widths, fills lines greedily, then re-measures every line
 and repairs any that render wider — a word that alone exceeds the width is
 broken mid-word — so the returned block **never exceeds the requested width**.
+
+`label` measures one **arrow label** and hands the string back carrying its own
+extent, at the same defaults `arrowBetween` gives a bare string — the ramp's
+`sublabel` size on the house prose face:
+
+```js
+const blocked = await label("blocked");
+// { text: "blocked", fontSize: 16, fontFamily: 5, width: 54, height: 20 }
+```
+
+The result goes wherever a label spec goes — `arrowBetween`'s `label:`, an
+edge's `label:` in `graph`. It is [`graph`](#laying-out-a-graph) that needs the
+extent: an edge label's `width`/`height` is the only thing `graph` can tell the
+layout engine about a label, and it is what makes the engine space its ports
+around a label instead of through it. Measure every label on a **fan** leaving
+one node, where the legs are close enough to strike each other's labels; a lone
+label on an isolated edge gains nothing from the extra call.
 
 `authorDiagram` is hardened at the door and at the exit. A build that returns
 nothing, a non-array, or an element of an unknown type is rejected with a
@@ -545,12 +563,15 @@ return [g, ...arrows];                     // g places like any group; spread th
   **routes** rather than the nodes: how far a route stays off what it passes
   across the flow — the corridor width — and along it, which is where it turns
   inside a layer gap. Both default to `10`, the engine's own margin and the same
-  distance the default `standoff` keeps; widen `edgeGap` to open a corridor for a
-  label the engine never saw. The `standoff` owns the flow coordinate of the
+  distance the default `standoff` keeps. `routeGap` is the third of that family
+  and the only one between two **routes** rather than a route and a node: how far
+  the legs of a fan stay off each other, on both axes at once. Also `10` by
+  default; widening it opens room between two routes sharing one corridor. The
+  `standoff` owns the flow coordinate of the
   leading and trailing run, so a turn the corridor would place behind the point the
   arrow starts from moves out onto it instead: an `edgeLayerGap` under the
   `standoff` buys no earlier turn than the standoff line itself.
-  These ten options are the whole surface: the
+  These eleven options are the whole surface: the
   algorithm is always `layered`, and raw ELK options do not pass through.
 - **The reading order is yours, not the engine's.** Two options decide it, and
   both are worth reaching for before you reach for a caption that apologises:
@@ -608,33 +629,51 @@ return [g, ...arrows];                     // g places like any group; spread th
   - `sharedPorts` (default `false`) merges every edge at a node onto one port, so
     a fan-in arrives as one trunk instead of a port each.
 
-  Two things still fall to you, and both are the gate doing its job — run the
-  build, read the code it names, and fix that edge:
-  - **Labels.** The engine spaced its ports for the *arrows*, never having been
-    told the labels exist: `graph` takes nodes already measured but a label as
-    text. So a labelled fan can still put one arrow through a neighbour's label.
-    Give that leg its own `originAt` / `landAt`, or label only one direction.
-    Where a **two-way pair** ends up diagonally apart, no fraction saves it: both
-    legs run near the same diagonal, a bound label rides at the middle of its own
-    leg — which is where the other leg passes — and a fraction moves an endpoint
-    without moving that middle. Take the label off the pair and let the two
-    arrowheads say it.
-  - **A fraction takes the whole path back.** An `originAt` / `landAt` revokes
-    that edge's engine route and leaves it the straight run, because the corridor
-    was cut for the engine's ports. So a fraction is picked against a straight
-    line. (A `via` revokes the route too,
-    but keeps its own waypoints — the straight run is what a revocation with no
-    waypoints behind it falls to.) Both fractions
-    run along whichever edge **faces** the other node, so the gap they open is a
-    fraction of *that* edge's length — and which edge faces turns with
-    `direction`. Re-pick them per layout: numbers that clear a label along the
-    wide side of a box laid out `"down"` open a much smaller gap along the short
-    side laid out `"right"`, often too small to clear anything. A label rides at
-    the middle of its own arrow, so the gap has to beat half the label's width.
+- **Measure the labels and the engine spaces them.** Pass an edge's `label:` the
+  object [`label()`](#measuring) returns and it carries its own `width`/`height`;
+  `graph` gives the engine that extent, and the engine spaces its ports and
+  corridors around the room the label will take. A bare string tells the engine
+  nothing — it lays out exactly as it always did — so a labelled fan that comes
+  back with `text-struck-by-arrow` is usually a fan whose labels were strings:
+
+  ```js
+  const blocked = await label("blocked");            // measured at the ramp's sublabel size
+  await graph(nodes, [[working, triage, { label: blocked }]]);
+  ```
+
+  The extent is spent on the layout and dropped — the pipeline re-measures bound
+  text every pass and owns the drawn size, so a measured label and a bare string
+  draw identically. The engine's own label *coordinates* are ignored for the same
+  reason.
+
+  One case the extent cannot reach: a **two-way pair** whose legs end up
+  diagonally apart. Both run near the same diagonal, and a bound label rides at
+  the middle of its own leg — which is where the other leg passes — so the two
+  labels move together with the legs however much room the engine reserves. Take
+  the label off the pair and let the two arrowheads say it.
+
+  Where `placement` puts the fan matters as much as the extent: `"balanced"` can
+  settle a fan close enough to strike a label that `"straight"` clears. If the
+  gate names a label strike on measured labels, try the other `placement` before
+  reaching for a fraction.
+- **A fraction takes the whole path back.** An `originAt` / `landAt` revokes
+  that edge's engine route and leaves it the straight run, because the corridor
+  was cut for the engine's ports. So a fraction is picked against a straight
+  line. (A `via` revokes the route too, but keeps its own waypoints — the
+  straight run is what a revocation with no waypoints behind it falls to.) That
+  is why a measured label beats a fraction for label clearance: the extent keeps
+  the route. Reach for a fraction to place an endpoint **you** want somewhere
+  specific — a two-way pair, a layout you are placing by hand. Both fractions
+  run along whichever edge **faces** the other node, so the gap they open is a
+  fraction of *that* edge's length — and which edge faces turns with
+  `direction`. Re-pick them per layout: numbers that open a gap along the
+  wide side of a box laid out `"down"` open a much smaller one along the short
+  side laid out `"right"`, often too small to clear anything.
 - Refusals are `LayoutError` from the call: an empty `nodes` array, an edge whose
   source or target is not in `nodes`, an edge missing an endpoint, a `direction`
   other than `"down"` / `"right"`, a negative or non-finite `gap` / `layerGap` /
-  `edgeGap` / `edgeLayerGap`, an `entry` / `exit` naming a shape outside `nodes`,
+  `edgeGap` / `edgeLayerGap` / `routeGap`,
+  an `entry` / `exit` naming a shape outside `nodes`,
   one node pinned as both, a pin the edges cannot honour (two `entry` nodes with
   an edge between them — one of them cannot be in the first layer), a
   `placement` other than `"balanced"` / `"straight"`, a `modelOrder` or

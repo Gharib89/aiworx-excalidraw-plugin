@@ -4,7 +4,8 @@
  * claims at the API a generator actually calls:
  *
  *   1. wrap never exceeds the requested width — measured, including the
- *      single-long-word case
+ *      single-long-word case; label hands back the extent the same measurement
+ *      gives, at the ramp's rung
  *   2. empty or malformed skeletons, unknown element types and a frame with no
  *      children list are rejected with a named error and nothing is written
  *   3. the geometry gate runs in-process before the file is written
@@ -41,7 +42,8 @@ import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { withExcalidraw, PageError } from "../tools/browser.js";
-import { authorDiagram, reviseDiagram, makeWrap, withAuthoring, PROSE } from "../tools/author.js";
+import { authorDiagram, reviseDiagram, makeWrap, makeLabel, withAuthoring, PROSE }
+  from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = mkdtempSync(join(tmpdir(), "author-api-"));
@@ -66,7 +68,7 @@ const rejectsWith = async (errorName, promise) => {
   }
 };
 
-// ---- 1. wrap honours the requested width, measured ----
+// ---- 1. wrap honours the requested width, and label reports its own extent ----
 await withExcalidraw(async (ex) => {
   const wrap = makeWrap(ex.measureText);
   const prose =
@@ -92,6 +94,27 @@ await withExcalidraw(async (ex) => {
 
   const impossible = await rejectsWith("WrapError", wrap("word", 2, { fontSize: 16 }));
   check("an unsatisfiable width is a WrapError", impossible.ok, impossible.detail);
+
+  // label is the extent graph() spends on the layout, so what it reports has to
+  // be the measurement itself rather than an estimate of one.
+  const label = makeLabel(ex.measureText, { sublabel: 16 });
+  const measured = await label("fully specified");
+  const [direct] = await ex.measureText(
+    [{ text: "fully specified", fontSize: 16, fontFamily: PROSE }]);
+  check("label reports the measured extent",
+    measured.width === direct.width && measured.height === direct.height,
+    `label ${measured.width}x${measured.height} vs measure ${direct.width}x${direct.height}`);
+  check("label takes the ramp's rung and the prose face",
+    measured.fontSize === 16 && measured.fontFamily === PROSE && measured.text === "fully specified",
+    JSON.stringify(measured));
+
+  const smaller = await label("fully specified", { fontSize: 13 });
+  check("a named fontSize measures at that size",
+    smaller.fontSize === 13 && smaller.width < measured.width,
+    `13px ${smaller.width} vs 16px ${measured.width}`);
+
+  const empty = await rejectsWith("WrapError", label(""));
+  check("label refuses text there is nothing to measure", empty.ok, empty.detail);
 });
 
 // The refusals below and the builds after them exercise the authoring API, not

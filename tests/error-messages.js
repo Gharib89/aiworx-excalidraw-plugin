@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { NamedError, UsageError, DocumentError } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, AssetError, LibraryError,
-  makeWrap, spliceLibraryItem, authorDiagram,
+  makeWrap, makeLabel, spliceLibraryItem, authorDiagram,
 } from "../tools/author.js";
 // browser.js is imported for its error classes only — importing never launches
 // Chrome, so this suite stays in the fast (browser-free) target.
@@ -126,6 +126,26 @@ const linked = sites.filter((s) => /https?:\/\//.test(s.args));
 check("no error message links to docs", linked.length === 0,
   linked.map((s) => `${s.file}:${s.line}`).join(", "));
 
+// A refusal formats every value it quotes with `shown`, never with raw
+// JSON.stringify — which throws on a BigInt and on a circular object, replacing
+// the named error with the very TypeError the check exists to prevent.
+//
+// The ban is unconditional inside an adopting module rather than aimed at the
+// caller-supplied values that are actually at risk: which ones those are is not
+// decidable from the source, and a rule with per-site exemptions is one a later
+// refusal talks itself out of. `shown` renders a module-owned constant
+// identically, so paying it everywhere costs nothing.
+//
+// Importing `shown` is what opts a module in. Elsewhere the idiom still appears
+// on values that provably serialise (a JSON.parse result), where a ban is noise.
+const adopters = new Set(readdirSync(toolsDir).filter((f) =>
+  f.endsWith(".js") && /\bshown\b[^\n]*from "\.\/errors\.js"/.test(readFileSync(join(toolsDir, f), "utf8"))));
+check("a module imports the shared value formatter", adopters.size > 0, [...adopters].join(", "));
+
+const rawJson = sites.filter((s) => adopters.has(s.file) && /JSON\.stringify\(/.test(s.args));
+check("no refusal in a shown-adopting module formats a value with raw JSON.stringify",
+  rawJson.length === 0, rawJson.map((s) => `${s.file}:${s.line} ${s.cls}`).join(", "));
+
 // ---- 2. the composed message carries all three ----
 
 const CLASSES = [
@@ -199,6 +219,33 @@ await thrown("splice from a missing library", () => spliceLibraryItem(join(root,
 // index refusal is checkable offline; the rest live in tests/library.js.
 await thrown("download with a handle that is not a library source",
   () => downloadLibrary("../../etc/passwd"), LibraryIndexError);
+
+// ---- 4. a refusal survives the value it refuses ----
+
+// JSON.stringify throws on both of these, so a refusal that formatted the value
+// with it raised a TypeError out of the error path instead of its own named
+// error: the check reached its verdict and then failed to say so.
+const circular = {};
+circular.self = circular;
+// The build never runs — each of these refuses in the options validation ahead
+// of it — so a driver that hands out no page at all is enough to stay chromeless.
+const noPage = (fn) => fn({});
+
+for (const [name, bad] of [["a BigInt", 1n], ["a circular object", circular]]) {
+  await thrown(`splice with ${name} text mode`,
+    () => spliceLibraryItem(join(root, "no-such.excalidrawlib"), { text: bad }), LibraryError);
+  await thrown(`label with ${name}`, () => makeLabel(fakeMeasure, { sublabel: 16 })(bad), WrapError);
+  await thrown(`authorDiagram with ${name} preset`,
+    () => authorDiagram({ out: "x.excalidraw", build: async () => [], preset: bad, driver: noPage }),
+    SkeletonError);
+  await thrown(`authorDiagram with ${name} in the register`,
+    () => authorDiagram({
+      out: "x.excalidraw", build: async () => [], register: { roughness: bad }, driver: noPage,
+    }), SkeletonError);
+  await thrown(`stack with ${name} direction`, () => stack([rect("a")], { direction: bad }), LayoutError);
+  await thrown(`arrowBetween with ${name} label`,
+    () => arrowBetween(rect("a"), rect("b"), { label: bad }), LayoutError);
+}
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nevery error clears the bar");
 process.exit(fail.length ? 1 : 0);

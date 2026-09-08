@@ -31,7 +31,7 @@ import { verifyDocument, KNOWN, isForeignFont } from "./verify.js";
 import { stack, row, column, box, uniformWidth, flatten, resolveArrows, rampedLayout } from "./layout.js";
 import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "./presets.js";
 import { makeFromMermaid } from "./mermaid.js";
-import { NamedError, DocumentError } from "./errors.js";
+import { NamedError, DocumentError, shown } from "./errors.js";
 import { loadBrandPalette } from "./brand.js";
 import { stableId, pinVolatile, PINNED_TIME } from "./identity.js";
 
@@ -196,7 +196,7 @@ export function makeWrap(measure) {
 export function makeLabel(measure, ramp) {
   return async function label(text, { fontSize = ramp.sublabel, fontFamily = PROSE } = {}) {
     if (typeof text !== "string" || text === "") {
-      throw new WrapError(`needs a non-empty string to measure, got ${JSON.stringify(text)}`, {
+      throw new WrapError(`needs a non-empty string to measure, got ${shown(text)}`, {
         where: "label", next: "Pass the label's text as a string.",
       });
     }
@@ -299,7 +299,7 @@ function makeImage(ex, files) {
  */
 export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" } = {}) {
   if (text !== "keep" && text !== "drop") {
-    throw new LibraryError(`unknown text mode ${JSON.stringify(text)}`, {
+    throw new LibraryError(`unknown text mode ${shown(text)}`, {
       where: path,
       next: 'Pass text: "keep" to splice the item\'s own labels, or "drop" to remove the ones outside the house pair.',
     });
@@ -316,14 +316,14 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
   if (!Array.isArray(items) || items.length === 0) {
     throw new LibraryError("no library items found", {
       where: path,
-      next: `Pass a v1 { library: [...] } or v2 { libraryItems: [...] } document, not type ${JSON.stringify(data?.type)}.`,
+      next: `Pass a v1 { library: [...] } or v2 { libraryItems: [...] } document, not type ${shown(data?.type)}.`,
     });
   }
   const picked =
     typeof item === "string" ? items.find((it) => it.name === item) : items[item];
   const noSuchItemError = () => {
     const names = items.map((it, i) => it.name ?? `#${i}`).join(", ");
-    return new LibraryError(`no item ${JSON.stringify(item)}`, {
+    return new LibraryError(`no item ${shown(item)}`, {
       where: path, next: `Pick one of its ${items.length}: ${names}.`,
     });
   };
@@ -344,7 +344,7 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
     // The drop's own dead end reads nothing like a missing item, so it says so:
     // pointing an author back at the item that just failed is no next action.
     if (live.length) {
-      throw new LibraryError(`item ${JSON.stringify(item)} is text outside the house pair and nothing else`, {
+      throw new LibraryError(`item ${shown(item)} is text outside the house pair and nothing else`, {
         where: path,
         next: "Pick an item that carries a pictogram — dropping this one's text leaves nothing to splice.",
       });
@@ -360,7 +360,7 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
   const usable = sourceIds.filter((id) => typeof id === "string" && id !== "");
   if (usable.length !== sourceIds.length || new Set(usable).size !== usable.length) {
     throw new LibraryError(
-      `item ${JSON.stringify(item)} has elements without a distinct id`,
+      `item ${shown(item)} has elements without a distinct id`,
       {
         where: path,
         next: "Re-export the item from Excalidraw, which gives every element its own id.",
@@ -509,12 +509,12 @@ function validateSkeleton(built) {
   const ids = new Set();
   skeleton.forEach((el, i) => {
     if (!el || typeof el !== "object" || Array.isArray(el)) {
-      throw new SkeletonError(`is not an element object (${JSON.stringify(el)})`, {
+      throw new SkeletonError(`is not an element object (${shown(el)})`, {
         where: `skeleton[${i}]`, next: "Return a plain object with a type for every skeleton entry.",
       });
     }
     if (!KNOWN.has(el.type)) {
-      throw new SkeletonError(`has unknown element type ${JSON.stringify(el.type)}`, {
+      throw new SkeletonError(`has unknown element type ${shown(el.type)}`, {
         where: `skeleton[${i}]`, next: `Use one of: ${[...KNOWN].join(", ")}.`,
       });
     }
@@ -522,9 +522,10 @@ function validateSkeleton(built) {
     // so a missing list surfaces as a bare TypeError from inside the page
     if (el.type === "frame" && !Array.isArray(el.children)) {
       throw new SkeletonError(
-        // the type, not the value: serialising a BigInt or a circular object
-        // would throw and replace this error with the TypeError it exists to prevent
-        `(frame ${JSON.stringify(el.id ?? el.name ?? "unnamed")}) has no children array, got `
+        // the type, not the value: the complaint is about the shape of `children`,
+        // and "got a number" tells an author what to fix where printing the
+        // number itself would not
+        `(frame ${shown(el.id ?? el.name ?? "unnamed")}) has no children array, got `
         + (el.children === undefined ? "nothing" : typeof el.children),
         {
           where: `skeleton[${i}]`,
@@ -537,7 +538,7 @@ function validateSkeleton(built) {
     // converter silently drop the second element (console.error only)
     if (el.id != null) {
       if (ids.has(el.id)) {
-        throw new SkeletonError(`(${el.type}) reuses id ${JSON.stringify(el.id)}`, {
+        throw new SkeletonError(`(${el.type}) reuses id ${shown(el.id)}`, {
           where: `skeleton[${i}]`, next: "Give it a unique id.",
         });
       }
@@ -615,7 +616,7 @@ function validateAuthorOptions(
   }
   for (const key of Object.keys(options)) {
     if (!accepted.has(key)) {
-      throw new SkeletonError(`has unknown option ${JSON.stringify(key)}`, {
+      throw new SkeletonError(`has unknown option ${shown(key)}`, {
         where: "options", next: `Use one of: ${[...named].join(", ")}.`,
       });
     }
@@ -644,7 +645,7 @@ function validateDriver(driver) {
 function validatePreset(preset) {
   if (preset === undefined) return DEFAULT_PRESET;
   if (typeof preset !== "string" || !Object.hasOwn(PRESETS, preset)) {
-    throw new SkeletonError(`is ${JSON.stringify(preset)}`, {
+    throw new SkeletonError(`is ${shown(preset)}`, {
       where: "preset", next: `Use one of: ${PRESET_NAMES.join(", ")}.`,
     });
   }
@@ -668,12 +669,12 @@ function validateRegister(register) {
   for (const [key, value] of Object.entries(register)) {
     const spec = REGISTER[key];
     if (!spec) {
-      throw new SkeletonError(`has unknown property ${JSON.stringify(key)}`, {
+      throw new SkeletonError(`has unknown property ${shown(key)}`, {
         where: "register", next: `Use one of: ${Object.keys(REGISTER).join(", ")}.`,
       });
     }
     if (!spec.accepts(value)) {
-      throw new SkeletonError(`is ${JSON.stringify(value)}`, {
+      throw new SkeletonError(`is ${shown(value)}`, {
         where: `register.${key}`, next: `Pass ${spec.expected}.`,
       });
     }
@@ -785,7 +786,7 @@ function planBindingStitches(skeleton) {
       if (targetType === undefined || CONVERTER_BINDABLE.has(targetType)) continue;
       if (ref.id == null) {
         throw new SkeletonError(
-          `{ type: ${JSON.stringify(ref.type)} } has no id to stitch a binding to`,
+          `{ type: ${shown(ref.type)} } has no id to stitch a binding to`,
           {
             where: `arrow ${end}`,
             next: `Declare the ${ref.type} as its own element with an id and bind with ${end}: { id }.`,

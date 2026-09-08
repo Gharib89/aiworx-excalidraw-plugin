@@ -39,6 +39,24 @@ export class NamedError extends Error {
   }
 }
 
+/**
+ * A rejected value, rendered for its own message. JSON reads best and is what the
+ * refusals show, but it throws on a bigint and on a circular object, and drops
+ * `undefined` — and an error about a bad value must not fail on the value.
+ *
+ * It lives beside NamedError because it is part of the same contract: a check
+ * that reached a verdict has to be able to say so, whatever it was handed. Every
+ * refusal that quotes a caller's value goes through here, and
+ * `tests/error-messages.js` pins that for the modules which import it.
+ */
+export const shown = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+
 /** A CLI was invoked wrongly: print the usage text, exit 2, do nothing else. */
 export class UsageError extends NamedError {}
 

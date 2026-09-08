@@ -7,6 +7,9 @@
   `tools/layout.js` since `graph()` landed
 - **Amended**: ticket #220 — the cut's group is sized to its routes (see
   [Amendment](#amendment--the-cuts-group-is-sized-to-its-routes-220-2026-09-07))
+- **Amended**: ticket #214 — the house owns the flow coordinate of the leading
+  and trailing run (see
+  [Amendment](#amendment--the-house-owns-the-flow-coordinate-of-the-leading-and-trailing-run-214-2026-09-08))
 
 ## Context
 
@@ -43,16 +46,7 @@ The house still **owns** the edges; ELK **routes** them.
    bindings, the finish register and gate checking are untouched. Only the
    intermediate points, and the cross coordinate of each endpoint, now come from
    ELK. This is the half of the old principle that was load-bearing, and it is
-   kept in full. (Amended by #214: the house owns the flow coordinate of the
-   leading and trailing **run**, not only of the two endpoints. The corridor ELK
-   turns inside and the `standoff` the house starts from are independent
-   distances, so a bend could land behind the point the arrow starts from — or
-   past the point it ends at — and the route doubled back over itself before
-   turning. A bend outside the endpoints' span is now pulled onto the endpoint it
-   overshot; ELK keeps every cross coordinate, and with it the path it found
-   around the nodes. The pull needs a clear pixel to act on, because bends are
-   held on whole pixels by point 3 while a measured node box is fractional: an
-   overshoot under a pixel is that rounding rather than a backtrack.)
+   kept in full.
 2. **`route` names four states, three of them values.** `"engine"` is ELK's path
    and `graph()`'s default; `"orthogonal"` is the existing single mid-gap jog;
    `"direct"` is the straight run, previously the unnamed default and now sayable
@@ -103,17 +97,6 @@ The house still **owns** the edges; ELK **routes** them.
   revoking: rejected on measurement. Tried on `examples/triage-graph`, it moved
   the struck-label clearance from 2.2px to 0px — a hybrid path is worse than
   either party's path alone.
-- **Trimming the bend the standoff already passed** instead of clamping it
-  (#214): rejected. Dropping the bend outright leaves the leading segment running
-  diagonally from the endpoint to the bend after it — the same worse-than-either
-  geometry point 5 revokes a hybrid path for.
-- **Dropping to the straight run** when a bend falls behind its endpoint (#214):
-  rejected. The layer-skipping edge is the one that hits this, and straight it
-  crosses the node ELK went around: an `arrow-crossing` refusal, which is the
-  thing this ADR exists to remove.
-- **Refusing the combination at `graph()`** (#214): rejected as not well-defined.
-  `standoff` is a per-edge arrow option resolved long after layout, so `graph()`
-  cannot know the value a bend list will be measured against.
 - **Feeding ELK the edge labels** so it spaces ports around them: rejected *for
   now*, on a boundary rather than a preference. `graph()` receives nodes already
   measured but a label as text, and `tools/layout.js` measures no text by design
@@ -179,3 +162,47 @@ This amends the shape of `g`, not the contract: `{ g, arrows }` and every option
 are as decision 2 and the consequences above describe them. It is a **visual**
 break in the same sense the original change was — a graph with an overhang
 regenerates with different offsets inside its group — and no API break.
+
+## Amendment — the house owns the flow coordinate of the leading and trailing run (#214, 2026-09-08)
+
+Decision 1 gave the house the two endpoints and ELK everything between them. The
+corridor ELK turns inside (`edgeLayerGap`) and the `standoff` the house starts
+from are independent distances, though, so a bend could land *behind* the point
+the arrow starts from along the flow — or past the point it ends at — and the
+route doubled back over itself before turning. At the defaults the two coincide
+and nothing shows; a `standoff` above the corridor, or an `edgeLayerGap` below
+the standoff, and the layer-skipping edge grew a stub pointing the wrong way. No
+gate rule catches it: the doubled segment runs along a node's border rather than
+through its ink.
+
+So the house owns the flow coordinate of the leading and trailing **run**, not
+only of the two endpoints: a bend outside the endpoints' span is pulled onto the
+endpoint it overshot. ELK keeps every cross coordinate, and with it the path it
+found around the nodes — the pull moves a bend along the flow only, which is the
+axis the standoff already owned. Where the two distances coincide the bend lands
+on the endpoint and drops as the zero-length segment it now is, so every
+committed band keeps its geometry.
+
+The pull needs a clear pixel to act on. Bends are held on whole pixels in the
+group's frame by decision 3 while a measured node box is not, so a bend
+routinely sits a fraction outside the span with the route never doubling back:
+that fraction is the rounding, and pulling it would move bends every band
+already draws correctly. A backtrack worth removing is the whole standoff beyond
+the corridor, an order above the rounding, so the clamp acts only past a pixel.
+
+Three alternatives were rejected. **Trimming** the bend the standoff already
+passed, instead of clamping it: dropping the bend outright leaves the leading
+segment running diagonally from the endpoint to the bend after it, the same
+worse-than-either geometry decision 5 revokes a hybrid path for. **Dropping to
+the straight run** when a bend falls behind its endpoint: the layer-skipping
+edge is the one that hits this, and straight it crosses the node ELK went
+around, an `arrow-crossing` refusal, which is the thing this ADR exists to
+remove. **Refusing the combination at `graph()`**: not well-defined there.
+`standoff` is a per-edge arrow option resolved long after layout, so `graph()`
+cannot know the value a bend list will be measured against.
+
+This amends who owns a coordinate, not the contract: `{ g, arrows }`, `route`
+and every option are as decision 2 and the consequences above describe them.
+Like the original change and the #220 amendment it is a **visual** break only
+where the geometry was wrong — a diagram that drew a backtrack regenerates
+without one.

@@ -772,11 +772,12 @@ programmatically (also exported from `tools/author.js` for use outside `build`):
 const figure = spliceLibraryItem(`${root}/examples/stick-figure.excalidrawlib`,
   { item: 0, at: [0, 0] });   // item: index or name; at: top-left corner
 row([logo, figure], { gap: 56, align: "end" });          // places like any item
-frame.children = ["logo", ...figure.ids];                // fresh ids, per splice
+frame.children = ["logo", ...figure.ids];                // ids derived per insertion
 ```
 
-Every id — element and group — is regenerated per splice, so one item can be
-placed twice without collision; bindings and `boundElements` that point outside
+Every id — element and group — is regenerated per splice from the insertion's
+ordinal, so one item places twice without collision and both insertions come
+back with the same ids next run; bindings and `boundElements` that point outside
 the item are dropped rather than left dangling for the gate to reject. The
 helper accepts v1 and v2 `.excalidrawlib` files and throws a `LibraryError`
 naming what's wrong (unparseable file, no such item, an item holding nothing but
@@ -924,6 +925,16 @@ An arrow that crosses from one panel to the next stays **unbound**. A frame's
 auto-fit counts anything bound to one of its children as its own, so binding
 across a panel boundary stretches both frames over the gap until they overlap —
 which `check.js` reports as overlapping frames, not as a binding problem.
+
+**Re-running a generator is a no-op unless something moved.** Element identity is
+derived from the diagram, never from the RNG or the clock: `id`, `seed`,
+`versionNonce` and `updated` all come back the same, so the `.excalidraw` and its
+`.svg` are byte-identical run to run. Use that — commit a band, change the
+generator, re-run it, and the diff shows exactly the geometry you moved and
+nothing else. `seed` drives the hand-drawn jitter and is a hash of the element's
+id, so the strokes stay varied between elements while staying fixed between runs;
+it also means renaming an element repaints its strokes, which is a real diff and
+not noise.
 
 ## Round-tripping a human-edited file
 

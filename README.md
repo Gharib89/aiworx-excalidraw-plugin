@@ -204,6 +204,15 @@ surface — `fit` (the default, no target surface), `doc-inline`, `doc-wide`,
 [`examples/example-dark.svg`](examples/example-dark.svg) is the committed `--dark`
 render of the example band.
 
+Authoring is deterministic: an element's `id`, `seed`, `versionNonce` and
+`updated` are derived from the diagram rather than minted at random or off the
+clock, so re-running a generator rewrites the `.excalidraw` and its `.svg` byte
+for byte. A diff on a committed artifact therefore means the picture actually
+changed. `seed` drives the hand-drawn jitter, so it is a hash of the element's id
+rather than a constant — varied between elements, fixed between runs.
+`tests/band-bytes.js` regenerates every band under `examples/` out of tree and
+fails on any byte difference.
+
 The palette itself is overridable per project: a strokes-only
 `.excalidraw-brand.json` at a consumer project's root (discovered by walking up
 from the working directory) re-colours every role. Fills and grey are derived
@@ -244,6 +253,7 @@ tools/
   check.js          mechanical gate, CLI face of verify.js: exits non-zero listing every defect, both themes scored
   verify.js         the gate's rules: file integrity, geometry (rotation-aware), arrows, contrast, fonts
   geometry.js       one bounds definition shared by the gate, the frame binder and arrow anchoring
+  identity.js       derives every element's id, seed, versionNonce and updated from the diagram instead of the RNG and the clock, so the same build writes the same bytes
   color.js          colour maths shared by the gate's contrast rule and palette.js, dark-theme filter included
   page.js           browser-side Excalidraw entry (measure, convert, export, parse mermaid)
   browser.js        headless-Chromium driver around page.js; Chrome loads the bundle off disk via dist/index.html

@@ -7,22 +7,32 @@
  * change reach any picture it should not have?" is answerable from
  * `git status` instead of a throwaway normalising script.
  *
+ * Two claims, and the difference between them is the whole design:
+ *
+ *   1. **Two runs agree.** Each band is generated into two independent
+ *      checkouts and the pair compared. This is determinism itself, it holds on
+ *      any machine, and every band carries it.
+ *   2. **A run matches what is committed.** This also catches the stale
+ *      artifact: a generator edited without re-running it. It is a claim about
+ *      the machine that made the commit, so it is only as portable as the
+ *      measurements underneath it, and `GLYPH_DRIFT` below names the one band
+ *      where that currently breaks.
+ *
+ * The third claim is the one the seed exists for: two independent regenerations
+ * render to identical PNGs. `seed` drives Rough.js jitter, so before this change
+ * the same geometry rasterised differently every run.
+ *
  * It regenerates **out of tree** (a temp checkout that symlinks `tools/` and
  * `brand/` and copies `examples/`) for two reasons: CI asserts verification
  * never dirties a tracked file, and a generator writes next to its own script,
  * so copying the script is what moves the write somewhere else without changing
  * the generators' contract. `tests/example-paths.js` is the precedent.
  *
- * The last claim is the one the seed exists for: two independent regenerations
- * render to identical PNGs. `seed` drives Rough.js jitter, so before this change
- * the same geometry rasterised differently every run.
- *
- * `test:browser` only, so this runs on Linux alone. The bytes are a claim about
- * one machine's Chrome and its vendored fonts, not a cross-platform one: text
- * measurement settles per platform, so a macOS or Windows leg would compare a
- * Linux-generated commit against its own metrics and fail for a reason that has
- * nothing to do with determinism. The junction link below is for the shared
- * helper's sake, not a per-OS claim this suite makes.
+ * `test:browser` only, so this runs on Linux alone. Text measurement settles
+ * per platform, so a macOS or Windows leg would hold a Linux-generated commit
+ * against its own metrics and fail claim 2 for a reason that has nothing to do
+ * with determinism. The junction link below is for the shared helper's sake,
+ * not a per-OS claim this suite makes.
  */
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -32,6 +42,20 @@ import { fileURLToPath } from "node:url";
 import { bands, linkPluginRoot } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Bands held to claim 1 but not claim 2, by artifact path, with the reason.
+ *
+ * A band lands here when its own text reaches a glyph the vendored fonts do not
+ * carry: the browser then measures whatever system font it falls back to, and
+ * that font is a property of the machine, so the committed width is one
+ * machine's answer and every other machine disagrees with it. Determinism is
+ * untouched, which is why claim 1 still applies. Delete the entry when its
+ * issue closes, and the suite goes back to holding the band to its bytes.
+ */
+const GLYPH_DRIFT = new Map([
+  ["examples/plugin-tour/plugin-tour", "two text elements draw ✓/✗, absent from the vendored fonts (#228)"],
+]);
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -52,24 +76,30 @@ const run = (checkout, script, args = []) => spawnSync(process.execPath, [script
   cwd: checkout, encoding: "utf8",
 });
 
+const why = (r) => (r.stderr || r.stdout || "").trim().split("\n").slice(-4).join(" / ");
+
 /**
  * Where two artifacts first disagree, with the text either side of the split.
  * A byte count alone says nothing about which value moved, and this suite's
  * whole purpose is answering that from a log rather than a normalising script.
+ *
+ * The scan walks the buffers, so the offset is the byte the file actually
+ * disagrees at; a band drawing ✓ or ✗ would put a UTF-16 index several
+ * characters off it. The window either side is decoded for reading, and may
+ * open mid-codepoint, which shows up as a replacement character.
  */
-function firstDifference(before, after) {
-  const a = before.toString("utf8");
-  const b = after.toString("utf8");
+function firstDifference([nameA, a], [nameB, b]) {
   let i = 0;
-  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  const end = Math.min(a.length, b.length);
+  while (i < end && a[i] === b[i]) i++;
   const from = Math.max(0, i - 60);
-  return `at offset ${i}\n      committed: …${JSON.stringify(a.slice(from, i + 60))}`
-    + `\n      regenerated: …${JSON.stringify(b.slice(from, i + 60))}`;
+  const window = (buf) => JSON.stringify(buf.subarray(from, i + 60).toString("utf8"));
+  return `at byte ${i}\n      ${nameA}: …${window(a)}\n      ${nameB}: …${window(b)}`;
 }
 
-// ---- 1. every band comes back byte-identical ----
-const regenerated = scratchCheckout("band-bytes");
-console.log(`checkout: ${regenerated}`);
+// ---- every band: two runs agree, and the run matches what is committed ----
+const [first, second] = ["band-bytes-1", "band-bytes-2"].map(scratchCheckout);
+console.log(`checkouts: ${first}, ${second}`);
 
 // The walk is what enrols a band, so a walk that found nothing would report
 // every check below green by having none to run.
@@ -77,21 +107,30 @@ check("the walk finds every committed band", BANDS.length > 0,
   BANDS.map((b) => b.artifact).join(", "));
 
 for (const { generator, artifact } of BANDS) {
-  const done = run(regenerated, generator, [regenerated]);
-  check(`${artifact}: the generator runs clean`, done.status === 0,
-    done.status === 0 ? undefined : (done.stderr || done.stdout || "").trim().split("\n").slice(-4).join(" / "));
-  if (done.status !== 0) continue;
+  const runs = [first, second].map((checkout) => run(checkout, generator, [checkout]));
+  const clean = runs.every((r) => r.status === 0);
+  check(`${artifact}: the generator runs clean twice`, clean, clean ? undefined : why(runs.find((r) => r.status !== 0)));
+  if (!clean) continue;
 
   for (const ext of [".excalidraw", ".svg"]) {
-    const before = readFileSync(join(root, artifact + ext));
-    const after = readFileSync(join(regenerated, artifact + ext));
-    check(`${artifact}${ext}: regenerates byte-identical`, before.equals(after),
-      before.equals(after) ? `${before.length} bytes`
-        : `${before.length} vs ${after.length} bytes, ${firstDifference(before, after)}`);
+    const [a, b] = [first, second].map((checkout) => readFileSync(join(checkout, artifact + ext)));
+    check(`${artifact}${ext}: two runs in a row agree`, a.equals(b),
+      a.equals(b) ? `${a.length} bytes`
+        : `${a.length} vs ${b.length} bytes, ${firstDifference(["run 1", a], ["run 2", b])}`);
+
+    const drift = GLYPH_DRIFT.get(artifact);
+    if (drift) {
+      console.log(`SKIP  ${artifact}${ext}: matches the committed bytes  — ${drift}`);
+      continue;
+    }
+    const committed = readFileSync(join(root, artifact + ext));
+    check(`${artifact}${ext}: matches the committed bytes`, committed.equals(a),
+      committed.equals(a) ? `${committed.length} bytes`
+        : `${committed.length} vs ${a.length} bytes, ${firstDifference(["committed", committed], ["regenerated", a])}`);
   }
 }
 
-// ---- 2. two independent regenerations render to identical PNGs ----
+// ---- the smallest band: two regenerations render to identical PNGs ----
 // One band carries the claim, because the seed it rests on is one derivation
 // every band shares. Render the smallest, so proving it costs the least.
 if (BANDS.length) {
@@ -100,46 +139,28 @@ if (BANDS.length) {
       <= statSync(join(root, b.artifact + ".excalidraw")).size ? a : b);
   const name = basename(smallest.artifact);
 
-  const second = scratchCheckout("band-bytes-2");
-  const again = run(second, smallest.generator, [second]);
-  check(`${name}: the second regeneration runs clean`, again.status === 0,
-    again.status === 0 ? undefined : (again.stderr || again.stdout || "").trim().split("\n").slice(-4).join(" / "));
-
-  if (again.status === 0) {
-    // Part 1 held each regeneration against the committed bytes, which pins the
-    // two to each other only through what is on disk. Two runs compared directly
-    // is the claim itself, and it is the one that survives a stale commit.
-    for (const ext of [".excalidraw", ".svg"]) {
-      const first = readFileSync(join(regenerated, smallest.artifact + ext));
-      const twice = readFileSync(join(second, smallest.artifact + ext));
-      check(`${name}${ext}: two runs in a row agree`, first.equals(twice),
-        first.equals(twice) ? `${first.length} bytes` : `${first.length} vs ${twice.length} bytes`);
+  const frames = [first, second].map((checkout, i) => {
+    const out = join(checkout, `frames-${i}`);
+    mkdirSync(out, { recursive: true });
+    const render = run(checkout, join(root, "tools", "render.js"),
+      [join(checkout, smallest.artifact + ".excalidraw"), "--out", out]);
+    if (render.status !== 0) {
+      check(`${name}: render ${i} runs clean`, false, why(render));
+      return null;
     }
+    return { out, pngs: readdirSync(out).filter((f) => f.endsWith(".png")).sort() };
+  });
 
-    const frames = [regenerated, second].map((checkout, i) => {
-      const out = join(checkout, `frames-${i}`);
-      mkdirSync(out, { recursive: true });
-      const render = run(checkout, join(root, "tools", "render.js"),
-        [join(checkout, smallest.artifact + ".excalidraw"), "--out", out]);
-      if (render.status !== 0) {
-        check(`${name}: render ${i} runs clean`, false,
-          (render.stderr || render.stdout || "").trim().split("\n").slice(-4).join(" / "));
-        return null;
-      }
-      return { out, pngs: readdirSync(out).filter((f) => f.endsWith(".png")).sort() };
-    });
-
-    if (frames.every(Boolean)) {
-      const [a, b] = frames;
-      check(`${name}: both regenerations export the same frames`,
-        a.pngs.length > 0 && a.pngs.join() === b.pngs.join(),
-        `${a.pngs.length} frame(s): ${a.pngs.join(", ")}`);
-      for (const png of a.pngs) {
-        const pa = readFileSync(join(a.out, png));
-        const pb = readFileSync(join(b.out, png));
-        check(`${name}: ${png} is byte-identical across regenerations`, pa.equals(pb),
-          pa.equals(pb) ? `${pa.length} bytes` : `${pa.length} vs ${pb.length} bytes`);
-      }
+  if (frames.every(Boolean)) {
+    const [a, b] = frames;
+    check(`${name}: both regenerations export the same frames`,
+      a.pngs.length > 0 && a.pngs.join() === b.pngs.join(),
+      `${a.pngs.length} frame(s): ${a.pngs.join(", ")}`);
+    for (const png of a.pngs) {
+      const pa = readFileSync(join(a.out, png));
+      const pb = readFileSync(join(b.out, png));
+      check(`${name}: ${png} is byte-identical across regenerations`, pa.equals(pb),
+        pa.equals(pb) ? `${pa.length} bytes` : `${pa.length} vs ${pb.length} bytes`);
     }
   }
 }

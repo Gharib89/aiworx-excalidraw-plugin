@@ -210,8 +210,11 @@ clock, so re-running a generator rewrites the `.excalidraw` and its `.svg` byte
 for byte. A diff on a committed artifact therefore means the picture actually
 changed. `seed` drives the hand-drawn jitter, so it is a hash of the element's id
 rather than a constant: varied between elements, fixed between runs.
-`tests/band-bytes.js` regenerates every band under `examples/` out of tree and
-fails on any byte difference.
+`tests/band-bytes.js` generates every band under `examples/` twice, out of tree,
+and refuses any difference between the two runs or against the committed bytes.
+The second comparison rests on text measurement, which settles per machine, so
+the suite names the bands where a glyph missing from the vendored fonts makes
+that answer local rather than universal.
 
 The palette itself is overridable per project: a strokes-only
 `.excalidraw-brand.json` at a consumer project's root (discovered by walking up

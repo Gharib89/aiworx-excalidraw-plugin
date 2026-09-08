@@ -600,11 +600,18 @@ function resolveArrow(arrow) {
     // segment the converter would write out as a duplicate point, which is what
     // the filter then drops. It is the same drop as before, now reached by clamping
     // rather than only by the two distances happening to coincide.
+    // The bends were rounded to whole pixels in the group's frame while the
+    // endpoints come off node boxes measured to a fraction, so a bend can sit
+    // under a pixel outside the span with the route never doubling back. An
+    // overshoot that small is that rounding — clamping it would move bends that
+    // draw correctly today — while a real backtrack is the whole `standoff`
+    // beyond the corridor. So the pull needs a clear pixel to act on.
+    const ROUNDING_SLACK = 1;
     const flow = horizontal ? 0 : 1;
     const dir = Math.sign(end[flow] - start[flow]);
     const clampToSpan = (v) => {
-      if ((v - start[flow]) * dir < 0) return start[flow];
-      if ((v - end[flow]) * dir > 0) return end[flow];
+      if ((start[flow] - v) * dir > ROUNDING_SLACK) return start[flow];
+      if ((v - end[flow]) * dir > ROUNDING_SLACK) return end[flow];
       return v;
     };
     const at = (p, q) => p[0] === q[0] && p[1] === q[1];

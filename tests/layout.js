@@ -1286,6 +1286,20 @@ const descends = (arrow) => {
     pts[0][1] === a.y + a.height + 55 && pts.at(-1)[1] === c.y - 55,
     `${pts[0]} → ${pts.at(-1)}`);
 }
+// A bend is held on whole pixels (ADR-0003) but a measured node box is not, so on
+// real text the two disagree by a fraction and a bend sits just outside the span
+// without the route ever doubling back. That fraction is rounding, not a backtrack:
+// pulling it would move the bends every committed band already draws. Both axes get
+// a fixture, because the flow axis is whichever way the arrow spans.
+for (const [axis, direction, size] of [["along y", "down", { height: 50.3 }], ["along x", "right", { width: 120.47 }]]) {
+  const flow = direction === "right" ? 0 : 1;
+  const [a, b, c] = ["a", "b", "c"].map((id) => ({ ...node(id), ...size }));
+  const { arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]], { direction });
+  const pts = pathOf(resolveArrows(arrows)[2]);
+  const overshoot = Math.abs(pts[1][flow] - pts[0][flow]);
+  check(`a measured box leaves the leading bend a fraction outside the span ${axis}`,
+    overshoot > 0 && overshoot < 1, `${overshoot} — ${JSON.stringify(pts)}`);
+}
 
 // ---- graph: placement picks which edges the engine straightens ----
 // House rule 9 counts bends **per arrow**, and so does `too-many-bends` — never

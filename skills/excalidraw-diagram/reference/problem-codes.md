@@ -170,9 +170,10 @@ Emitted by `check.js` for a file that never reached the rules. They appear under
 
 Emitted by `revise.js` after a successful rewrite — the **fidelity ledger**, the
 account of what the round-trip changed beyond what you asked for. A pass
-re-measures text with the real fonts, repairs bindings and frame membership,
-re-centers bound labels onto their arrows, purges deleted elements and prunes
-image payloads nothing references any more.
+re-measures text with the real fonts, re-derives the seed that paints an
+element's stroke jitter, repairs bindings and frame membership, re-centers bound
+labels onto their arrows, purges deleted elements and prunes image payloads
+nothing references any more.
 
 None of these is a failure: the file was written. A pass that changed nothing
 the ledger tracks prints one line saying so — never silence, because a silent

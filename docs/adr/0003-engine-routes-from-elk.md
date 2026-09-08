@@ -43,7 +43,16 @@ The house still **owns** the edges; ELK **routes** them.
    bindings, the finish register and gate checking are untouched. Only the
    intermediate points, and the cross coordinate of each endpoint, now come from
    ELK. This is the half of the old principle that was load-bearing, and it is
-   kept in full.
+   kept in full. (Amended by #214: the house owns the flow coordinate of the
+   leading and trailing **run**, not only of the two endpoints. The corridor ELK
+   turns inside and the `standoff` the house starts from are independent
+   distances, so a bend could land behind the point the arrow starts from — or
+   past the point it ends at — and the route doubled back over itself before
+   turning. A bend outside the endpoints' span is now pulled onto the endpoint it
+   overshot; ELK keeps every cross coordinate, and with it the path it found
+   around the nodes. The pull needs a clear pixel to act on, because bends are
+   held on whole pixels by point 3 while a measured node box is fractional: an
+   overshoot under a pixel is that rounding rather than a backtrack.)
 2. **`route` names four states, three of them values.** `"engine"` is ELK's path
    and `graph()`'s default; `"orthogonal"` is the existing single mid-gap jog;
    `"direct"` is the straight run, previously the unnamed default and now sayable
@@ -94,6 +103,17 @@ The house still **owns** the edges; ELK **routes** them.
   revoking: rejected on measurement. Tried on `examples/triage-graph`, it moved
   the struck-label clearance from 2.2px to 0px — a hybrid path is worse than
   either party's path alone.
+- **Trimming the bend the standoff already passed** instead of clamping it
+  (#214): rejected. Dropping the bend outright leaves the leading segment running
+  diagonally from the endpoint to the bend after it — the same worse-than-either
+  geometry point 5 revokes a hybrid path for.
+- **Dropping to the straight run** when a bend falls behind its endpoint (#214):
+  rejected. The layer-skipping edge is the one that hits this, and straight it
+  crosses the node ELK went around: an `arrow-crossing` refusal, which is the
+  thing this ADR exists to remove.
+- **Refusing the combination at `graph()`** (#214): rejected as not well-defined.
+  `standoff` is a per-edge arrow option resolved long after layout, so `graph()`
+  cannot know the value a bend list will be measured against.
 - **Feeding ELK the edge labels** so it spaces ports around them: rejected *for
   now*, on a boundary rather than a preference. `graph()` receives nodes already
   measured but a label as text, and `tools/layout.js` measures no text by design

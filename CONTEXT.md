@@ -78,6 +78,18 @@ frame is not a stray: titles, legends and captions legitimately do, and the gate
 counts them (`stats.outsideAll`) instead of refusing them.
 _Avoid_: orphan
 
+**Derived identity**:
+An element's `id`, `seed`, `versionNonce` and `updated` computed from the diagram
+rather than minted from the RNG or the clock: what makes a diagram regenerate
+byte for byte, so a diff on a committed band means geometry actually moved.
+`seed` drives Rough.js jitter, so it is derived from a hash of the element's id
+rather than fixed: identical between runs, varied between elements, which makes a
+stable id its prerequisite. `tools/identity.js` owns the derivations, every write
+passes through them, and `tests/band-bytes.js` holds every committed band to them.
+_Avoid_: deterministic ids, stable seed, fixed seed
+_Not_: the **fingerprint**, which is the bundle's reproducibility claim rather
+than a diagram's.
+
 **What/where/next**:
 The bar every thrown error meets: what failed, where (the file, element id, or call at fault), and the one next action — a command or an instruction, never a link. The three are fields on `NamedError` and compose the message as `where: what — next`; `tests/error-messages.js` enforces them.
 _Avoid_: error format, message template
@@ -168,8 +180,9 @@ label and then dropped rather than written onto the element.
 _Avoid_: arrow label (unqualified), floating label
 
 **Splice**:
-Inserting a library item into a diagram with freshly regenerated ids so repeated
-insertions never collide. It inserts the item verbatim unless asked to drop the
+Inserting a library item into a diagram under ids regenerated from the insertion's
+ordinal, so repeated insertions never collide and each one lands the same ids next
+run (**derived identity**). It inserts the item verbatim unless asked to drop the
 item's own text outside the house pair — which is what a real community item
 labels itself with, and what the gate refuses.
 _Avoid_: import, paste

@@ -8,7 +8,9 @@
  *      the library does hold
  *   2. both library shapes splice: v2 `libraryItems` and legacy v1 `library`
  *   3. every id is regenerated per splice — element ids and group ids — so the
- *      same item places twice without colliding with itself or the scene
+ *      same item places twice without colliding with itself or the scene, and
+ *      the ids are derived rather than random, so a fresh process splicing the
+ *      same item gets the same ids back (#227)
  *   4. internal references follow the remap (frameId, containerId, bindings,
  *      boundElements) and references pointing outside the item are dropped
  *   5. the item lands with its top-left corner at `at` and reports its extent
@@ -23,10 +25,11 @@
  * needs a specific shape is written inline, so the expectation and the input
  * read together.
  */
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spliceLibraryItem, PROSE } from "../tools/author.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -78,6 +81,33 @@ const library = (name, doc) => {
     groupsA.size === 1 && !groupsA.has("fig-group"),
     [...groupsA].join(", "));
   check("two splices get distinct group ids", [...groupsA].every((g) => !groupsB.has(g)));
+
+  // Distinct is only half the contract since #227: the ids have to be the same
+  // ones next run, or a band carrying a spliced item can never regenerate byte
+  // for byte. Distinctness comes from the insertion ordinal now, not randomness,
+  // so it takes a second process to tell a derived id from a minted one.
+  const probe = join(outDir, "insertion-ordinal.mjs");
+  writeFileSync(probe, [
+    `import { spliceLibraryItem } from ${JSON.stringify(pathToFileURL(join(root, "tools/author.js")).href)};`,
+    `const splices = [spliceLibraryItem(${JSON.stringify(LIB)}), spliceLibraryItem(${JSON.stringify(LIB)})];`,
+    `console.log(JSON.stringify(splices.map((s) => [s.ids, [...new Set(s.children.flatMap((e) => e.groupIds))]])));`,
+  ].join("\n"));
+  // A probe that failed to start prints nothing, which reads exactly like a
+  // probe that ran and printed nothing — so the exit status is checked first
+  // and its stderr is what the failure reports.
+  const runProbe = () => {
+    const r = spawnSync(process.execPath, [probe], { encoding: "utf8" });
+    return { ok: r.status === 0, out: (r.stdout ?? "").trim(), why: (r.stderr ?? "").trim().split("\n").slice(-2).join(" / ") };
+  };
+  const [firstRun, secondRun] = [runProbe(), runProbe()];
+  const ranClean = firstRun.ok && secondRun.ok;
+  check("the determinism probe runs clean in a fresh process", ranClean,
+    ranClean ? undefined : (firstRun.why || secondRun.why || "no stderr"));
+  if (ranClean) {
+    check("a fresh process splices to the same ids",
+      firstRun.out.length > 0 && firstRun.out === secondRun.out,
+      firstRun.out.length ? `${JSON.parse(firstRun.out)[0][0][0]} …` : "the probe printed nothing");
+  }
 }
 
 // ---- 2. offset and extent ----
@@ -140,6 +170,26 @@ const library = (name, doc) => {
   const hollow = library("hollow", { type: "excalidrawlib", version: 2, libraryItems: [{ name: "hollow", elements: [] }] });
   const noElements = throwsWith("LibraryError", () => spliceLibraryItem(hollow));
   check("an item with no elements is a LibraryError", noElements.ok, noElements.detail);
+
+  // The spliced id is derived from the source id (#227), so a source id that is
+  // absent or shared would collapse two elements onto one id and cross-wire
+  // their references. Refused at the library boundary, where the defect is.
+  const idless = library("idless", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{ name: "idless", elements: [el("a"), { ...el("b"), id: undefined }] }],
+  });
+  const noId = throwsWith("LibraryError", () => spliceLibraryItem(idless));
+  check("an element with no id is a LibraryError", noId.ok, noId.detail);
+  check("the id refusal says what is missing and how to get it back",
+    noId.message?.includes("without a distinct id") && noId.message.includes("Re-export"),
+    noId.message);
+
+  const twins = library("twins", {
+    type: "excalidrawlib", version: 2,
+    libraryItems: [{ name: "twins", elements: [el("a"), el("a")] }],
+  });
+  const shared = throwsWith("LibraryError", () => spliceLibraryItem(twins));
+  check("two elements sharing one id is a LibraryError", shared.ok, shared.detail);
 }
 
 // ---- 4. v1 library format, and binding sanitisation ----

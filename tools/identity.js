@@ -1,0 +1,55 @@
+/**
+ * Deterministic element identity: the ids and the volatile fields that decide
+ * whether the same build writes the same bytes twice.
+ *
+ * Excalidraw mints `id`, `seed` and `versionNonce` at random and stamps
+ * `updated` off the wall clock, so a diagram regenerated with no code change
+ * came back different every run: the file was unreviewable in a diff and no
+ * check could ask "did my change move any geometry?".
+ *
+ * `seed` is not cosmetic churn. It feeds Rough.js jitter, so a fresh seed
+ * repaints every stroke, which is why a constant seed is the wrong fix: every
+ * same-size rectangle would then carry identical jitter and the hand-drawn look
+ * goes mechanical. The seed has to be deterministic *and* varied, so it comes
+ * from a hash of the element's own id. That makes a stable id the prerequisite:
+ * an element the converter named at random has a random seed by construction.
+ */
+import { createHash } from "node:crypto";
+
+const digest = (parts) => createHash("sha256").update(parts.join("\u0000")).digest();
+
+/**
+ * A stable id for an element nobody named, derived from whatever owns it: the
+ * arrow a bound label sits on, the insertion a spliced element came from.
+ * 21 base64url characters, the shape Excalidraw's own ids take.
+ */
+export const stableId = (...parts) => digest(parts).toString("base64url").slice(0, 21);
+
+/** Excalidraw mints these as `Math.floor(Math.random() * 2 ** 31)`. */
+const int31 = (...parts) => digest(parts).readUInt32BE(0) >>> 1;
+
+/** The Rough.js seed for an element: fixed per id, varied between ids. */
+export const seedFor = (id) => int31("seed", id);
+
+/** The reconciliation nonce for an element: same contract as the seed. */
+export const nonceFor = (id) => int31("nonce", id);
+
+/**
+ * What stands in for the wall clock on `updated` and an image file's `created`.
+ * Non-zero so nothing reading it treats an absent value and a pinned one alike.
+ */
+export const PINNED_TIME = 1;
+
+/**
+ * Pin every volatile field on a document about to be written. Called once, at
+ * the single point both the authoring and the revise path write through, and
+ * before the SVG is exported, because the export reads `seed`.
+ */
+export function pinVolatile(elements, files) {
+  for (const el of elements) {
+    el.seed = seedFor(el.id);
+    el.versionNonce = nonceFor(el.id);
+    el.updated = PINNED_TIME;
+  }
+  for (const file of Object.values(files ?? {})) file.created = PINNED_TIME;
+}

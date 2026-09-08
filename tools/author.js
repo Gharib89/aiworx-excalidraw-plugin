@@ -33,6 +33,7 @@ import { PRESETS, PRESET_NAMES, DEFAULT_PRESET } from "./presets.js";
 import { makeFromMermaid } from "./mermaid.js";
 import { NamedError, DocumentError } from "./errors.js";
 import { loadBrandPalette } from "./brand.js";
+import { stableId, pinVolatile, PINNED_TIME } from "./identity.js";
 
 /** The input file is not a parseable Excalidraw document. Defined in errors.js. */
 export { DocumentError };
@@ -64,7 +65,15 @@ export class AssetError extends NamedError {}
 /** A library file cannot be read, parsed, or the requested item found. */
 export class LibraryError extends NamedError {}
 
-const freshId = () => randomBytes(12).toString("base64url");
+/**
+ * Which insertion a splice is, counted across the process. Two splices of one
+ * library item into one diagram must not collide, and a random id was how that
+ * used to be guaranteed; the ordinal buys the same distinctness deterministically,
+ * because a generator makes its calls in a fixed order and the nth splice of a
+ * run is always the nth. The library's path deliberately stays out of the
+ * derivation: it is absolute, so it differs per machine.
+ */
+let spliceOrdinal = 0;
 
 /**
  * Wrap text to a pixel width using real measurements.
@@ -245,7 +254,7 @@ function makeImage(ex, files) {
       mimeType,
       id: fileId,
       dataURL: `data:${mimeType};base64,${buf.toString("base64")}`,
-      created: Date.now(),
+      created: PINNED_TIME,
     };
     if (width === undefined || height === undefined) {
       let intrinsic = pngSize(buf);
@@ -342,14 +351,31 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
     }
     throw noSuchItemError();
   }
-  const idMap = new Map(source.map((e) => [e.id, freshId()]));
+  // The new id is a function of the old one, so the old ones have to be there
+  // and have to be distinct: a library missing them would collapse its elements
+  // onto one derived id and remap their references into each other. Under the
+  // random ids this replaced the collapse could not happen, so the file's own
+  // defect stayed invisible until the gate rejected the wreckage downstream.
+  const sourceIds = source.map((e) => e.id);
+  const usable = sourceIds.filter((id) => typeof id === "string" && id !== "");
+  if (usable.length !== sourceIds.length || new Set(usable).size !== usable.length) {
+    throw new LibraryError(
+      `item ${JSON.stringify(item)} has elements without a distinct id`,
+      {
+        where: path,
+        next: "Re-export the item from Excalidraw, which gives every element its own id.",
+      },
+    );
+  }
+  const nth = String(spliceOrdinal++);
+  const idMap = new Map(source.map((e) => [e.id, stableId("splice", nth, e.id)]));
   const groupMap = new Map();
 
   const elements = source.map((e) => {
     const el = structuredClone(e);
     el.id = idMap.get(e.id);
     el.groupIds = (el.groupIds ?? []).map((g) => {
-      if (!groupMap.has(g)) groupMap.set(g, freshId());
+      if (!groupMap.has(g)) groupMap.set(g, stableId("splice-group", nth, g));
       return groupMap.get(g);
     });
     el.frameId = idMap.get(el.frameId) ?? null;
@@ -383,6 +409,49 @@ export function spliceLibraryItem(path, { item = 0, at = [0, 0], text = "keep" }
     children: elements,
     ids: elements.map((e) => e.id),
   };
+}
+
+/**
+ * Rename every element the converter named for itself, deterministically.
+ *
+ * `convertToExcalidrawElements` keeps the ids the author spelled (the call
+ * passes `regenerateIds: false`) and mints a random one for the rest, in
+ * practice the text element an `arrowBetween` `label:` creates, which every
+ * band uses. A random id is a random `seed`, since the seed is a hash of the
+ * id, so those elements repainted their strokes on every run.
+ *
+ * A bound label takes its id from the element it is bound to, the one thing
+ * about it that is stable; anything else takes its position among the minted,
+ * which the converter fixes from the skeleton's order. Bound labels resolve
+ * second so a label on a minted container derives from the container's settled
+ * id rather than the random one it is about to lose.
+ */
+function pinMintedIds(elements, named) {
+  const idMap = new Map();
+  let minted = 0;
+  for (const el of elements) {
+    if (named.has(el.id) || el.containerId) continue;
+    idMap.set(el.id, stableId("minted", String(minted++), el.type));
+  }
+  for (const el of elements) {
+    if (named.has(el.id) || !el.containerId) continue;
+    idMap.set(el.id, stableId("bound", idMap.get(el.containerId) ?? el.containerId));
+  }
+  if (idMap.size === 0) return elements;
+
+  const to = (id) => idMap.get(id) ?? id;
+  for (const el of elements) {
+    el.id = to(el.id);
+    if (el.containerId) el.containerId = to(el.containerId);
+    if (el.frameId) el.frameId = to(el.frameId);
+    for (const end of ["startBinding", "endBinding"]) {
+      if (el[end]?.elementId) el[end] = { ...el[end], elementId: to(el[end].elementId) };
+    }
+    if (Array.isArray(el.boundElements)) {
+      el.boundElements = el.boundElements.map((b) => ({ ...b, id: to(b.id) }));
+    }
+  }
+  return elements;
 }
 
 /**
@@ -698,6 +767,7 @@ const CONVERTER_BINDABLE = new Set(["rectangle", "ellipse", "diamond"]);
 function planBindingStitches(skeleton) {
   const typeOf = new Map(skeleton.filter((e) => e.id != null).map((e) => [e.id, e.type]));
   const stitches = [];
+  let stitched = 0;
   for (const el of skeleton) {
     if (el.type !== "arrow") continue;
     for (const key of ["startBinding", "endBinding", "fixedPoint"]) {
@@ -725,8 +795,8 @@ function planBindingStitches(skeleton) {
       if (el.id == null) {
         // a generated id colliding with an author id would make the converter
         // silently drop an element — the very hole the duplicate-id guard closes
-        let id = freshId();
-        while (typeOf.has(id)) id = freshId();
+        let id = stableId("stitch", String(stitched++));
+        while (typeOf.has(id)) id = stableId("stitch", id);
         typeOf.set(id, el.type);
         el.id = id;
       }
@@ -806,6 +876,10 @@ function writeTogether(pairs) {
  * `revise.js --json` needs to emit one parseable document.
  */
 async function gateAndWrite(ex, { out, elements, appState, files, svg, recentered = [], quiet = false }) {
+  // Both the authoring and the revise path write through here, and the SVG
+  // export below reads `seed`, so this is the one moment at which every
+  // volatile field can be pinned for both files at once (tools/identity.js).
+  pinVolatile(elements, files);
   const doc = { type: "excalidraw", version: 2, source: "aiworx-excalidraw", elements, appState, files };
   const { problems } = verifyDocument(doc);
   if (problems.length) {
@@ -875,7 +949,8 @@ async function authorInto(ex, options) {
   // regenerateIds: false — gate errors then name the author's own ids, and the
   // stitches can find their arrows again; validateSkeleton enforced uniqueness
   const converted = await ex.convert(skeleton, { regenerateIds: false });
-  const elements = bindToFrames(applyBindingStitches(converted, stitches));
+  const named = new Set(skeleton.map((e) => e.id).filter((id) => id != null));
+  const elements = bindToFrames(applyBindingStitches(pinMintedIds(converted, named), stitches));
   const appState = {
     viewBackgroundColor: palette.canvas,
     gridSize: 20,

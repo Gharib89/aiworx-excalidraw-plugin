@@ -292,7 +292,13 @@ await withAuthoring(async (author) => {
         const shown = [rated[0], rated[1], trap];
 
         const SCALE = 9, BAR_W = 32, INNER = 12, PITCH = 132;
-        const maxH = Math.max(...shown.flatMap((r) => [r.light, r.dark])) * SCALE;
+        // A bar's height comes from contrast(), which ends in `** 2.4`. V8's pow is
+        // not correctly rounded, and its last ulp moves between V8 versions, so a
+        // height taken straight from the ratio makes this band's bytes a function of
+        // the Node the generator ran on (#227). Quantising to a thousandth of a pixel
+        // is orders below anything a renderer can show and pins the bytes everywhere.
+        const px = (ratio) => Math.round(ratio * SCALE * 1000) / 1000;
+        const maxH = px(Math.max(...shown.flatMap((r) => [r.light, r.dark])));
         const chart = [];
         const overlay8 = [];
         shown.forEach((r, i) => {
@@ -301,7 +307,7 @@ await withAuthoring(async (author) => {
             [0, [r.light, p.canvas, grey.stroke]],
             [1, [r.dark, ink, ink]],
           ]) {
-            const h = val * SCALE;
+            const h = px(val);
             const x = x0 + j * (BAR_W + INNER);
             chart.push({ type: "rectangle", x, y: maxH - h, width: BAR_W, height: h,
               strokeColor: stroke, backgroundColor: fill, strokeWidth: 2, roughness: 0 });

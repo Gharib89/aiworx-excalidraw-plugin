@@ -16,12 +16,20 @@
  * The last claim is the one the seed exists for: two independent regenerations
  * render to identical PNGs. `seed` drives Rough.js jitter, so before this change
  * the same geometry rasterised differently every run.
+ *
+ * `test:browser` only, so this runs on Linux alone. The bytes are a claim about
+ * one machine's Chrome and its vendored fonts, not a cross-platform one: text
+ * measurement settles per platform, so a macOS or Windows leg would compare a
+ * Linux-generated commit against its own metrics and fail for a reason that has
+ * nothing to do with determinism. The junction link below is for the shared
+ * helper's sake, not a per-OS claim this suite makes.
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { basename, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { bands, linkPluginRoot } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -31,24 +39,11 @@ const check = (name, cond, detail) => {
   if (!cond) fail.push(name);
 };
 
-/** Every band under examples/, as `generator -> artifact` relative to examples/. */
-const BANDS = [
-  ["gen-example.js", "example"],
-  ["plugin-tour/gen-plugin-tour.js", "plugin-tour/plugin-tour"],
-  ["triage-graph/gen-triage-graph.js", "triage-graph/triage-graph"],
-];
+const BANDS = bands(root);
 
-/**
- * A checkout the generators can write into. `tools` and `brand` are linked, not
- * copied, so the run exercises the real modules; "junction" is the one directory
- * link Windows makes without elevation and is ignored on POSIX.
- */
+/** A checkout the generators can write into, holding a copy of every band. */
 function scratchCheckout(tag) {
-  const checkout = mkdtempSync(join(tmpdir(), `${tag}-`));
-  for (const dir of ["tools", "brand"]) symlinkSync(join(root, dir), join(checkout, dir), "junction");
-  // package.json carries `"type": "module"`. Without it the copied generators
-  // resolve down a different path than a real checkout takes.
-  copyFileSync(join(root, "package.json"), join(checkout, "package.json"));
+  const checkout = linkPluginRoot(root, mkdtempSync(join(tmpdir(), `${tag}-`)));
   cpSync(join(root, "examples"), join(checkout, "examples"), { recursive: true });
   return checkout;
 }
@@ -61,15 +56,20 @@ const run = (checkout, script, args = []) => spawnSync(process.execPath, [script
 const regenerated = scratchCheckout("band-bytes");
 console.log(`checkout: ${regenerated}`);
 
-for (const [generator, artifact] of BANDS) {
-  const done = run(regenerated, join("examples", generator), [regenerated]);
+// The walk is what enrols a band, so a walk that found nothing would report
+// every check below green by having none to run.
+check("the walk finds every committed band", BANDS.length > 0,
+  BANDS.map((b) => b.artifact).join(", "));
+
+for (const { generator, artifact } of BANDS) {
+  const done = run(regenerated, generator, [regenerated]);
   check(`${artifact}: the generator runs clean`, done.status === 0,
     done.status === 0 ? undefined : (done.stderr || done.stdout || "").trim().split("\n").slice(-4).join(" / "));
   if (done.status !== 0) continue;
 
   for (const ext of [".excalidraw", ".svg"]) {
-    const before = readFileSync(join(root, "examples", artifact + ext));
-    const after = readFileSync(join(regenerated, "examples", artifact + ext));
+    const before = readFileSync(join(root, artifact + ext));
+    const after = readFileSync(join(regenerated, artifact + ext));
     check(`${artifact}${ext}: regenerates byte-identical`, before.equals(after),
       before.equals(after) ? `${before.length} bytes`
         : `${before.length} vs ${after.length} bytes. Run the generator and commit the reflow, or a change moved the picture`);
@@ -77,38 +77,52 @@ for (const [generator, artifact] of BANDS) {
 }
 
 // ---- 2. two independent regenerations render to identical PNGs ----
-// One band is enough: the claim is about the seed, which every band shares.
-// triage-graph is the cheapest: two frames and no image payload.
-{
-  const [, artifact] = BANDS[2];
+// One band carries the claim, because the seed it rests on is one derivation
+// every band shares. Render the smallest, so proving it costs the least.
+if (BANDS.length) {
+  const smallest = BANDS.reduce((a, b) =>
+    statSync(join(root, a.artifact + ".excalidraw")).size
+      <= statSync(join(root, b.artifact + ".excalidraw")).size ? a : b);
+  const name = basename(smallest.artifact);
+
   const second = scratchCheckout("band-bytes-2");
-  const again = run(second, join("examples", BANDS[2][0]), [second]);
-  check("triage-graph: the second regeneration runs clean", again.status === 0,
+  const again = run(second, smallest.generator, [second]);
+  check(`${name}: the second regeneration runs clean`, again.status === 0,
     again.status === 0 ? undefined : (again.stderr || again.stdout || "").trim().split("\n").slice(-4).join(" / "));
 
   if (again.status === 0) {
+    // Part 1 held each regeneration against the committed bytes, which pins the
+    // two to each other only through what is on disk. Two runs compared directly
+    // is the claim itself, and it is the one that survives a stale commit.
+    for (const ext of [".excalidraw", ".svg"]) {
+      const first = readFileSync(join(regenerated, smallest.artifact + ext));
+      const twice = readFileSync(join(second, smallest.artifact + ext));
+      check(`${name}${ext}: two runs in a row agree`, first.equals(twice),
+        first.equals(twice) ? `${first.length} bytes` : `${first.length} vs ${twice.length} bytes`);
+    }
+
     const frames = [regenerated, second].map((checkout, i) => {
       const out = join(checkout, `frames-${i}`);
       mkdirSync(out, { recursive: true });
       const render = run(checkout, join(root, "tools", "render.js"),
-        [join(checkout, "examples", artifact + ".excalidraw"), "--out", out]);
+        [join(checkout, smallest.artifact + ".excalidraw"), "--out", out]);
       if (render.status !== 0) {
-        check(`triage-graph: render ${i} runs clean`, false,
+        check(`${name}: render ${i} runs clean`, false,
           (render.stderr || render.stdout || "").trim().split("\n").slice(-4).join(" / "));
         return null;
       }
-      return { out, names: readdirSync(out).filter((f) => f.endsWith(".png")).sort() };
+      return { out, pngs: readdirSync(out).filter((f) => f.endsWith(".png")).sort() };
     });
 
     if (frames.every(Boolean)) {
       const [a, b] = frames;
-      check("triage-graph: both regenerations export the same frames",
-        a.names.length > 0 && a.names.join() === b.names.join(),
-        `${a.names.length} frame(s): ${a.names.join(", ")}`);
-      for (const name of a.names) {
-        const pa = readFileSync(join(a.out, name));
-        const pb = readFileSync(join(b.out, name));
-        check(`triage-graph: ${name} is byte-identical across regenerations`, pa.equals(pb),
+      check(`${name}: both regenerations export the same frames`,
+        a.pngs.length > 0 && a.pngs.join() === b.pngs.join(),
+        `${a.pngs.length} frame(s): ${a.pngs.join(", ")}`);
+      for (const png of a.pngs) {
+        const pa = readFileSync(join(a.out, png));
+        const pb = readFileSync(join(b.out, png));
+        check(`${name}: ${png} is byte-identical across regenerations`, pa.equals(pb),
           pa.equals(pb) ? `${pa.length} bytes` : `${pa.length} vs ${pb.length} bytes`);
       }
     }

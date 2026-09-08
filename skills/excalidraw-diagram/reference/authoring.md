@@ -952,6 +952,13 @@ place. A file that isn't a parseable Excalidraw document is rejected with a
 `DocumentError`; a revision that would fail the gate throws a `GateError`. Both
 exit 1 and write nothing; a bad invocation exits 2 with a `UsageError`.
 
+Revise writes through the same derivation as authoring, so a file drawn in the
+Excalidraw app has its `seed` recomputed from each element's id on the first
+pass: the hand-drawn jitter is repainted once, and every later revise is a
+no-op. That is the point — a diagram that came in from the app leaves
+reproducible. The geometry, the text and the colours are untouched by it; only
+the stroke wobble moves, and only that once.
+
 Every repair in that list lands in the **fidelity ledger**, printed after the
 artifacts it accounts for:
 

@@ -15,10 +15,11 @@
  *      on Windows with ERR_UNSUPPORTED_ESM_URL_SCHEME
  */
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { linkPluginRoot } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -34,16 +35,12 @@ const check = (name, cond, detail) => {
   // the committed example is regenerated deliberately, not by the test suite.
   const checkout = join(mkdtempSync(join(tmpdir(), "example-paths-")), "space test");
   mkdirSync(join(checkout, "examples"), { recursive: true });
-  // "junction" is the one directory link Windows creates without elevation —
-  // the platform this suite exists for. The type is ignored on POSIX.
-  for (const dir of ["tools", "brand"]) symlinkSync(join(root, dir), join(checkout, dir), "junction");
+  // The junction link and the package.json copy are the same shape every suite
+  // that runs a generator out of tree needs, so they live in tests/lib.
+  linkPluginRoot(root, checkout);
   for (const f of ["gen-example.js", "stick-figure.excalidrawlib"]) {
     copyFileSync(join(root, "examples", f), join(checkout, "examples", f));
   }
-  // package.json carries `"type": "module"`. Without it the copy is only ESM by
-  // Node's syntax detection, which is a different resolution path than the one a
-  // real checkout takes — the test would be passing for the wrong reason.
-  copyFileSync(join(root, "package.json"), join(checkout, "package.json"));
   console.log(`checkout: ${checkout}`);
 
   // Both documented invocations, because both have to keep working: the docs lead

@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stableId, seedFor, nonceFor, PINNED_TIME } from "../tools/identity.js";
+import { artifacts } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -51,11 +52,11 @@ const check = (name, cond, detail) => {
 }
 
 // ---- 2. the committed artifacts obey the contract ----
-const BANDS = [
-  "examples/example.excalidraw",
-  "examples/plugin-tour/plugin-tour.excalidraw",
-  "examples/triage-graph/triage-graph.excalidraw",
-];
+// Walked, not listed: a band added to examples/ is held to the contract without
+// anyone remembering to enrol it here. A walk that found nothing would report
+// every check below green, so the count is asserted first.
+const BANDS = artifacts(root).filter((f) => f.endsWith(".excalidraw"));
+check("the walk finds committed diagrams", BANDS.length > 0, `${BANDS.length} diagram(s)`);
 
 for (const band of BANDS) {
   const doc = JSON.parse(readFileSync(join(root, band), "utf8"));

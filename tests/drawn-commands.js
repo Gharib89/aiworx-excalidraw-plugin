@@ -26,10 +26,11 @@
  * construction — they live under `tests/`, and their text is a defect on
  * purpose. A band that draws no command simply contributes no strings.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FLAGS_BY_SCRIPT } from "../tools/cli-flags.js";
+import { artifacts } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -39,15 +40,7 @@ const check = (name, cond, detail) => {
   if (!cond) fail.push(name);
 };
 
-/** Every committed `.excalidraw` and `.svg` under `dir`, at any depth. */
-const artifacts = (dir) =>
-  readdirSync(join(root, dir), { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? artifacts(`${dir}/${e.name}`)
-      : /\.(excalidraw|svg)$/.test(e.name) ? [`${dir}/${e.name}`]
-      : [],
-  );
-
-const committedArtifacts = artifacts("examples");
+const committedArtifacts = artifacts(root);
 const diagrams = committedArtifacts.filter((f) => f.endsWith(".excalidraw"));
 const svgs = committedArtifacts.filter((f) => f.endsWith(".svg"));
 

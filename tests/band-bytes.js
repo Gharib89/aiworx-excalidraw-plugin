@@ -52,6 +52,21 @@ const run = (checkout, script, args = []) => spawnSync(process.execPath, [script
   cwd: checkout, encoding: "utf8",
 });
 
+/**
+ * Where two artifacts first disagree, with the text either side of the split.
+ * A byte count alone says nothing about which value moved, and this suite's
+ * whole purpose is answering that from a log rather than a normalising script.
+ */
+function firstDifference(before, after) {
+  const a = before.toString("utf8");
+  const b = after.toString("utf8");
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  const from = Math.max(0, i - 60);
+  return `at offset ${i}\n      committed: …${JSON.stringify(a.slice(from, i + 60))}`
+    + `\n      regenerated: …${JSON.stringify(b.slice(from, i + 60))}`;
+}
+
 // ---- 1. every band comes back byte-identical ----
 const regenerated = scratchCheckout("band-bytes");
 console.log(`checkout: ${regenerated}`);
@@ -72,7 +87,7 @@ for (const { generator, artifact } of BANDS) {
     const after = readFileSync(join(regenerated, artifact + ext));
     check(`${artifact}${ext}: regenerates byte-identical`, before.equals(after),
       before.equals(after) ? `${before.length} bytes`
-        : `${before.length} vs ${after.length} bytes. Run the generator and commit the reflow, or a change moved the picture`);
+        : `${before.length} vs ${after.length} bytes, ${firstDifference(before, after)}`);
   }
 }
 

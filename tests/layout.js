@@ -1026,9 +1026,10 @@ const crossings = (arrow, shapes) => {
 
 // a -> b -> c layers three deep, and a -> c skips the middle layer: the edge that
 // used to be refused as `arrow-crossing` and hand-routed around b with `via`
-const skipping = async (opts) => {
+const skipping = async (opts, skipOpts) => {
   const [a, b, c] = ["a", "b", "c"].map(node);
-  const { g, arrows } = await graph([a, b, c], [[a, b], [b, c], [a, c]], opts);
+  const edges = [[a, b], [b, c], skipOpts ? [a, c, skipOpts] : [a, c]];
+  const { g, arrows } = await graph([a, b, c], edges, opts);
   const resolved = resolveArrows(arrows);
   return { a, b, c, g, arrows: resolved, skip: resolved[2] };
 };
@@ -1210,6 +1211,80 @@ const skipping = async (opts) => {
           [[100, 60], [130, 60], [130, 170], [100, 170], [100, 210]]]),
       JSON.stringify(paths));
   }
+}
+// ---- the leading and trailing run belong to the standoff, not to the corridor ----
+// ELK turns inside its corridor (`edgeLayerGap` along the flow); the house starts
+// and ends the arrow at `standoff`. Where the corridor is the narrower of the two,
+// ELK's first bend sits *behind* the point the arrow starts from and the route
+// doubles back over itself before turning — geometry no refusal catches, because
+// the doubled segment runs along a node's border rather than through its ink.
+// Every fixture here flows `down`, so "against the flow" is simply "upward".
+const descends = (arrow) => {
+  const ys = pathOf(arrow).map(([, y]) => y);
+  return ys.every((y, i) => i === 0 || y >= ys[i - 1]);
+};
+// the default standoff and the default corridor are the same 10px, so the clamp has
+// nothing to pull there and the drop it collapses into keeps doing the whole job —
+// pinned as literal points, because "unchanged" is the claim
+{
+  const { skip } = await skipping({});
+  check("the default corridor resolves to the same points the drop alone reached",
+    JSON.stringify(pathOf(skip)) === "[[100,60],[130,60],[130,170],[100,170],[100,210]]",
+    JSON.stringify(pathOf(skip)));
+}
+{
+  const { a, b, c, skip } = await skipping({ standoff: 20 });
+  const pts = pathOf(skip);
+  check("a standoff wider than the corridor draws no segment against the flow",
+    descends(skip), JSON.stringify(pts));
+  check("the bend the corridor left behind the start is pulled onto the start's flow line",
+    pts[1][1] === pts[0][1], JSON.stringify(pts));
+  check("the clamped route still clears every node in the graph",
+    crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
+  // the clamp collapses the backtrack corner onto the endpoint, where the existing
+  // duplicate drop removes it — so the route costs exactly what the clean one costs
+  check("and spends the same three bends the clean corridor spends",
+    pts.length - 2 === 3, JSON.stringify(pts));
+}
+// the same geometry is reachable from the other side — since #202 the corridor is
+// the author's too, so lowering it under an untouched standoff arrives at the same
+// backtrack, and must arrive at the same clamp
+{
+  const { a, b, c, skip } = await skipping({ edgeLayerGap: 0, standoff: 10 });
+  const pts = pathOf(skip);
+  check("a corridor narrower than the standoff draws no segment against the flow either",
+    descends(skip), JSON.stringify(pts));
+  check("its leading bend is pulled onto the start's flow line too",
+    pts[1][1] === pts[0][1], JSON.stringify(pts));
+  check("the route out of a flattened corridor clears every node",
+    crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
+  check("and spends three bends as well", pts.length - 2 === 3, JSON.stringify(pts));
+}
+// The tail is the same claim mirrored: ELK's last bend turns back toward the target
+// one corridor below the node it passed, and a standoff deeper than that leaves the
+// bend *past* the point the arrow ends at. It cannot be reached on its own — the
+// layers sit `max(layerGap, 2 * edgeLayerGap)` apart, so a tail overshoot needs
+// `edgeLayerGap + standoff` to beat that, which no standoff at or under the corridor
+// can do; every fixture that overshoots the end overshoots the start as well. So
+// this one carries both ends at once, on a standoff only the long edge is given —
+// graph-wide it would leave the short edges no gap to span.
+{
+  const { a, b, c, skip } = await skipping({}, { standoff: 55 });
+  const pts = pathOf(skip);
+  check("a standoff deeper than the corridor draws no segment against the flow at the tail",
+    descends(skip), JSON.stringify(pts));
+  check("the bend left past the end is pulled back onto the end's flow line",
+    pts.at(-2)[1] === pts.at(-1)[1], JSON.stringify(pts));
+  check("the route clamped at both ends clears every node",
+    crossings(skip, [a, b, c]).length === 0, crossings(skip, [a, b, c])[0]);
+  // both corners collapse onto their endpoint and drop, so the route keeps only the
+  // two bends that carry it around the node between
+  check("and keeps only the bends that go around the node between",
+    pts.length - 2 === 2, JSON.stringify(pts));
+  // the endpoints themselves are untouched by the clamp — the standoff still owns them
+  check("the clamp moves no endpoint off its standoff",
+    pts[0][1] === a.y + a.height + 55 && pts.at(-1)[1] === c.y - 55,
+    `${pts[0]} → ${pts.at(-1)}`);
 }
 
 // ---- graph: placement picks which edges the engine straightens ----

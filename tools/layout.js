@@ -587,12 +587,33 @@ function resolveArrow(arrow) {
     const origin = horizontal ? group.y : group.x;
     start[cross] = origin + engineRoute.startCross;
     end[cross] = origin + engineRoute.endCross;
-    // ELK reserves the same 10px it clears nodes by, so at the default standoff its
-    // first bend lands exactly on the endpoint the house just computed — a
-    // zero-length segment the converter would write out as a duplicate point
+    // The corridor ELK turns inside (`edgeLayerGap`) and the standoff the house
+    // starts from are two independent distances, so a bend can land *behind* the
+    // start along the flow — or past the end — and the route would double back over
+    // itself before turning. The house therefore owns the flow coordinate of the
+    // leading and trailing run as well as of the endpoints: a bend outside their
+    // span is pulled onto the endpoint it overshot, keeping ELK's cross coordinate
+    // and with it the path the engine found around the nodes.
+    //
+    // At the default standoff, where ELK reserves the same 10px the house holds
+    // off by, that pull lands the bend exactly on the endpoint — a zero-length
+    // segment the converter would write out as a duplicate point, which is what
+    // the filter then drops. It is the same drop as before, now reached by clamping
+    // rather than only by the two distances happening to coincide.
+    const flow = horizontal ? 0 : 1;
+    const dir = Math.sign(end[flow] - start[flow]);
+    const clampToSpan = (v) => {
+      if ((v - start[flow]) * dir < 0) return start[flow];
+      if ((v - end[flow]) * dir > 0) return end[flow];
+      return v;
+    };
     const at = (p, q) => p[0] === q[0] && p[1] === q[1];
     waypoints = engineRoute.bends
-      .map(([bx, by]) => [group.x + bx, group.y + by])
+      .map(([bx, by]) => {
+        const p = [group.x + bx, group.y + by];
+        p[flow] = clampToSpan(p[flow]);
+        return p;
+      })
       .filter((p) => !at(p, start) && !at(p, end));
   } else {
     waypoints = route === "orthogonal" ? elbow(start, end, horizontal) : via;

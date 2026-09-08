@@ -130,17 +130,33 @@ check("no error message links to docs", linked.length === 0,
 // JSON.stringify — which throws on a BigInt and on a circular object, replacing
 // the named error with the very TypeError the check exists to prevent.
 //
-// The ban is unconditional inside an adopting module rather than aimed at the
-// caller-supplied values that are actually at risk: which ones those are is not
+// Inside the error construction the ban is unconditional rather than aimed at
+// the caller-supplied values actually at risk: which ones those are is not
 // decidable from the source, and a rule with per-site exemptions is one a later
 // refusal talks itself out of. `shown` renders a module-owned constant
 // identically, so paying it everywhere costs nothing.
 //
-// Importing `shown` is what opts a module in. Elsewhere the idiom still appears
-// on values that provably serialise (a JSON.parse result), where a ban is noise.
-const adopters = new Set(readdirSync(toolsDir).filter((f) =>
-  f.endsWith(".js") && /\bshown\b[^\n]*from "\.\/errors\.js"/.test(readFileSync(join(toolsDir, f), "utf8"))));
-check("a module imports the shared value formatter", adopters.size > 0, [...adopters].join(", "));
+// What it does not reach is formatting hoisted above the throw — `box`'s angle
+// refusal computes a `got` string deliberately, because `shown` would render
+// NaN as `null`. So this pins the argument lists, and a helper that formats
+// before it throws stays the reader's job.
+const importsShown = (src) => {
+  // `[^}]*` spans newlines, so a multi-line import list cannot slip past: one
+  // reformatted import silently dropping a module out of this rule is exactly
+  // the hole a single-line match leaves.
+  const named = /import\s*\{([^}]*)\}\s*from\s*"\.\/errors\.js"/.exec(src);
+  return named !== null && /\bshown\b/.test(named[1]);
+};
+const adopters = new Set(readdirSync(toolsDir)
+  .filter((f) => f.endsWith(".js") && importsShown(readFileSync(join(toolsDir, f), "utf8"))));
+
+// Named, not counted: `adopters.size > 0` passes while a module quietly stops
+// importing the helper, which is the one regression this check exists to catch.
+// A module that adopts `shown` later needs no edit here — it joins the set and
+// the raw-JSON check below starts holding it too.
+for (const f of ["author.js", "layout.js"]) {
+  check(`${f} imports the shared value formatter`, adopters.has(f), [...adopters].join(", ") || "none");
+}
 
 const rawJson = sites.filter((s) => adopters.has(s.file) && /JSON\.stringify\(/.test(s.args));
 check("no refusal in a shown-adopting module formats a value with raw JSON.stringify",

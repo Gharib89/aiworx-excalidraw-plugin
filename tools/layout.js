@@ -200,8 +200,11 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
   if ("angle" in shapeProps) {
     const { angle } = shapeProps;
     if (!Number.isFinite(angle)) {
-      // NaN and Infinity stringify to null as JSON, and a bigint throws — show
-      // the value the way its own type reads instead
+      // Not `shown`, which every other refusal here uses: NaN and Infinity are
+      // the values this check exists to name and JSON renders both as `null`,
+      // so "must be a finite number, got null" would lose the whole complaint.
+      // Show the value the way its own type reads instead — safe on a bigint,
+      // which String handles and JSON throws on.
       const got = typeof angle === "string" ? JSON.stringify(angle) : String(angle);
       throw new LayoutError(`angle must be a finite number, got ${got}`, {
         where: "box", next: "Pass a finite number, or omit angle.",

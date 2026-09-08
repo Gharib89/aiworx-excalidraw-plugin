@@ -46,9 +46,17 @@ const CODE = 3;
     Object.keys(VENDORED_FAMILY).every((n) => coveredCodepoints(Number(n)).size > 0), sizes.join(", "));
   check("printable ASCII is covered in the prose face",
     uncoveredCodepoints(Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join(""), PROSE).length === 0);
-  check("the prose face does not carry U+2713 ✓", !nunito.has(0x2713));
-  check("the prose face does not carry U+2717 ✗", !nunito.has(0x2717));
-  check("the code face does carry U+2713 ✓", coveredCodepoints(CODE).has(0x2713));
+  // the registry and CONTEXT.md both spell this split out, so it is pinned here
+  const cascadia = coveredCodepoints(CODE);
+  check("the prose face carries neither tick nor cross nor arrow",
+    [0x2713, 0x2717, 0x2192, 0x2191, 0x2193].every((cp) => !nunito.has(cp)),
+    [0x2713, 0x2717, 0x2192, 0x2191, 0x2193].filter((cp) => nunito.has(cp)).map(formatCodepoint).join(", "));
+  check("the code face carries the tick and the arrows",
+    [0x2713, 0x2192, 0x2191, 0x2193].every((cp) => cascadia.has(cp)),
+    [0x2713, 0x2192, 0x2191, 0x2193].filter((cp) => !cascadia.has(cp)).map(formatCodepoint).join(", "));
+  check("the code face carries no cross either", !cascadia.has(0x2717));
+  check("the marks house rule 5 names are carried by both house faces",
+    [0x2b, 0xd7].every((cp) => nunito.has(cp) && cascadia.has(cp)));
   check("uncoveredCodepoints names the offending codepoints in order",
     uncoveredCodepoints("✗ a ✓", PROSE).join() === [0x2717, 0x2713].join(),
     uncoveredCodepoints("✗ a ✓", PROSE).join());

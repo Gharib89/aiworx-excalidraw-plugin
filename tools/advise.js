@@ -271,10 +271,10 @@ export function adviseDocument(data, { preset } = {}) {
     if (!family) continue;
     const uncovered = uncoveredCodepoints(t.text, t.fontFamily);
     if (!uncovered.length) continue;
-    const named = uncovered.map((cp) => `"${String.fromCodePoint(cp)}" ${formatCodepoint(cp)}`);
+    const spelled = uncovered.map((cp) => `"${String.fromCodePoint(cp)}" ${formatCodepoint(cp)}`);
     note(
       "uncovered-glyph",
-      `text "${preview(t.text)}" draws ${named.join(", ")}, which the vendored ${family} carries no glyph for: the machine's font supplies it, so its width is not the repo's`,
+      `text "${preview(t.text)}" draws ${spelled.join(", ")}, which the vendored ${family} carries no glyph for: the machine's font supplies it, so its width is not the repo's`,
       [t.id],
       { codepoints: uncovered.map(formatCodepoint), family },
     );

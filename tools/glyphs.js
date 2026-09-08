@@ -50,7 +50,7 @@ export function coveredCodepoints(fontFamily) {
     const dir = join(distFonts, family);
     const set = new Set();
     for (const file of readdirSync(dir).filter((f) => f.endsWith(".woff2"))) {
-      for (const cp of cmapCodepoints(readTable(join(dir, file), CMAP))) set.add(cp);
+      for (const cp of cmapCodepoints(join(dir, file))) set.add(cp);
     }
     cache.set(family, set);
   }
@@ -99,10 +99,10 @@ const GLYF = 10;
 const LOCA = 11;
 const WOFF2_HEADER = 48;
 
-function readTable(file, want) {
+function readCmapTable(file) {
   const buf = readFileSync(file);
   if (buf.length < WOFF2_HEADER || buf.toString("latin1", 0, 4) !== "wOF2") {
-    throw new Error(`${file} is not a woff2 file`);
+    throw new Error(`${file} is not a woff2 file. Re-run: npm run bundle`);
   }
   const numTables = buf.readUInt16BE(12);
   const compressedLength = buf.readUInt32BE(20);
@@ -121,10 +121,10 @@ function readTable(file, want) {
   const tables = brotliDecompressSync(buf.subarray(cursor.at, cursor.at + compressedLength));
   let at = 0;
   for (const table of dir) {
-    if (table.tag === want) return tables.subarray(at, at + table.length);
+    if (table.tag === CMAP) return tables.subarray(at, at + table.length);
     at += table.length;
   }
-  throw new Error(`${file} carries no table ${want}`);
+  throw new Error(`${file} carries no cmap table, so its coverage cannot be read. Re-run: npm run bundle`);
 }
 
 /** woff2's variable-length integer: seven bits per byte, high bit continues. */
@@ -139,28 +139,31 @@ function uintBase128(buf, cursor) {
 }
 
 /**
- * The codepoints a `cmap` maps to a real glyph. A subset font's segments can
- * still name a character it dropped, mapping it to glyph 0, the missing-glyph
- * box, so a zero glyph id is not coverage.
+ * The codepoints a file's `cmap` maps to a real glyph. A subset font's segments
+ * can still name a character it dropped, mapping it to glyph 0, the
+ * missing-glyph box, so a zero glyph id is not coverage.
  *
- * Formats 4 (BMP) and 12 (full range) are the two Unicode subtables the
- * families ship; a file offering both is read from 12, which is the superset.
+ * Format 4 only: every vendored face ships one, and none ships the format 12 a
+ * font reaching past the BMP would need. A family that arrives in another format
+ * refuses here rather than reporting a coverage it did not read, which
+ * `tests/glyph-coverage.js` turns red on the next run: it holds every vendored
+ * family to a non-empty set, so a font bump that changed the format cannot land
+ * quietly.
  */
-function cmapCodepoints(cmap) {
-  let best = null;
+function cmapCodepoints(file) {
+  const cmap = readCmapTable(file);
   for (let i = 0, n = cmap.readUInt16BE(2); i < n; i++) {
     const record = 4 + i * 8;
     const platform = cmap.readUInt16BE(record);
     const encoding = cmap.readUInt16BE(record + 2);
     const offset = cmap.readUInt32BE(record + 4);
-    const unicode = platform === 0 || (platform === 3 && (encoding === 1 || encoding === 10));
-    if (!unicode) continue;
-    const format = cmap.readUInt16BE(offset);
-    if (format !== 4 && format !== 12) continue;
-    if (!best || format === 12) best = { offset, format };
+    const unicode = platform === 0 || (platform === 3 && encoding === 1);
+    if (unicode && cmap.readUInt16BE(offset) === 4) return segmentMapped(cmap, offset);
   }
-  if (!best) throw new Error("cmap carries no format 4 or 12 Unicode subtable");
-  return best.format === 4 ? segmentMapped(cmap, best.offset) : segmentedCoverage(cmap, best.offset);
+  throw new Error(
+    `${file} carries no format 4 Unicode cmap subtable, so its glyph coverage cannot be read. ` +
+      `Re-run: npm run bundle`,
+  );
 }
 
 /** Format 4: parallel end/start/delta/rangeOffset arrays over the BMP. */
@@ -187,19 +190,6 @@ function segmentMapped(cmap, offset) {
       }
       if (glyph) out.add(cp);
     }
-  }
-  return out;
-}
-
-/** Format 12: groups of (start, end, first glyph id). */
-function segmentedCoverage(cmap, offset) {
-  const out = new Set();
-  for (let i = 0, n = cmap.readUInt32BE(offset + 12); i < n; i++) {
-    const group = offset + 16 + i * 12;
-    const glyph = cmap.readUInt32BE(group + 8);
-    if (!glyph) continue;
-    const end = cmap.readUInt32BE(group + 4);
-    for (let cp = cmap.readUInt32BE(group); cp <= end; cp++) out.add(cp);
   }
   return out;
 }

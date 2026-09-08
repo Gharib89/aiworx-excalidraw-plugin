@@ -957,7 +957,10 @@ Excalidraw app has its `seed` recomputed from each element's id on the first
 pass: the hand-drawn jitter is repainted once, and every later revise is a
 no-op. That is the point — a diagram that came in from the app leaves
 reproducible. The geometry, the text and the colours are untouched by it; only
-the stroke wobble moves, and only that once.
+the stroke wobble moves, and only that once. The ledger reports that pass as
+`stroke-jitter-repainted` with the count of elements repainted
+([problem-codes.md](problem-codes.md)); every pass after it finds the seeds
+already derived, so no later pass carries that entry.
 
 Every repair in that list lands in the **fidelity ledger**, printed after the
 artifacts it accounts for:
@@ -973,9 +976,11 @@ dropped 1 orphaned image payload, 98.4 KB (f-logo)
 A pass that changed nothing prints `no repairs — the file was already current`,
 because a silent run reads exactly like a run that did nothing. `--json` prints
 the same ledger as one document — every code, extra field, and the document
-shape are in [problem-codes.md](problem-codes.md#ledger-codes). Two entries are
-genuinely lossy: `image-payload-dropped` throws bytes away and `element-dropped`
-ends a tombstone's chance of coming back.
+shape are in [problem-codes.md](problem-codes.md#ledger-codes). Three entries
+are genuinely lossy: `image-payload-dropped` throws bytes away,
+`element-dropped` ends a tombstone's chance of coming back, and
+`stroke-jitter-repainted` replaces a wobble only the app that minted it could
+reproduce.
 
 Re-centering is by design: a bound label rides its arrow's path and the renderer
 masks the path behind it, so every pass places it afresh — a hand-moved one goes

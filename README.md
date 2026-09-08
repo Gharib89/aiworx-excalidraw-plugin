@@ -128,9 +128,11 @@ or failing the gate — writing nothing in either case.
 
 Every successful pass ends with its **fidelity ledger**: what the round-trip
 recomputed, repaired or dropped that you did not ask for — remeasured text,
-repaired bindings and frame membership, bound labels re-centered onto their
-arrows (a hand-moved one snaps back by design), purged elements, and image
-payloads nothing references any more, with the bytes they cost. All of it used to
+stroke jitter repainted from a re-derived seed (which a file drawn in the app
+gets once, on its first pass), repaired bindings and frame membership, bound
+labels re-centered onto their arrows (a hand-moved one snaps back by design),
+purged elements, and image payloads nothing references any more, with the bytes
+they cost. All of it used to
 happen in silence, which read as a no-op; a pass that genuinely changed nothing
 now says so in one line. `--json` prints the same ledger as one document
 (`{ file, svg, elements, frames, changed, entries }`) instead of prose — a

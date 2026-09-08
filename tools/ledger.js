@@ -2,10 +2,11 @@
  * The fidelity ledger: what a revise pass changed beyond what was asked.
  *
  * A round-trip through the pipeline is never byte-for-byte — it re-measures
- * text with the real fonts, repairs bindings and frame membership, re-centers
- * bound labels onto their arrows, and prunes image payloads no element points
- * at any more. All of that used to happen in silence, so the only way to learn
- * what a revise did was to diff JSON.
+ * text with the real fonts, re-derives the seed that paints an element's stroke
+ * jitter, repairs bindings and frame membership, re-centers bound labels onto
+ * their arrows, and prunes image payloads no element points at any more. All of
+ * that used to happen in silence, so the only way to learn what a revise did was
+ * to diff JSON.
  *
  * This module is that diff: pure, browser-free, one entry per kind of repair.
  * `buildLedger` compares the document that went in against the one written out;
@@ -73,6 +74,30 @@ export function buildLedger({ before, after, recentered = [] }) {
     .map((e) => e.id);
   if (remeasured.length) {
     note("text-metrics-recomputed", `recomputed text metrics on ${named(remeasured)}`, remeasured);
+  }
+
+  // The seed feeds Rough.js jitter, so re-deriving one repaints every stroke on
+  // that element, and the app-minted wobble it replaces is gone for good. Fires
+  // on the first pass over a file the Excalidraw app minted the ids for, and on
+  // no pass after it: derived seeds re-derive to themselves (CONTEXT.md,
+  // **Derived identity**).
+  // `seed` alone — pinVolatile also rewrites `versionNonce` and `updated`, which
+  // move on essentially every pass with no visual effect.
+  const repainted = now
+    .filter((e) => {
+      const was = wasById.get(e.id);
+      return was !== undefined && was.seed !== e.seed;
+    })
+    .map((e) => e.id);
+  if (repainted.length) {
+    // The count, not `named()`: a first pass repaints every element in the file,
+    // so an inline list of 200 ids is noise rather than something to act on. The
+    // ids are still in `elements`, which is what that field means.
+    note(
+      "stroke-jitter-repainted",
+      `repainted hand-drawn stroke jitter on ${repainted.length} ${plural(repainted.length, "element")}`,
+      repainted,
+    );
   }
 
   // What a binding points at, not how it is aimed: focus and gap drift with

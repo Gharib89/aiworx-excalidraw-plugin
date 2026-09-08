@@ -587,12 +587,43 @@ function resolveArrow(arrow) {
     const origin = horizontal ? group.y : group.x;
     start[cross] = origin + engineRoute.startCross;
     end[cross] = origin + engineRoute.endCross;
-    // ELK reserves the same 10px it clears nodes by, so at the default standoff its
-    // first bend lands exactly on the endpoint the house just computed — a
-    // zero-length segment the converter would write out as a duplicate point
+    // The corridor ELK turns inside (`edgeLayerGap`) and the standoff the house
+    // starts from are independent distances, so a bend can land *behind* the start
+    // along the flow — or past the end — and the route would double back over itself
+    // before turning. The house therefore owns the flow coordinate of the leading
+    // and trailing run as well as of the endpoints: any bend outside their span is
+    // pulled onto the endpoint it overshot, keeping ELK's cross coordinate and with
+    // it the path the engine found around the nodes. Stated as *any* bend because
+    // that is the honest span test, though only the leading and trailing ones can
+    // fail it — an engine route between two ports runs inside the span throughout.
+    // Where the two distances coincide, as they do at the defaults, the bend already
+    // sits on the endpoint and the filter below drops it — the zero-length segment
+    // the converter would otherwise write out as a duplicate point, dropped for the
+    // reason it always was.
+    //
+    // The pull needs a clear pixel to act on. Bends are held on whole pixels in the
+    // group's frame while a measured node box is not, so a bend routinely sits under
+    // a pixel outside the span with the route never doubling back: that is the
+    // rounding, and pulling it would move bends every band already draws correctly.
+    // A backtrack worth removing is the whole standoff beyond the corridor.
+    //
+    // `dir` orients both tests, and it is never 0: `usable` above refuses the arrow
+    // unless the shapes are separated along this very axis, so the span has length.
+    const ROUNDING_SLACK = 1;
+    const flow = horizontal ? 0 : 1;
+    const dir = Math.sign(end[flow] - start[flow]);
+    const clampToSpan = (v) => {
+      if ((start[flow] - v) * dir > ROUNDING_SLACK) return start[flow];
+      if ((v - end[flow]) * dir > ROUNDING_SLACK) return end[flow];
+      return v;
+    };
     const at = (p, q) => p[0] === q[0] && p[1] === q[1];
     waypoints = engineRoute.bends
-      .map(([bx, by]) => [group.x + bx, group.y + by])
+      .map(([bx, by]) => {
+        const p = [group.x + bx, group.y + by];
+        p[flow] = clampToSpan(p[flow]);
+        return p;
+      })
       .filter((p) => !at(p, start) && !at(p, end));
   } else {
     waypoints = route === "orthogonal" ? elbow(start, end, horizontal) : via;
@@ -735,14 +766,11 @@ const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" }
  * contributes none — whether the author routed it (`via`, or its own `route`) or
  * revoked it with a fraction — so the box follows the picture.
  *
- * Two consequences an author meets in practice:
- * - ELK spaced its ports for the *arrows*, knowing nothing of their labels — this
- *   module measures no text, so `graph` never had a width to give it. A labelled
- *   fan can still put one arrow through a neighbour's label, and that is what an
- *   `originAt`/`landAt` is still for.
- * - ELK reserves 10px around a node, the same as the default `standoff`, so a
- *   larger standoff steps past that corridor and leaves a short stub before the
- *   first bend. Lower the standoff, or take the edge `"direct"`.
+ * One consequence an author meets in practice: ELK spaced its ports for the
+ * *arrows*, knowing nothing of their labels — this module measures no text, so
+ * `graph` never had a width to give it. A labelled fan can still put one arrow
+ * through a neighbour's label, and that is what an `originAt`/`landAt` is still
+ * for.
  *
  * Positions are rounded to whole pixels, so the same input regenerates the same
  * artifact byte for byte. ELK is deterministic on its own; the rounding closes

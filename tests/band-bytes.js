@@ -115,6 +115,12 @@ console.log(`checkouts: ${first}, ${second}`);
 check("the walk finds every committed band", BANDS.length > 0,
   BANDS.map((b) => b.artifact).join(", "));
 
+// Same reasoning one level down: a renamed or deleted `<slug>-dark.svg` turns
+// every `dark` false, and the loop below would skip its way to a green run.
+const DARK = BANDS.filter((b) => b.dark);
+check("the walk finds every committed dark render", DARK.length > 0,
+  DARK.map((b) => `${b.artifact}-dark.svg`).join(", "));
+
 for (const { generator, artifact, dark } of BANDS) {
   const runs = [first, second].map((checkout) => run(checkout, generator, [checkout]));
   const clean = runs.every((r) => r.status === 0);
@@ -130,13 +136,13 @@ for (const { generator, artifact, dark } of BANDS) {
   // regenerated `.excalidraw` put back through `render.js --dark`, once per
   // checkout. `--no-frames` keeps it off the frame PNGs nothing here compares.
   if (!dark) continue;
-  const renders = [first, second].map((checkout) => {
+  const renders = [first, second].map((checkout, i) => {
     const out = join(checkout, "dark", dirname(artifact));
     mkdirSync(out, { recursive: true });
     const render = run(checkout, join(root, "tools", "render.js"),
       [join(checkout, artifact + ".excalidraw"), "--dark", "--no-frames", "--out", out]);
     if (render.status !== 0) {
-      check(`${artifact}-dark.svg: the dark render runs clean`, false, why(render));
+      check(`${artifact}-dark.svg: dark render ${i} runs clean`, false, why(render));
       return null;
     }
     return readFileSync(join(out, `${basename(artifact)}.svg`));

@@ -831,8 +831,10 @@ const ELK_PLACEMENT = { balanced: "BRANDES_KOEPF", straight: "NETWORK_SIMPLEX" }
  * gap. Both default to the engine's own 10px, the same margin the default
  * `standoff` keeps. `routeGap` is the third of that family and the only one
  * between two *routes* rather than a route and a node: how far the legs of a fan
- * stay off each other, on both axes at once. Widening it spreads the departures a
- * shared source would otherwise stack. Flat graphs only, and `layered` only;
+ * stay off each other, on both axes at once. It separates the routes, not the
+ * ports they leave from — measured, edge-edge spacing never moves a departure
+ * point, so a fan that leaves stacked leaves stacked and spreads further along.
+ * Flat graphs only, and `layered` only;
  * nested children and the other ELK algorithms are out of scope by design.
  *
  * Two options shape the routes rather than space them:

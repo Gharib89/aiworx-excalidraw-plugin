@@ -1035,8 +1035,9 @@ export async function withAuthoring(fn, options = {}) {
  * same gate runs before the file is rewritten in place.
  *
  * Bound labels restore re-centered onto their arrows come back in `.recentered`.
- * Every repair the pass made — those labels, remeasured text, repaired bindings
- * and frame membership, purged elements, pruned image payloads — comes back in
+ * Every repair the pass made — those labels, remeasured text, repainted stroke
+ * jitter, repaired bindings and frame membership, purged elements, pruned image
+ * payloads — comes back in
  * `.ledger` as the fidelity ledger (tools/ledger.js). This function never prints
  * the ledger; the CLI formats it, which is what lets `--json` own stdout.
  */

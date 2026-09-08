@@ -2,10 +2,11 @@
  * The fidelity ledger: what a revise pass changed beyond what was asked.
  *
  * A round-trip through the pipeline is never byte-for-byte — it re-measures
- * text with the real fonts, repairs bindings and frame membership, re-centers
- * bound labels onto their arrows, and prunes image payloads no element points
- * at any more. All of that used to happen in silence, so the only way to learn
- * what a revise did was to diff JSON.
+ * text with the real fonts, re-derives the seed that paints an element's stroke
+ * jitter, repairs bindings and frame membership, re-centers bound labels onto
+ * their arrows, and prunes image payloads no element points at any more. All of
+ * that used to happen in silence, so the only way to learn what a revise did was
+ * to diff JSON.
  *
  * This module is that diff: pure, browser-free, one entry per kind of repair.
  * `buildLedger` compares the document that went in against the one written out;
@@ -76,14 +77,12 @@ export function buildLedger({ before, after, recentered = [] }) {
   }
 
   // The seed feeds Rough.js jitter, so re-deriving one repaints every stroke on
-  // that element — the largest change a pass can make to how the picture looks,
-  // and the app-minted wobble it replaces is gone for good. Silent on a
-  // generated diagram, whose seeds are already derived (CONTEXT.md, **Derived
-  // identity**); it fires on the first pass over a file the Excalidraw app
-  // minted the ids for, and on no pass after that.
-  // `seed` alone: pinVolatile also rewrites `versionNonce` and `updated`, which
-  // are reconciliation and clock bookkeeping with no visual effect and move on
-  // essentially every pass, so reporting them would bury the ledger in noise.
+  // that element, and the app-minted wobble it replaces is gone for good. Fires
+  // on the first pass over a file the Excalidraw app minted the ids for, and on
+  // no pass after it: derived seeds re-derive to themselves (CONTEXT.md,
+  // **Derived identity**).
+  // `seed` alone — pinVolatile also rewrites `versionNonce` and `updated`, which
+  // move on essentially every pass with no visual effect.
   const repainted = now
     .filter((e) => {
       const was = wasById.get(e.id);

@@ -57,7 +57,7 @@ export class GateError extends NamedError {
     this.problems = problems;
   }
 }
-/** Text cannot be measured, or cannot be wrapped to the requested width. */
+/** Text cannot be measured or wrapped as asked, a width that fits nothing included. */
 export class WrapError extends NamedError {}
 /** An image asset cannot be read, recognised, or sized. */
 export class AssetError extends NamedError {}

@@ -178,6 +178,17 @@ for (const c of CASES) {
   check("advisories: a refused file still carries its advisories array", Array.isArray(refused.advisories), JSON.stringify(refused));
   const unread = JSON.parse(run("--json", fixture("empty")).stdout).files[0];
   check("advisories: a file that never reached the rules carries an empty array", Array.isArray(unread.advisories) && unread.advisories.length === 0, JSON.stringify(unread));
+
+  // uncovered-glyph reads the committed woff2 files, so the CLI is the only
+  // place that proves it finds dist/fonts from a working directory that is not
+  // the repo root, and that a drifting glyph advises rather than refuses.
+  const glyph = run("--json", fixture("uncovered-glyph"));
+  const g = JSON.parse(glyph.stdout).files[0];
+  check("advisories: an uncovered glyph advises and does not refuse",
+    glyph.status === 0 && g.ok === true && g.problems.length === 0 &&
+      g.advisories.map((a) => a.code).join() === "uncovered-glyph" &&
+      g.advisories[0].codepoints.join() === "U+2713" && g.advisories[0].family === "Nunito",
+    `exit ${glyph.status}: ${JSON.stringify(g)}`);
 }
 
 // ---- one gap is one stray problem ----

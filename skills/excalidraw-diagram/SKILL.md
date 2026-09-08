@@ -182,9 +182,12 @@ picture sits from a house rule, measured and never refused over: arrows
 crossing, the picture off its surface's aspect, an arrow crowding something it
 is not bound to, an arrow with too many bends, text under the surface's floor,
 arrows as heavy as the shapes they join, `pass` and `fail` told apart by hue
-alone, too many hues, panel widths drifting across a band. They follow the
+alone, too many hues, panel widths drifting across a band, a character the
+house fonts carry no glyph for. They follow the
 stats line on stdout, and sit in `--json` as `advisories` beside `problems`,
-each with the number it measured and the bound it missed. Pass `--preset` with
+each carrying the number it measured and the bound it missed, or, where the
+finding is a co-occurrence rather than a quantity, the elements it names and no
+number. Pass `--preset` with
 the surface step 3 authored for: the file does not record it, and without it
 the aspect and font-floor measurements stay silent. The advisory table in
 [reference/problem-codes.md](reference/problem-codes.md#advisory-codes) is the

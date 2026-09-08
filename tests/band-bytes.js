@@ -15,8 +15,10 @@
  *   2. **A run matches what is committed.** This also catches the stale
  *      artifact: a generator edited without re-running it. It is a claim about
  *      the machine that made the commit, so it is only as portable as the
- *      measurements underneath it, and `GLYPH_DRIFT` below names the one band
- *      where that currently breaks.
+ *      measurements underneath it. What made it unportable was a band drawing a
+ *      character the vendored fonts carry no glyph for, measured in the
+ *      machine's own font; `tests/glyph-coverage.js` now refuses that on every
+ *      fast run, so every band carries this claim (#228).
  *
  * The third claim is the one the seed exists for: two independent regenerations
  * render to identical PNGs. `seed` drives Rough.js jitter, so before this change
@@ -42,20 +44,6 @@ import { fileURLToPath } from "node:url";
 import { bands, linkPluginRoot } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-
-/**
- * Bands held to claim 1 but not claim 2, by artifact path, with the reason.
- *
- * A band lands here when its own text reaches a glyph the vendored fonts do not
- * carry: the browser then measures whatever system font it falls back to, and
- * that font is a property of the machine, so the committed width is one
- * machine's answer and every other machine disagrees with it. Determinism is
- * untouched, which is why claim 1 still applies. Delete the entry when its
- * issue closes, and the suite goes back to holding the band to its bytes.
- */
-const GLYPH_DRIFT = new Map([
-  ["examples/plugin-tour/plugin-tour", "two text elements draw ✓/✗, absent from the vendored fonts (#228)"],
-]);
 
 const fail = [];
 const check = (name, cond, detail) => {
@@ -118,11 +106,6 @@ for (const { generator, artifact } of BANDS) {
       a.equals(b) ? `${a.length} bytes`
         : `${a.length} vs ${b.length} bytes, ${firstDifference(["run 1", a], ["run 2", b])}`);
 
-    const drift = GLYPH_DRIFT.get(artifact);
-    if (drift) {
-      console.log(`SKIP  ${artifact}${ext}: matches the committed bytes  — ${drift}`);
-      continue;
-    }
     const committed = readFileSync(join(root, artifact + ext));
     check(`${artifact}${ext}: matches the committed bytes`, committed.equals(a),
       committed.equals(a) ? `${committed.length} bytes`

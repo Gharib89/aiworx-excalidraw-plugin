@@ -78,11 +78,11 @@ await withAuthoring(async (author) => {
             const spill = await text("doc.export_to_markdown()", { fontSize: 15, fontFamily: CODE });
             spill.x = badRect.x + 10;
             spill.y = badRect.y + (badRect.height - spill.height) / 2;
-            const oops = await text("✗ overflows when the real font renders",
+            const oops = await text("× overflows when the real font renders",
               { fontSize: 13, color: p.roles.fail.stroke });
             oops.x = badRect.x;
             oops.y = badRect.y + badRect.height + 8;
-            const ok = await text("✓ card sized from the measurement",
+            const ok = await text("+ card sized from the measurement",
               { fontSize: 13, color: grey.stroke });
             ok.x = goodBox.x;
             ok.y = goodCap.y + goodCap.height + 6;

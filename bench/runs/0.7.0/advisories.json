@@ -280,6 +280,16 @@
         "arr-9",
         "patch-10-t"
       ]
+    },
+    {
+      "code": "uncovered-glyph",
+      "elements": [
+        "patch-10-t"
+      ],
+      "codepoints": [
+        "U+2717"
+      ],
+      "family": "Nunito"
     }
   ],
   "deployment-boundaries": [

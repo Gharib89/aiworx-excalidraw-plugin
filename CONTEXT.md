@@ -162,7 +162,9 @@ The mask covers only that arrow — a *different* arrow crossing the label is st
 a defect. The pipeline re-centers a bound label onto its arrow on every pass, so
 a hand-moved one snaps back by design; a label that must sit off the line is
 unbound free text instead (clear `containerId` and the arrow's `boundElements`
-entry).
+entry). The pipeline owns the drawn size too, which is why `label()`'s measured
+`width`/`height` is spent on the **corridor** the engine reserves around the
+label and then dropped rather than written onto the element.
 _Avoid_: arrow label (unqualified), floating label
 
 **Splice**:
@@ -212,8 +214,11 @@ _Avoid_: ELK route, auto-route, computed waypoints
 **Corridor**:
 The space the layout engine reserves around every node for the routes that pass
 it — where an **engine route** runs and turns. Its width is `graph`'s `edgeGap`
-across the flow and `edgeLayerGap` along it, both 10px by default; widening one
-buys an edge label room to sit beside a node rather than on it. Corridors are
+across the flow and `edgeLayerGap` along it, and `routeGap` is the same room
+between two routes sharing one corridor rather than between a route and a node;
+all three are 10px by default. Widening one buys an edge label room to sit beside
+a node rather than on it — and a **bound label** measured by `label()` has the
+engine reserve that room itself, since `graph` forwards the extent. Corridors are
 the engine's to spend, like the bend count a `placement` strategy trades: a
 fraction (`originAt`/`landAt`) reaches none of them, it only revokes the route.
 Distinct from **clearance**, which measures ink already drawn, and from `gap` /

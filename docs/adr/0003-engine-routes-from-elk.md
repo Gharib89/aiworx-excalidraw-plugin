@@ -10,6 +10,9 @@
 - **Amended**: ticket #214 — the house owns the flow coordinate of the leading
   and trailing run (see
   [Amendment](#amendment--the-house-owns-the-flow-coordinate-of-the-leading-and-trailing-run-214-2026-09-08))
+- **Amended**: ticket #210 — ELK is told a label's extent, and only its extent
+  (see
+  [Amendment](#amendment--elk-is-told-a-labels-extent-and-only-its-extent-210-2026-09-08))
 
 ## Context
 
@@ -101,6 +104,8 @@ The house still **owns** the edges; ELK **routes** them.
   now*, on a boundary rather than a preference. `graph()` receives nodes already
   measured but a label as text, and `tools/layout.js` measures no text by design
   (`tests/chromeless.js` holds it Chrome-free). Filed rather than forced.
+  **Accepted in the #210 amendment**, boundary intact: the author measures the
+  label and `graph()` forwards the extent.
 
 ## Consequences
 
@@ -114,7 +119,9 @@ The house still **owns** the edges; ELK **routes** them.
 - `reference/authoring.md` loses the hand-routing instruction. Prose telling an
   author to work around something the tool now does costs author turns, so it
   goes rather than gets qualified.
-- **Edge labels remain the author's problem.** ELK spaced its ports for arrows,
+- **Edge labels remain the author's problem** — **superseded by the #210
+  amendment**, which tells ELK a measured label's extent and deletes the band's
+  fractions. What follows is the state before it. ELK spaced its ports for arrows,
   never having been told the labels exist, so a labelled fan can still put one
   arrow through a neighbour's label. `examples/triage-graph` still carries
   `originAt`/`landAt` for exactly that reason — the hand-routing is gone, the
@@ -206,3 +213,69 @@ and every option are as decision 2 and the consequences above describe them.
 Like the original change and the #220 amendment it is a **visual** break only
 where the geometry was wrong — a diagram that drew a backtrack regenerates
 without one.
+
+## Amendment — ELK is told a label's extent, and only its extent (#210, 2026-09-08)
+
+**Feeding ELK the edge labels** was rejected above on a boundary: `graph()`
+receives nodes already measured but a label as text, and `tools/layout.js`
+measures no text by design. That boundary holds and the rejection is lifted
+anyway, because the measuring never had to happen in `layout.js`. `authorDiagram`
+already hands the author `measure` and `wrap`; it now also hands them
+**`label(text, { fontSize, fontFamily })`**, which measures one arrow label and
+returns the string carrying its own `width` and `height`. An edge label that
+arrives at `graph()` with an extent is forwarded to ELK as an edge label;
+`layout.js` measures nothing, and `tests/chromeless.js` still holds it Chrome-free.
+
+What crosses the boundary is the extent, and only the extent. Three rules make
+that precise:
+
+1. **The extent is spent on the layout and dropped.** `arrowBetween` strips
+   `width`/`height` off a label spec before the drawn element sees them —
+   the pipeline re-centers and re-measures bound text every pass and owns that
+   size (**Bound label**), so an author-supplied dimension reaching the element
+   would be overwritten at best and disagree at worst.
+2. **ELK's label *coordinates* are ignored.** The engine returns a position for
+   every label it was told about; a bound label rides at the middle of its own
+   arrow by the same rule, so the position is read by nobody. Only the space
+   reserved for it changes the picture.
+3. **Placement is hard-wired to `inline`.** The label sits *on* its route rather
+   than beside it, which is where the renderer's mask can hide the arrow's own
+   path behind it. Measured: `elk.edgeLabels.inline` set per-label narrows the
+   band's fan from 310px to 274px, and the same option set at graph level is
+   **ignored** — 310px, the default placement — so it is written into each
+   label's own `layoutOptions` and exposed as no option at all.
+
+The engine also wants the label's `text`, not just its box: an ELK edge label
+with `width`/`height` and no `text` is **discarded silently** and the layout
+comes back byte-identical to one with no labels at all (measured on a three-leg
+fan: 528x168 and label positions at `(0,0)` without `text`, 528x246 with it).
+So the forwarded extent carries the string. It is the one place the author's text
+reaches the engine, and it reaches it as a measurement, never as something the
+engine renders.
+
+Alongside it, `graph()` gains **`routeGap`** — `elk.spacing.edgeEdge` and
+`elk.layered.spacing.edgeEdgeBetweenLayers`, 10px like its siblings. The
+**Corridor** the engine reserves around a node had two axes (`edgeGap`,
+`edgeLayerGap`); this is the same idea between two routes rather than a route and
+a node, which is what a label extent makes worth spending: legs pushed apart to
+clear each other's labels are legs that now need room from each other.
+
+Consequence: the **Edge labels remain the author's problem** consequence above is
+superseded. A measured label beats a fraction at the job the fractions in
+`examples/triage-graph` were doing, and beats it while *keeping* the route that
+decision 5 revokes — so the band regenerates with every `originAt`/`landAt`
+deleted, gate-clean in both frames, every edge on its engine route. Two limits
+survive: a fan's **departure ports** do not spread by extent (`routeGap` moves
+routes, never the port a route leaves from), and the band's **two-way pair**
+still carries no label for the reason #202 recorded, since an extent moves both
+legs of a diagonal pair together and the midpoint each label rides at moves with
+them. And the `placement` strategy still decides how far apart a fan's legs
+leave, so a label wide enough to need more room than the strategy leaves is
+cleared by changing the strategy, not by measuring harder: the band buys its
+clearance with `placement: "straight"` and pays in `too-many-bends` advisories.
+
+This amends what ELK is told, not the contract: `{ g, arrows }`, `route` and
+every existing option are as decision 2 and the consequences above describe them.
+It is a **visual** break in the same sense as the original change — a labelled
+graph regenerates with the engine spacing the labels, which is different and
+better geometry — and no API break; `label()` and `routeGap` are both additions.

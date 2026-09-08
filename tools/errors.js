@@ -39,6 +39,36 @@ export class NamedError extends Error {
   }
 }
 
+/**
+ * A rejected value, rendered for its own message. JSON reads best and is what the
+ * refusals show, but it throws on a bigint and on a circular object, and drops
+ * `undefined` — and an error about a bad value must not fail on the value.
+ *
+ * It lives beside NamedError because it is part of the same contract: a check
+ * that reached a verdict has to be able to say so, whatever it was handed. Every
+ * refusal that quotes a caller's value goes through here, and
+ * `tests/error-messages.js` pins that for the modules which import it.
+ *
+ * Total: for every input, this returns a non-empty string and throws nothing.
+ * Three tiers, each a fallback for the one before, because the first two run
+ * code the caller controls.
+ */
+export const shown = (value) => {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch { /* not serialisable — try the value's own string form */ }
+  try {
+    return String(value);
+  } catch { /* no usable string form either — fall through to the type */ }
+  // Both attempts run code the caller controls: JSON.stringify consults `toJSON`
+  // and property getters, String consults `Symbol.toPrimitive` and `toString`,
+  // and any of them can throw or be missing. `Object.create(null)` with a
+  // self-reference defeats both without being hostile at all. `typeof` is the
+  // only rendering that runs nothing and cannot fail, so the floor is built on
+  // it — a vaguer message than the value deserves, but a message.
+  return `an unprintable ${typeof value}`;
+};
+
 /** A CLI was invoked wrongly: print the usage text, exit 2, do nothing else. */
 export class UsageError extends NamedError {}
 

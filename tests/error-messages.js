@@ -21,10 +21,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { NamedError, UsageError, DocumentError } from "../tools/errors.js";
+import { NamedError, UsageError, DocumentError, shown } from "../tools/errors.js";
 import {
   SkeletonError, GateError, WrapError, AssetError, LibraryError,
-  makeWrap, spliceLibraryItem, authorDiagram,
+  makeWrap, makeLabel, spliceLibraryItem, authorDiagram,
 } from "../tools/author.js";
 // browser.js is imported for its error classes only — importing never launches
 // Chrome, so this suite stays in the fast (browser-free) target.
@@ -126,6 +126,42 @@ const linked = sites.filter((s) => /https?:\/\//.test(s.args));
 check("no error message links to docs", linked.length === 0,
   linked.map((s) => `${s.file}:${s.line}`).join(", "));
 
+// A refusal formats every value it quotes with `shown`, never with raw
+// JSON.stringify — which throws on a BigInt and on a circular object, replacing
+// the named error with the very TypeError the check exists to prevent.
+//
+// Inside the error construction the ban is unconditional rather than aimed at
+// the caller-supplied values actually at risk: which ones those are is not
+// decidable from the source, and a rule with per-site exemptions is one a later
+// refusal talks itself out of. `shown` renders a module-owned constant
+// identically, so paying it everywhere costs nothing.
+//
+// What it does not reach is formatting hoisted above the throw — `box`'s angle
+// refusal computes a `got` string deliberately, because `shown` would render
+// NaN as `null`. So this pins the argument lists, and a helper that formats
+// before it throws stays the reader's job.
+const importsShown = (src) => {
+  // `[^}]*` spans newlines, so a multi-line import list cannot slip past: one
+  // reformatted import silently dropping a module out of this rule is exactly
+  // the hole a single-line match leaves.
+  const named = /import\s*\{([^}]*)\}\s*from\s*"\.\/errors\.js"/.exec(src);
+  return named !== null && /\bshown\b/.test(named[1]);
+};
+const adopters = new Set(readdirSync(toolsDir)
+  .filter((f) => f.endsWith(".js") && importsShown(readFileSync(join(toolsDir, f), "utf8"))));
+
+// Named, not counted: `adopters.size > 0` passes while a module quietly stops
+// importing the helper, which is the one regression this check exists to catch.
+// A module that adopts `shown` later needs no edit here — it joins the set and
+// the raw-JSON check below starts holding it too.
+for (const f of ["author.js", "layout.js"]) {
+  check(`${f} imports the shared value formatter`, adopters.has(f), [...adopters].join(", ") || "none");
+}
+
+const rawJson = sites.filter((s) => adopters.has(s.file) && /JSON\.stringify\(/.test(s.args));
+check("no refusal in a shown-adopting module formats a value with raw JSON.stringify",
+  rawJson.length === 0, rawJson.map((s) => `${s.file}:${s.line} ${s.cls}`).join(", "));
+
 // ---- 2. the composed message carries all three ----
 
 const CLASSES = [
@@ -199,6 +235,61 @@ await thrown("splice from a missing library", () => spliceLibraryItem(join(root,
 // index refusal is checkable offline; the rest live in tests/library.js.
 await thrown("download with a handle that is not a library source",
   () => downloadLibrary("../../etc/passwd"), LibraryIndexError);
+
+// ---- 4. a refusal survives the value it refuses ----
+
+// JSON.stringify throws on both of these, so a refusal that formatted the value
+// with it raised a TypeError out of the error path instead of its own named
+// error: the check reached its verdict and then failed to say so.
+const circular = {};
+circular.self = circular;
+// Circular defeats JSON.stringify, so each of these reaches the String fallback
+// and defeats that too. The bare-object case is the one that matters: it needs no
+// hostile code at all, just Object.create(null) and a self-reference, because a
+// value with no prototype has no toString to convert it.
+const throwingToString = { toString() { throw new Error("boom"); } };
+throwingToString.self = throwingToString;
+const throwingPrimitive = { [Symbol.toPrimitive]() { throw new Error("boom"); } };
+throwingPrimitive.self = throwingPrimitive;
+const noPrototype = Object.create(null);
+noPrototype.self = noPrototype;
+
+const UNPRINTABLE = [
+  ["a BigInt", 1n],
+  ["a circular object", circular],
+  ["a circular object with no prototype", noPrototype],
+  ["a circular object with a throwing toString", throwingToString],
+  ["a circular object with a throwing Symbol.toPrimitive", throwingPrimitive],
+];
+
+// The seam itself, exhaustively: it is the one place the guarantee lives, so a
+// value it cannot render still has to come back as a string rather than a throw.
+for (const [name, bad] of UNPRINTABLE) {
+  let rendered;
+  try { rendered = shown(bad); } catch (e) { rendered = e; }
+  check(`shown renders ${name}`, typeof rendered === "string" && rendered !== "",
+    rendered instanceof Error ? `threw ${rendered.name}: ${rendered.message}` : String(rendered));
+}
+
+// The build never runs — each of these refuses in the options validation ahead
+// of it — so a driver that hands out no page at all is enough to stay chromeless.
+const noPage = (fn) => fn({});
+
+for (const [name, bad] of UNPRINTABLE) {
+  await thrown(`splice with ${name} text mode`,
+    () => spliceLibraryItem(join(root, "no-such.excalidrawlib"), { text: bad }), LibraryError);
+  await thrown(`label with ${name}`, () => makeLabel(fakeMeasure, { sublabel: 16 })(bad), WrapError);
+  await thrown(`authorDiagram with ${name} preset`,
+    () => authorDiagram({ out: "x.excalidraw", build: async () => [], preset: bad, driver: noPage }),
+    SkeletonError);
+  await thrown(`authorDiagram with ${name} in the register`,
+    () => authorDiagram({
+      out: "x.excalidraw", build: async () => [], register: { roughness: bad }, driver: noPage,
+    }), SkeletonError);
+  await thrown(`stack with ${name} direction`, () => stack([rect("a")], { direction: bad }), LayoutError);
+  await thrown(`arrowBetween with ${name} label`,
+    () => arrowBetween(rect("a"), rect("b"), { label: bad }), LayoutError);
+}
 
 console.log(fail.length ? `\n${fail.length} FAILED: ${fail.join(", ")}` : "\nevery error clears the bar");
 process.exit(fail.length ? 1 : 0);

@@ -13,7 +13,7 @@
  * therefore returns a deferred arrow and `resolveArrows` measures them all once
  * the movers are done — again, authorDiagram does it for you.
  */
-import { NamedError, loadDependency } from "./errors.js";
+import { NamedError, loadDependency, shown } from "./errors.js";
 import { bounds } from "./geometry.js";
 import { loadBrandPalette } from "./brand.js";
 import { PRESETS, DEFAULT_PRESET } from "./presets.js";
@@ -32,7 +32,7 @@ function extent(node) {
     throw new LayoutError(
       `needs finite width and height (got ${w}x${h})`,
       {
-        where: node?.id || `layout item ${JSON.stringify(node?.type ?? node?.kind)}`,
+        where: node?.id || `layout item ${shown(node?.type ?? node?.kind)}`,
         next: "Measure text first, size shapes explicitly.",
       },
     );
@@ -75,12 +75,12 @@ export function stack(items, { direction = "column", x = 0, y = 0, gap = 0, alig
     });
   }
   if (direction !== "column" && direction !== "row") {
-    throw new LayoutError(`direction must be "column" or "row", got ${JSON.stringify(direction)}`, {
+    throw new LayoutError(`direction must be "column" or "row", got ${shown(direction)}`, {
       where: "stack", next: 'Pass "column" or "row" for direction.',
     });
   }
   if (!["start", "center", "end"].includes(align)) {
-    throw new LayoutError(`align must be start, center or end, got ${JSON.stringify(align)}`, {
+    throw new LayoutError(`align must be start, center or end, got ${shown(align)}`, {
       where: "stack", next: 'Pass "start", "center" or "end" for align.',
     });
   }
@@ -200,8 +200,11 @@ export function box(child, { padding = 20, ...shapeProps } = {}) {
   if ("angle" in shapeProps) {
     const { angle } = shapeProps;
     if (!Number.isFinite(angle)) {
-      // NaN and Infinity stringify to null as JSON, and a bigint throws — show
-      // the value the way its own type reads instead
+      // Not `shown`, which every other refusal here uses: NaN and Infinity are
+      // the values this check exists to name and JSON renders both as `null`,
+      // so "must be a finite number, got null" would lose the whole complaint.
+      // Show the value the way its own type reads instead — safe on a bigint,
+      // which String handles and JSON throws on.
       const got = typeof angle === "string" ? JSON.stringify(angle) : String(angle);
       throw new LayoutError(`angle must be a finite number, got ${got}`, {
         where: "box", next: "Pass a finite number, or omit angle.",
@@ -333,19 +336,6 @@ const along = (fraction, lo, hi, fallback) =>
   fraction === undefined ? fallback : lo + fraction * (hi - lo);
 
 /**
- * A rejected value, rendered for its own message. JSON reads best and is what the
- * rest of this module shows, but it throws on a bigint and drops `undefined` —
- * and an error about a bad value must not fail on the value.
- */
-const shown = (value) => {
-  try {
-    return JSON.stringify(value) ?? String(value);
-  } catch {
-    return String(value);
-  }
-};
-
-/**
  * The ramp these helpers use when nobody binds one: `fit`, which is today's
  * sizing and the reason an unpresetted build is byte-identical to one authored
  * before presets existed. `rampedLayout` is how a preset replaces it.
@@ -373,7 +363,7 @@ const FIT_RAMP = PRESETS[DEFAULT_PRESET].ramp;
 function labelSpec(label, ramp) {
   const spec = typeof label === "string" ? { text: label } : label;
   if (!spec || typeof spec.text !== "string" || spec.text === "") {
-    throw new LayoutError(`label needs text, got ${JSON.stringify(label)}`, {
+    throw new LayoutError(`label needs text, got ${shown(label)}`, {
       where: "arrowBetween", next: 'Pass a string or { text: "…" } for label.',
     });
   }
@@ -464,7 +454,7 @@ export function arrowBetween(a, b, opts = {}, ramp = FIT_RAMP) {
   const edge = () => `${bindId(a) ?? a?.type} and ${bindId(b) ?? b?.type}`;
   if (route !== undefined && !ROUTES.has(route)) {
     throw new LayoutError(
-      `route must be ${[...ROUTES].map((r) => JSON.stringify(r)).join(", ")}, got ${shown(route)} ` +
+      `route must be ${[...ROUTES].map((r) => shown(r)).join(", ")}, got ${shown(route)} ` +
         `(arrow between ${edge()})`,
       {
         where: "arrowBetween",
@@ -484,7 +474,7 @@ export function arrowBetween(a, b, opts = {}, ramp = FIT_RAMP) {
   }
   if (route !== undefined && via.length) {
     throw new LayoutError(
-      `takes route: ${JSON.stringify(route)} or ${via.length} via waypoints, not both ` +
+      `takes route: ${shown(route)} or ${via.length} via waypoints, not both ` +
         `(arrow between ${edge()})`,
       { where: "arrowBetween", next: "Drop via to have the route computed, or drop route to keep your own path." },
     );

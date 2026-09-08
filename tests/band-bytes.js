@@ -24,6 +24,12 @@
  * render to identical PNGs. `seed` drives Rough.js jitter, so before this change
  * the same geometry rasterised differently every run.
  *
+ * Both byte claims extend to a band's committed `<slug>-dark.svg`, which no
+ * generator writes: it is `tools/render.js --dark` output, so the suite runs
+ * that CLI rather than reaching into `exportSvg`, and the claim stays one a
+ * reader can reproduce by hand. A band with no such sibling costs no Chrome
+ * time (#233).
+ *
  * It regenerates **out of tree** (a temp checkout that symlinks `tools/` and
  * `brand/` and copies `examples/`) for two reasons: CI asserts verification
  * never dirties a tracked file, and a generator writes next to its own script,
@@ -41,7 +47,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } f
 import { tmpdir } from "node:os";
 import { basename, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bands, linkPluginRoot } from "./lib/examples.js";
+import { artifacts, bands, linkPluginRoot } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -85,6 +91,23 @@ function firstDifference([nameA, a], [nameB, b]) {
   return `at byte ${i}\n      ${nameA}: …${window(a)}\n      ${nameB}: …${window(b)}`;
 }
 
+/**
+ * The two byte claims, over a pair of regenerations of one committed artifact:
+ * the pair agrees, and it is what the tree holds at `name`.
+ */
+function holdToBytes(name, a, b) {
+  const agree = a.equals(b);
+  check(`${name}: two runs in a row agree`, agree,
+    agree ? `${a.length} bytes`
+      : `${a.length} vs ${b.length} bytes, ${firstDifference(["run 1", a], ["run 2", b])}`);
+
+  const committed = readFileSync(join(root, name));
+  const matches = committed.equals(a);
+  check(`${name}: matches the committed bytes`, matches,
+    matches ? `${committed.length} bytes`
+      : `${committed.length} vs ${a.length} bytes, ${firstDifference(["committed", committed], ["regenerated", a])}`);
+}
+
 // ---- every band: two runs agree, and the run matches what is committed ----
 const [first, second] = ["band-bytes-1", "band-bytes-2"].map(scratchCheckout);
 console.log(`checkouts: ${first}, ${second}`);
@@ -94,7 +117,21 @@ console.log(`checkouts: ${first}, ${second}`);
 check("the walk finds every committed band", BANDS.length > 0,
   BANDS.map((b) => b.artifact).join(", "));
 
-for (const { generator, artifact } of BANDS) {
+// Same reasoning one level down, held against the tree rather than against
+// itself: a `<slug>-dark.svg` whose slug names no generator is unreachable by
+// the walk, and a renamed or deleted one turns `dark` false and lets the loop
+// below skip its way to a green run. Both are the "goes missing from the
+// suites" case `tests/lib/examples.js` warns about, so the check names the file
+// it could not reach instead of only counting.
+const DARK = BANDS.filter((b) => b.dark);
+const walked = new Set(DARK.map((b) => `${b.artifact}-dark.svg`));
+const committedDark = artifacts(root).filter((f) => f.endsWith("-dark.svg"));
+const missed = committedDark.filter((f) => !walked.has(f));
+check("the walk finds every committed dark render",
+  committedDark.length > 0 && missed.length === 0,
+  missed.length ? `no generator names ${missed.join(", ")}` : committedDark.join(", "));
+
+for (const { generator, artifact, dark } of BANDS) {
   const runs = [first, second].map((checkout) => run(checkout, generator, [checkout]));
   const clean = runs.every((r) => r.status === 0);
   check(`${artifact}: the generator runs clean twice`, clean, clean ? undefined : why(runs.find((r) => r.status !== 0)));
@@ -102,15 +139,25 @@ for (const { generator, artifact } of BANDS) {
 
   for (const ext of [".excalidraw", ".svg"]) {
     const [a, b] = [first, second].map((checkout) => readFileSync(join(checkout, artifact + ext)));
-    check(`${artifact}${ext}: two runs in a row agree`, a.equals(b),
-      a.equals(b) ? `${a.length} bytes`
-        : `${a.length} vs ${b.length} bytes, ${firstDifference(["run 1", a], ["run 2", b])}`);
-
-    const committed = readFileSync(join(root, artifact + ext));
-    check(`${artifact}${ext}: matches the committed bytes`, committed.equals(a),
-      committed.equals(a) ? `${committed.length} bytes`
-        : `${committed.length} vs ${a.length} bytes, ${firstDifference(["committed", committed], ["regenerated", a])}`);
+    holdToBytes(artifact + ext, a, b);
   }
+
+  // The dark sibling is the same two claims over a different producer: the
+  // regenerated `.excalidraw` put back through `render.js --dark`, once per
+  // checkout. `--no-frames` keeps it off the frame PNGs nothing here compares.
+  if (!dark) continue;
+  const renders = [first, second].map((checkout, i) => {
+    const out = join(checkout, "dark", dirname(artifact));
+    mkdirSync(out, { recursive: true });
+    const render = run(checkout, join(root, "tools", "render.js"),
+      [join(checkout, artifact + ".excalidraw"), "--dark", "--no-frames", "--out", out]);
+    if (render.status !== 0) {
+      check(`${artifact}-dark.svg: dark render ${i} runs clean`, false, why(render));
+      return null;
+    }
+    return readFileSync(join(out, `${basename(artifact)}.svg`));
+  });
+  if (renders.every(Boolean)) holdToBytes(`${artifact}-dark.svg`, ...renders);
 }
 
 // ---- the smallest band: two regenerations render to identical PNGs ----

@@ -207,7 +207,15 @@ surface — `fit` (the default, no target surface), `doc-inline`, `doc-wide`,
 `slide-16x9`, `social-og`.
 
 [`examples/example-dark.svg`](examples/example-dark.svg) is the committed `--dark`
-render of the example band.
+render of the example band, reproduced byte for byte by:
+
+```bash
+node tools/render.js examples/example.excalidraw --dark --no-frames --out <dir>
+```
+
+`render.js` names its output after the input stem, so that writes `example.svg`
+into `<dir>`. `tests/band-bytes.js` runs exactly that command and holds the
+committed file to its bytes, so the dark render cannot go stale unnoticed.
 
 Authoring is deterministic: an element's `id`, `seed`, `versionNonce` and
 `updated` are derived from the diagram rather than minted at random or off the

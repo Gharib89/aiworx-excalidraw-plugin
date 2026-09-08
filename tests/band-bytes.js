@@ -47,7 +47,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } f
 import { tmpdir } from "node:os";
 import { basename, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bands, linkPluginRoot } from "./lib/examples.js";
+import { artifacts, bands, linkPluginRoot } from "./lib/examples.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -117,11 +117,19 @@ console.log(`checkouts: ${first}, ${second}`);
 check("the walk finds every committed band", BANDS.length > 0,
   BANDS.map((b) => b.artifact).join(", "));
 
-// Same reasoning one level down: a renamed or deleted `<slug>-dark.svg` turns
-// every `dark` false, and the loop below would skip its way to a green run.
+// Same reasoning one level down, held against the tree rather than against
+// itself: a `<slug>-dark.svg` whose slug names no generator is unreachable by
+// the walk, and a renamed or deleted one turns `dark` false and lets the loop
+// below skip its way to a green run. Both are the "goes missing from the
+// suites" case `tests/lib/examples.js` warns about, so the check names the file
+// it could not reach instead of only counting.
 const DARK = BANDS.filter((b) => b.dark);
-check("the walk finds every committed dark render", DARK.length > 0,
-  DARK.map((b) => `${b.artifact}-dark.svg`).join(", "));
+const walked = new Set(DARK.map((b) => `${b.artifact}-dark.svg`));
+const committedDark = artifacts(root).filter((f) => f.endsWith("-dark.svg"));
+const missed = committedDark.filter((f) => !walked.has(f));
+check("the walk finds every committed dark render",
+  committedDark.length > 0 && missed.length === 0,
+  missed.length ? `no generator names ${missed.join(", ")}` : committedDark.join(", "));
 
 for (const { generator, artifact, dark } of BANDS) {
   const runs = [first, second].map((checkout) => run(checkout, generator, [checkout]));

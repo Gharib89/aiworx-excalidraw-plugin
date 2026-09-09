@@ -107,6 +107,12 @@ jobs:
     # leaked credential and a public repo's history. No GITLEAKS_LICENSE: the
     # action is free for repos on a personal account.
     runs-on: ubuntu-latest
+    # Granted explicitly, not inherited: the action posts its findings as a PR
+    # comment, which a read-only default token cannot do, and a third-party
+    # action gets no more than the two scopes it needs.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -114,8 +120,7 @@ jobs:
           # does not contain.
           fetch-depth: 0
       # v3, not v2: v2 runs on the Node 20 action runtime GitHub deprecates in
-      # September 2026. GITHUB_TOKEN is what lets the action comment its
-      # findings on the PR.
+      # September 2026.
       - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

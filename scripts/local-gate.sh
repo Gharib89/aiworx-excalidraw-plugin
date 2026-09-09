@@ -17,8 +17,9 @@
 # Mirrors .github/workflows/ci.yml: the `test` leg (npm test plus the
 # verification-must-not-dirty-the-repo check), the `bundle` leg when a bundle
 # input changed (rebuild from the locked toolchain, rebuilt dist/ must match the
-# committed one, then gate the clean fixture), and the `plugin` leg (version
-# gate, plugin validate). The macOS/Windows matrix legs are CI's alone.
+# committed one, then gate the clean fixture), the `plugin` leg (version gate,
+# plugin validate), and the `secrets` leg (gitleaks over the range). The
+# macOS/Windows matrix legs are CI's alone.
 set -uo pipefail
 
 small="" base=""
@@ -46,8 +47,8 @@ mark() { gates[$1]=$2; }   # mark <name> deferred-to-ci|unavailable
 
 # --- gates ---------------------------------------------------------------------
 
-# secrets: required in every lane; the repo has no CI scanner, so this is the
-# only place added lines are checked.
+# secrets: required in every lane; CI's `secrets` leg runs gitleaks too, so this
+# is the catch before a leak is ever pushed.
 if command -v gitleaks >/dev/null; then
   run secrets gitleaks git --no-banner --redact --log-opts="$base..HEAD" .
 else

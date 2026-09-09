@@ -30,7 +30,8 @@ The gate rebuilds the bundle itself when an input changed and fails `bundle:repr
 Legs: test: `npm test` on ubuntu plus `npm run test:os` on macos and windows (a 3-OS matrix; a red macOS or Windows leg with a green Linux leg is a real signal), and the clean-tree check (verification must never dirty tracked files)
 Legs: plugin: `node tools/version-gate.js` on PRs, then `claude plugin validate . --strict` against a pinned CLI
 Legs: bundle: rebuild `dist/` from the locked toolchain, byte-compare against the committed one, smoke it, gate the clean fixture
-No-checks legal: no; `ci.yml` has no `paths:` filter, every PR runs all three
+Legs: secrets: `gitleaks/gitleaks-action` over the pushed or PR commits, the CI counterpart of the local gate's `secrets` gate
+No-checks legal: no; `ci.yml` has no `paths:` filter, every PR runs all four
 Push policy: Default.
 
 One workflow, `.github/workflows/ci.yml`, `pull_request` and `push` on `main`. No other workflow exists.

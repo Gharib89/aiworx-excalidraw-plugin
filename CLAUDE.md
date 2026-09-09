@@ -2,7 +2,7 @@
 
 Claude Code plugin: author `.excalidraw` diagrams with real text metrics and headless visual verification. See `README.md` for architecture and `skills/excalidraw-diagram/SKILL.md` for the authoring workflow.
 
-Plain Node ≥18 ESM, no build step for consumers: the browser bundle (`dist/excalidraw-page.js`) is **committed** and fingerprint-stamped — `tools/browser.js` refuses a stale one. No TypeScript, no linter, no formatter gate — the test suite, the clean-tree check, and bundle reproducibility are the whole CI gate. Rendering drives the machine's **system Chrome** (`CHROME_PATH` overrides discovery).
+Plain Node ≥18 ESM, no build step for consumers: the browser bundle (`dist/excalidraw-page.js`) is **committed** and fingerprint-stamped — `tools/browser.js` refuses a stale one. No TypeScript, no linter, no formatter gate — the test suite, the clean-tree check, bundle reproducibility, and a gitleaks secrets scan are the whole CI gate. Rendering drives the machine's **system Chrome** (`CHROME_PATH` overrides discovery).
 
 ## Commands
 
@@ -20,7 +20,7 @@ node tools/version-gate.js --base origin/main   # what CI asks before it lets a 
 bench/run.sh [slug]               # a bench run: the benchmark corpus rendered headlessly at this version — manual, paid, not CI; bench/README.md
 ```
 
-CI (`.github/workflows/ci.yml`): a **3-OS matrix** — `npm test` on ubuntu, `npm run test:os` on macos / windows (browser discovery and path handling are per-OS claims; the rest of the gate is OS-independent and runs once) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture) + a **plugin job** (the version gate below, plus `claude plugin validate . --strict` against a pinned CLI). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
+CI (`.github/workflows/ci.yml`): a **3-OS matrix** — `npm test` on ubuntu, `npm run test:os` on macos / windows (browser discovery and path handling are per-OS claims; the rest of the gate is OS-independent and runs once) + a **clean-tree check** (verification must never dirty tracked files) + a **bundle job** (rebuild from the locked toolchain, byte-compare against the committed `dist/`, smoke it, gate the clean fixture) + a **plugin job** (the version gate below, plus `claude plugin validate . --strict` against a pinned CLI) + a **secrets job** (`gitleaks` over the pushed or PR commits, the CI counterpart of the local gate's `secrets` gate). A red macOS/Windows leg with a green Linux leg is a real signal, not a flake.
 
 A **new suite must be wired into `test:fast` or `test:browser`** — `tests/test-targets.js` fails on one that is in neither, in both, or missing from disk, and it pins `test` to exactly `test:fast && test:browser` so the split can never narrow the gate. `test:browser` hands its suites to `tests/lib/parallel.js` as quoted arguments (longest first); `test-targets.js` reads those arguments as the target's steps. A suite that makes a **per-OS claim** (Chrome discovery, path handling) also goes into `test:os`, or macOS/Windows never run it. `test:fast` stays Chrome-free: `tests/chromeless.js` (in `test:browser`) re-runs every fast suite with `CHROME_PATH` pointed at nothing. Importing `tools/browser.js` is fine — only a *successful launch* breaks the fast target.
 

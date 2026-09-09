@@ -10,7 +10,7 @@ The standards every change in this repo is reviewed against. The `code-review` s
 - `tools/version-gate.js` (CI `plugin` leg): a PR touching `skills/`, `tools/`, `dist/`, `brand/` or `.claude-plugin/` carries a version bump.
 - `tools/fingerprint.js`: `dist/excalidraw-page.js` is stamped with the hash of its inputs; `tools/browser.js` refuses a stale bundle.
 - `claude plugin validate . --strict` (CI `plugin` leg) against a pinned CLI.
-- `gitleaks/gitleaks-action` (CI `secrets` leg): no credential in the pushed or PR commits; `scripts/local-gate.sh` runs the same scan over added lines before a PR opens.
+- `gitleaks/gitleaks-action` (CI `secrets` leg): the pushed or PR commits scan clean of credentials; `scripts/local-gate.sh` runs the same scan over added lines before a PR opens.
 
 ## Written standards
 

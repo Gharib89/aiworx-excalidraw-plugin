@@ -17,8 +17,9 @@
 # Mirrors .github/workflows/ci.yml: the `test` leg (npm test plus the
 # verification-must-not-dirty-the-repo check), the `bundle` leg when a bundle
 # input changed (rebuild from the locked toolchain, rebuilt dist/ must match the
-# committed one, then gate the clean fixture), and the `plugin` leg (version
-# gate, plugin validate). The macOS/Windows matrix legs are CI's alone.
+# committed one, then gate the clean fixture), the `plugin` leg (version gate,
+# plugin validate), and the `secrets` leg (gitleaks over the range). The
+# macOS/Windows matrix legs are CI's alone.
 set -uo pipefail
 
 small="" base=""

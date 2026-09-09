@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Resolve one review thread, after every thread carries a disposition.
+#
+#   resolve-thread <pr> <thread-id>     (ids come from poll-pr's threads[])
+#
+# stdout: {pr, thread, resolved}
+# exit: 0 resolved · 1 not resolved · 2 usage
+set -uo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh" || { printf '{"error":"cannot source _lib.sh"}\n'; exit 2; }
+pr=${1:?usage: resolve-thread <pr> <thread-id>}; thread=${2:?usage: resolve-thread <pr> <thread-id>}
+[ $# -eq 2 ] || ship_tooling "unknown flag: $3"
+ship_load_host
+out=$(host_pr_resolve_thread "$pr" "$thread") || ship_fail "resolve call failed"
+jq --argjson pr "$pr" --arg t "$thread" '{pr: $pr, thread: $t} + .' <<<"$out"
+[ "$(jq -r .resolved <<<"$out")" = true ]

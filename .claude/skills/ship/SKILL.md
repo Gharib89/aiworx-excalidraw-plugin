@@ -8,7 +8,7 @@ description: >-
   issue through to a PR, or run the unattended lane.
 argument-hint: "[issue-number] [--unattended]"
 metadata:
-  version: 1.2.1
+  version: 1.2.2
   profile-schema: 1
 ---
 

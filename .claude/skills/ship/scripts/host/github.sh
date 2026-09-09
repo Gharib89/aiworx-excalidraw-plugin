@@ -186,18 +186,25 @@ host_pr_reviewer_blocked() { # <pr> <login>
 
 # Request, then read the request back off the host's own record: the login you
 # request and the login you read back can differ (Copilot is requested as
-# copilot-pull-request-reviewer[bot] and recorded without the suffix), and an
-# empty requested_reviewers list proves nothing once the bot has posted.
+# copilot-pull-request-reviewer[bot] and recorded on the timeline as `Copilot`),
+# and an empty requested_reviewers list proves nothing once the bot has posted.
 host_pr_request_review() { # <pr> <login>
-  local pr=$1 login=$2 ok=false readback
+  local pr=$1 login=$2 ok=false before after readback
+  _requested_events() {
+    api "$R/issues/$pr/timeline" --paginate \
+      --jq '.[] | select(.event == "review_requested") | .requested_reviewer.login // empty' | jq -R . | jq -s .
+  }
+  before=$(_requested_events) || before='[]'
   api -X POST "$R/pulls/$pr/requested_reviewers" -f "reviewers[]=$login" >/dev/null && ok=true
   sleep 2
-  readback=$( { api "$R/pulls/$pr" --jq '.requested_reviewers[].login';
-                api "$R/issues/$pr/timeline" --paginate \
-                  --jq '.[] | select(.event == "review_requested") | .requested_reviewer.login // empty'; } \
-              | jq -R . | jq -s 'unique')
-  jq -n --argjson ok "$ok" --argjson rb "$readback" --arg l "$login" \
-    '{requested: ($ok and ([$rb[] | ascii_downcase | sub("\\[bot\\]$"; "")] | index($l | ascii_downcase | sub("\\[bot\\]$"; "")) != null)),
+  after=$(_requested_events) || after='[]'
+  readback=$( { api "$R/pulls/$pr" --jq '.requested_reviewers[].login'; jq -r '.[]' <<<"$after"; } | jq -R . | jq -s 'unique')
+  # Read back by delta: the request landed iff the timeline gained a
+  # review_requested event during this call. Comparing logins does not work for
+  # an app reviewer, which is requested under one login and recorded under another.
+  jq -n --argjson ok "$ok" --argjson b "$before" --argjson a "$after" --argjson rb "$readback" --arg l "$login" \
+    '{requested: ($ok and (($a | length) > ($b | length)
+                          or ([$rb[] | ascii_downcase | sub("\\[bot\\]$"; "")] | index($l | ascii_downcase | sub("\\[bot\\]$"; "")) != null))),
       readback: $rb}'
 }
 

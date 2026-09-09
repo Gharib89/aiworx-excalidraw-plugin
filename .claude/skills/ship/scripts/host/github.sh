@@ -89,8 +89,8 @@ host_issue_create() { # <title> <body-file> <label>
   }
   if out=$(_issue_create); then printf '%s\n' "$out"; return 0; fi
   sleep 2
-  out=$(api "$R/issues?state=open&creator=$me&sort=created&direction=desc&per_page=20" \
-    --jq --arg t "$title" '[.[] | select(.pull_request == null and .title == $t)] | first | select(. != null) | {number, url: .html_url}')
+  out=$(api "$R/issues?state=open&creator=$me&sort=created&direction=desc&per_page=20" --jq '.[]' \
+    | jq -s --arg t "$title" '[.[] | select(.pull_request == null and .title == $t)] | first | select(. != null) | {number, url: .html_url}')
   if [ -n "$out" ]; then printf '%s\n' "$out"; return 0; fi
   _issue_create
 }

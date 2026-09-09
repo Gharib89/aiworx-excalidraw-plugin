@@ -32,10 +32,10 @@ Touching a **bundle input** — `tools/page.js`, `tools/bundle.js`, `tools/fonts
 
 The main checkout (`~/wip/projects/aiworx-excalidraw-plugin`) may be shared by concurrent agent sessions — **never develop in it directly**. Any feature or bug fix happens in a **git worktree on a fresh branch**:
 
-1. `EnterWorktree` (or `git worktree add`), branch named `<type>/<slug>[-<issue>]`.
-2. `npm ci --omit=dev` in the worktree — node_modules is not shared; full `npm ci` only when rebundling.
+1. A **sibling** worktree, `../aiworx-excalidraw-plugin.worktrees/<slug>-<issue>`, branch named `<type>/<slug>-<issue>`, off `origin/main`. `/ship` creates it; by hand, `git worktree add ../aiworx-excalidraw-plugin.worktrees/<slug>-<issue> -b <type>/<slug>-<issue> origin/main`. Never nest one under the checkout: it pollutes the repo's own globs.
+2. `npm ci --omit=dev` in the worktree — node_modules is not shared; full `npm ci` only when rebundling. `scripts/local-gate.sh` does this itself.
 3. All work, commits, and the PR happen from that branch.
-4. Remove the worktree after merge.
+4. Remove the worktree after merge (`/ship` does).
 
 In the shared checkout itself: read-only work and small docs-only commits to `main`. Before **any** git mutation anywhere: `git branch --show-current && git status -sb` first, and stage with explicit paths, never `git add -A`.
 
@@ -78,7 +78,7 @@ A round takes **two to four minutes**. A count that did not rise means the reque
 
 Copilot posts **one review per request** and does not re-review on push. After a round of fixes, request again — that is what makes the next round, and it is why rounds are counted rather than assumed.
 
-**Drive it until converged, soft cap four rounds.** Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
+**Drive it until converged, soft cap four rounds** (inside a `/ship` run the profile's `Cap:` governs instead). Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
 
 **Triage every comment.** Copilot does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
 
@@ -86,8 +86,12 @@ Copilot is a second pair of eyes. **The gate** is a deliberate self-review (`cod
 
 ## Agent skills
 
-`/ship <issue>` (`.claude/skills/ship/`) drives an issue to a merge-ready PR unattended, stopping at a human merge gate. It claims via `ready-for-agent` → `agent-working`, works in a worktree, squash-merges on approval, and releases the claim on merge — or hands the issue back to `needs-triage` if it stops blocked. Its `scripts/local-gate.sh` mirrors the CI checks locally.
-
 - **Issues** live in GitHub Issues on `Gharib89/aiworx-excalidraw-plugin`, driven with `gh`. Command recipes, the number space PRs share with issues, and the wayfinder map/child conventions: `docs/agents/issue-tracker.md`.
-- **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`, plus `agent-working` — a `/ship` claim rather than a triage state. Its lifecycle, and how to clear one a dead run left behind: `docs/agents/triage-labels.md`.
+- **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. The **assignee** is the claim: an assigned open issue is taken, and a `/ship` run that stops blocked hands it back to `ready-for-human`. `docs/agents/triage-labels.md`.
 - **Domain** is single-context — `CONTEXT.md` and `docs/adr/` at the repo root. How a skill should read them before exploring, and what to do when its output contradicts an ADR: `docs/agents/domain.md`.
+
+### Ship
+
+`/ship` drives one issue to a merge-ready PR. This repo's ship profile: `docs/agents/ship.md`. Without that file ship refuses: run `/setup-skills`.
+
+Every skill under `.claude/skills/` is a derived copy, never edited in place; `skills-lock.json` records each one's source. `ship` and `cloud-ship` come from `Gharib89/skills`; the skills ship composes come from `mattpocock/skills` and `upstash/context7`. Refresh a skill by re-running its install line at project scope (never `-g`). Ship's refresh chains its preflight, so a profile the refreshed ship no longer reads is reported now, not on the next `/ship`: `npx skills add Gharib89/skills --skill ship --skill cloud-ship --agent claude-code -y && .claude/skills/ship/scripts/preflight.sh <any open issue number>`.

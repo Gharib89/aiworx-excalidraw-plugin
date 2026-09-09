@@ -1,80 +1,91 @@
-# Phase 9 — the merge gate
+# Phase 9: the merge gate
 
-This is the merge gate — the one guaranteed human stop (rationale in the autonomy
-contract in SKILL.md). Your job is to make that call a 10-second yes/no by laying
-out everything they'd want to check.
+The one guaranteed human stop (the autonomy contract in SKILL.md). Your job is
+to make the call a ten-second yes or no by laying out everything the human
+would want to check.
 
-## Post this summary, then stop
+**Write it uncompressed.** A session-wide output style or personal brevity rule
+does **not** apply to this summary. It is the evidence a human approves an
+irreversible squash-merge on, and in the unattended lane it is the only record
+of the run. Never paste organization identifiers, credentials or live-system
+names into it; the repo may be public.
+
+## The summary
 
 ```
-## /ship summary — #<issue>: <title>
+## /ship summary: #<issue>: <title>   (ship <version>)
 
-PR:        <url>  (<branch> → main)
+PR:        <url>  (<branch> → <default branch>)
 Issue:     <one-line restatement of what was asked>
-Lane:      <full | small — skipped: browser verification, full local suite (CI)>
+Lane:      <full | small: skipped <phase 3 verifications, docs-sync>>
 
 Implementation
-  - <what was built, 1–3 lines>
+  - <what was built, 1 to 3 lines>
   - tests added/updated: <files / count>
-  - bundle: <untouched | rebuilt and committed (inputs changed)>
+  - tripwires: <none fired | <what was rebuilt or bumped>>
 
 Deviations from plan
-  - <departure: what + why, conservative option taken>   (or: None — plan held)
+  - <departure: what and why, conservative option taken>   (or: None, plan held)
 
-Browser verification
-  - <what was run: smoke / targeted render / tests/<area>.js>  → <pass | handed to you>
-  - OS-specific claims: <none | proven by CI leg: <os>>
+Verification                                   (one row per applicable entry)
+  - <name>: <pass | fail | deferred-to-ci: <CI leg> | unavailable>   <what ran>
+  (or: none applicable: <class docs | small lane>)
 
-Self-review (code-review skill — the review gate)
-  - <comment> → <fixed | rejected: reason | n/a>
+Self-review (code-review skill, the review gate)
+  - <finding> → <fixed | rejected: reason>
   ...
 
-Copilot (requested, <n> rounds — converged | degraded: <cap hit | never queued | reviewer errored>)
-  - round <n>: <comment> → <fixed in <sha> | declined: reason>
-  ...                                     (or: clean — no comments)
+Review                                         (one block per reviewer)
+  <name> (<trigger>, <n> rounds): <converged | converged, override needed | degraded: <reason>>
+    - <finding> → <fixed in <sha> | declined: reason | filed: #<n>>
+    ...                                        (or: clean, no findings)
 
-Local gate:  tests <✓/✗> · fingerprint <✓/✗> · bundle-repro <✓/✗/n/a> · clean-tree <✓/✗>
+Local gate:  <derived from the gate's JSON: <gate> <✓ | ✗ | deferred-to-ci | unavailable> · ...>
 Docs-sync:   <ran: files | skipped: reason>
-CI:          <ubuntu / macos / windows / bundle> → <green | state>
+CI:          <leg> → <green | state> · ...     (from the profile's Legs:)
+Issues filed: <#n <title>, ... | none>
 Timing:      start→PR <m>m · PR→gate <m>m · per phase: 0 <m> · 1 <m> · 2 <m> · 3 <m> · 4 <m> · 5 <m> · 6 <m> · 7 <m> · 8 <m>
-             (from the checklist's stamps: start→PR is phase 0's open to phase 6's
+             (from the Run file's stamps: start→PR is phase 0's open to phase 6's
              close, PR→gate is phase 6's close to phase 8's close; a re-opened
              phase sums its ranges)
 
-Ready to merge. Reply "merge" to squash-merge, delete the branch, and clean up.
+Ready to merge. Reply "merge" to squash-merge, close the issue, and clean up.
 ```
 
-Then **wait.** Do not merge until the user explicitly says so. Never use an
-auto-merge flag.
+The `Local gate:` row is the gate's `gates` object verbatim, never retyped from
+memory. `Issues filed` lists every issue the run filed, in every lane; an
+implausible count is the human's signal. The `Review` blocks say what the PR
+body's `## Review` section says, in more detail; the section links here.
 
-## On approval
+## Attended: post, then wait
 
-Run `scripts/merge-and-verify.sh <pr> <issue>` — it squash-merges via REST with
-the PR title as the squash subject (the release history reads it, so the title
-must already be the Conventional-Commit line), re-verifies the PR actually
-merged, deletes the remote branch (this repo does **not** auto-delete branches
-on merge), fast-forwards the local base branch onto the squash commit, confirms
-the linked issue closed (closing it if the `Closes #<issue>` keyword didn't),
-and releases the `agent-working` claim phase 1 took — reported as
-`claim_released`. A claim left on a closed issue is harmless until someone
-reopens it, at which point pre-flight refuses the issue forever.
+Post the summary in the conversation and **wait**. Merge only on an explicit
+"merge". Never an auto-merge flag: it can merge the instant CI is green,
+before a reviewer lands.
 
-The base-branch update runs where the branch actually lives — this script runs
-from the feature worktree, where a plain `git pull` would pull the base *into*
-the feature branch. It fast-forwards the checkout holding the base branch (the
-main checkout), or moves the ref directly when no checkout holds it — and that
-ref move is fast-forward-checked by hand, so a diverged local base is never
-silently discarded. It is best-effort throughout: the merge has already landed,
-so a base checkout that is diverged, or dirty in a way that collides with the
-incoming commit, reports `base_branch_updated: false` rather than failing. If
-it does, reconcile that checkout by hand before the next run branches off a
-stale base.
+**On approval**, from the worktree, `merge <pr> <issue> --worktree <path>`. It
+squash-merges with the PR title as the squash subject, re-verifies the PR is
+merged before reporting (never assume the command took), confirms the issue
+closed and closes it explicitly if the link did not fire, deletes the remote
+branch and proves the deletion, fast-forwards the local base branch from the
+checkout that holds it (a plain pull from the feature worktree would pull the
+base *into* the feature branch; a diverged local base is reported, never
+discarded; a transient `index.lock` from a concurrent status is retried, never
+deleted), and **releases the claim and strips `ready-for-agent`**, so a
+reopened issue goes back through triage instead of being refused forever.
+Then `cleanup <issue>`: removes the worktree and force-deletes the local
+branch (a squash-merged branch is not an ancestor of the default branch).
+Carried files are never copied back. Any `false` in either JSON: finish that
+step by hand before reporting done.
 
-Then clean up the local workspace: a squash-merged branch isn't an ancestor of
-the default branch, so local branch deletion needs a force delete, and exiting
-the worktree should discard its now-orphaned changes.
+**If the human says no or wants changes**, treat the note as the next round of
+work: apply it on the same branch, re-run the local gate, come back to this
+gate. Do not re-open the whole pipeline.
 
-## If the user says no / wants changes
+## Unattended: post to the PR, then return
 
-Treat their note as the next round of work: apply it on the same branch, re-run
-the local gate, and come back to this gate. Don't re-open the whole pipeline.
+`comment-pr <pr> --body-file` with the summary. Then **return** with the PR
+link. Do not wait, poll, or merge; the claim stays on the issue, which carries
+the open PR, so later fires skip it until a human merges. The line
+"Ready to merge. Reply ..." becomes "Ready to merge: a human merges from the
+PR." Detail in [unattended.md](unattended.md).

@@ -46,8 +46,8 @@ mark() { gates[$1]=$2; }   # mark <name> deferred-to-ci|unavailable
 
 # --- gates ---------------------------------------------------------------------
 
-# secrets: required in every lane; the repo has no CI scanner, so this is the
-# only place added lines are checked.
+# secrets: required in every lane; CI's `secrets` leg runs gitleaks too, so this
+# is the catch before a leak is ever pushed.
 if command -v gitleaks >/dev/null; then
   run secrets gitleaks git --no-banner --redact --log-opts="$base..HEAD" .
 else

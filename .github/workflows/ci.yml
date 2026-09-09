@@ -100,3 +100,22 @@ jobs:
             || { git status --porcelain --ignored dist/; exit 1; }
       - run: npm run smoke
       - run: node tools/check.js tests/fixtures/clean.excalidraw
+
+  secrets:
+    # The local gate scans added lines with gitleaks, but a check that only runs
+    # on the author's machine is not a gate. This leg is what stands between a
+    # leaked credential and a public repo's history. No GITLEAKS_LICENSE: the
+    # action is free for repos on a personal account.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The action diffs the pushed or PR commits, which a shallow clone
+          # does not contain.
+          fetch-depth: 0
+      # v3, not v2: v2 runs on the Node 20 action runtime GitHub deprecates in
+      # September 2026. GITHUB_TOKEN is what lets the action comment its
+      # findings on the PR.
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -18,7 +18,7 @@ The standards every change in this repo is reviewed against. The `code-review` s
 - `CLAUDE.md` `## Bundle discipline`: what counts as a bundle input and the same-change rebuild rule.
 - `CLAUDE.md` `## Keep docs in sync with code`: the artifacts coupled to a change and which are written for an agent.
 - `CLAUDE.md` `## Release`: the version ships with the change; squash subjects are Conventional Commits scoped by area.
-- `CONTEXT.md`: the ubiquitous language, including derived element identity.
+- `GLOSSARY.md`: the ubiquitous language, including derived element identity.
 
 ## Conventions a reviewer should know
 

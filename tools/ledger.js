@@ -79,7 +79,7 @@ export function buildLedger({ before, after, recentered = [] }) {
   // The seed feeds Rough.js jitter, so re-deriving one repaints every stroke on
   // that element, and the app-minted wobble it replaces is gone for good. Fires
   // on the first pass over a file the Excalidraw app minted the ids for, and on
-  // no pass after it: derived seeds re-derive to themselves (CONTEXT.md,
+  // no pass after it: derived seeds re-derive to themselves (GLOSSARY.md,
   // **Derived identity**).
   // `seed` alone — pinVolatile also rewrites `versionNonce` and `updated`, which
   // move on essentially every pass with no visual effect.
@@ -143,7 +143,7 @@ export function buildLedger({ before, after, recentered = [] }) {
   }
 
   // Handed in rather than diffed: restore re-centers a bound label onto its
-  // arrow's path on every pass — house behaviour (CONTEXT.md, **Bound label**) —
+  // arrow's path on every pass — house behaviour (GLOSSARY.md, **Bound label**) —
   // and has already moved it by the time reviseDiagram sees the result.
   if (recentered.length) {
     note(

@@ -547,7 +547,7 @@ if (process.platform === "win32" || process.getuid?.() === 0) {
     JSON.stringify(revised.recentered));
 
   // The snap-back this reports: restore re-centers a hand-moved bound label onto
-  // its arrow's path, by design (CONTEXT.md, Bound label). Silently, it read as
+  // its arrow's path, by design (GLOSSARY.md, Bound label). Silently, it read as
   // a no-op revise — the move was undone with nothing written or printed.
   const moved = JSON.parse(readFileSync(out, "utf8"));
   const movedLabel = moved.elements.find((e) => e.type === "text");

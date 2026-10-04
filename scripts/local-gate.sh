@@ -3,6 +3,7 @@
 # Written by setup-skills; owned by the repo. Ship never edits it.
 #
 #   scripts/local-gate.sh [--small <tests/suite.js>] [--base <ref>]
+#   --help or -h prints that usage line and exits 0, before any check runs.
 #
 # Contract (ship's local-gate contract, the same in every repo):
 #   stdout: one JSON object, {"verdict","base","lane","gates":{<name>:<status>}}
@@ -27,6 +28,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --small) [ $# -ge 2 ] || { printf '{"error":"--small needs a test node"}\n'; exit 2; }; small=$2; shift 2 ;;
     --base)  [ $# -ge 2 ] || { printf '{"error":"--base needs a ref"}\n'; exit 2; }; base=$2; shift 2 ;;
+    -h|--help) echo 'usage: scripts/local-gate.sh [--small <tests/suite.js>] [--base <ref>]'; exit 0 ;;
     *) printf '{"error":"unknown flag: %s"}\n' "$1"; exit 2 ;;
   esac
 done
@@ -38,6 +40,10 @@ if [ -z "$base" ]; then
     || { echo '{"error":"cannot resolve origin/HEAD; run git remote set-head origin -a or pass --base"}'; exit 2; }
   base=${base#refs/remotes/}
 fi
+# gitleaks given a range it cannot resolve scans nothing and exits 0, so an
+# unresolvable base would read as a `secrets` pass.
+git rev-parse --verify -q "$base^{commit}" >/dev/null \
+  || { jq -cn --arg b "$base" '{error: "base \($b) is not a commit; fetch it or pass --base <ref>"}'; exit 2; }
 lane=full; [ -z "$small" ] || lane=small
 
 declare -A gates

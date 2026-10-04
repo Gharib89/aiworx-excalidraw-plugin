@@ -12,6 +12,8 @@
 #   dependent issue out of order builds a PR on unmerged work.
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh" || { printf '{"error":"cannot source _lib.sh"}\n'; exit 2; }
+usage='usage: select'
+ship_help "$usage" "$@"
 [ $# -eq 0 ] || ship_tooling "select takes no arguments"
 ship_load_host
 label=$(ship_triage_label ready-for-agent)

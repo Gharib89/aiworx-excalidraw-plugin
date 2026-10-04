@@ -46,7 +46,7 @@ const CODE = 3;
     Object.keys(VENDORED_FAMILY).every((n) => coveredCodepoints(Number(n)).size > 0), sizes.join(", "));
   check("printable ASCII is covered in the prose face",
     uncoveredCodepoints(Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join(""), PROSE).length === 0);
-  // the registry and CONTEXT.md both spell this split out, so it is pinned here
+  // the registry and GLOSSARY.md both spell this split out, so it is pinned here
   const cascadia = coveredCodepoints(CODE);
   check("the prose face carries neither tick nor cross nor arrow",
     [0x2713, 0x2717, 0x2192, 0x2191, 0x2193].every((cp) => !nunito.has(cp)),

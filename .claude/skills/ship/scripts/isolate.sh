@@ -2,21 +2,27 @@
 # ship phase 0: a fresh branch off origin's default, in a sibling worktree
 # (attended) or in the current checkout (unattended, --in-place).
 #
-#   isolate <issue> <type> <slug> [--carry <file>...] [--in-place]
+#   isolate <issue|none> <type> <slug> [--carry <file>...] [--in-place]
+#
+# `none` as the issue argument is the task-spec run: it is the literal branch
+# and worktree suffix, and every check runs unchanged.
 #
 # Resolves the MAIN checkout through --git-common-dir, so a run started inside a
-# worktree never nests another. Fetches first: refusing to branch off a
-# possibly-stale default. Branches from origin/HEAD, never a hardcoded name.
-# Refuses when the branch or the worktree already exists (preflight should have
-# stopped this run); never reuses, never deletes. Carried files are gitignored
+# worktree lands its worktree beside that checkout rather than inside itself.
+# Fetches first: refusing to branch off a possibly-stale default. Branches from
+# origin/HEAD, whatever that branch is called. Refuses when the branch or the
+# worktree already exists (preflight should have stopped this run), leaving both
+# as it found them. Carried files are gitignored
 # files copied IN one way; nothing is ever copied back.
 #
 # stdout: {worktree, branch, base, in_place, carried[], missing[]}
 # exit: 0 created · 1 branch or worktree exists, or dirty tree for --in-place · 2 git or usage failure
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh" || { printf '{"error":"cannot source _lib.sh"}\n'; exit 2; }
-usage='usage: isolate <issue> <type> <slug> [--carry <file>...] [--in-place]'
-n=${1:?$usage}; type=${2:?$usage}; slug=${3:?$usage}; shift 3
+usage='usage: isolate <issue|none> <type> <slug> [--carry <file>...] [--in-place]'
+ship_help "$usage" "$@"
+ship_args "$usage" "issue|none arg arg" "$@"
+n=$1; type=$2; slug=$3; shift 3
 carry=(); in_place=false
 while [ $# -gt 0 ]; do
   case $1 in

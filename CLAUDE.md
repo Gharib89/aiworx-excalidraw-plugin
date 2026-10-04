@@ -45,11 +45,11 @@ Every user-visible change ships its docs in the **same** change:
 
 - **README.md** — capability, flag, or install changes.
 - **`skills/excalidraw-diagram/`** — the shipped skill (SKILL.md + reference/). Update it when tool behavior, gate rules / problem codes, CLI flags, or the authoring workflow change. It is **self-contained**: it ships to plugin users who don't have the repo, so inline what a reader without a checkout needs and keep every link inside `skills/`.
-- **`CONTEXT.md`** — the ubiquitous language. Renaming a term there updates every consumer in the same change; the file states which they are.
-- **`examples/`** — a band **draws** commands on canvas, so correcting one means regenerating the artifact rather than editing a file. A command or flag change lands in every band that draws it: grep the generators for it, then re-run each one whose text moved. `tests/drawn-commands.js` walks every committed band and holds its drawn flags to the CLIs' real inventories (`tools/cli-flags.js`) — a band left behind goes red in `test:fast`. Element identity is **derived** (`CONTEXT.md`, **Derived identity**), so re-running a generator is a no-op unless something moved: `tests/band-bytes.js` generates every band out-of-tree twice and refuses any difference between the runs or against the committed bytes. That makes `git diff examples/` the answer to "did my change reach a picture?", and it means a change that legitimately moves geometry ships its regenerated artifacts in the same commit.
+- **`GLOSSARY.md`** — the ubiquitous language. Renaming a term there updates every consumer in the same change; the file states which they are.
+- **`examples/`** — a band **draws** commands on canvas, so correcting one means regenerating the artifact rather than editing a file. A command or flag change lands in every band that draws it: grep the generators for it, then re-run each one whose text moved. `tests/drawn-commands.js` walks every committed band and holds its drawn flags to the CLIs' real inventories (`tools/cli-flags.js`) — a band left behind goes red in `test:fast`. Element identity is **derived** (`GLOSSARY.md`, **Derived identity**), so re-running a generator is a no-op unless something moved: `tests/band-bytes.js` generates every band out-of-tree twice and refuses any difference between the runs or against the committed bytes. That makes `git diff examples/` the answer to "did my change reach a picture?", and it means a change that legitimately moves geometry ships its regenerated artifacts in the same commit.
 - **History** lives in Conventional-Commit squash subjects; this repo keeps no CHANGELOG.
 
-The documents **written for an agent** are the shipped skill, this file, `CONTEXT.md` and `docs/agents/`. Edit those through the `writing-for-agents` skill, which carries the levers. README and code comments are prose for humans and take an ordinary edit.
+The documents **written for an agent** are the shipped skill, this file, `GLOSSARY.md` and `docs/agents/`. Edit those through the `writing-for-agents` skill, which carries the levers. README and code comments are prose for humans and take an ordinary edit.
 
 ## Release
 
@@ -74,11 +74,11 @@ gh api "repos/{owner}/{repo}/issues/$PR/timeline" --paginate \
 
 Count only Copilot's own events — an unfiltered `review_requested` list reports success on a request for someone else entirely. The count is the number of rounds requested so far, so it should rise by one per request.
 
-A round takes **two to four minutes**. A count that did not rise means the request never landed: retry once, then treat the reviewer as unavailable and mark the exit degraded.
+A round takes **two to four minutes**. A count that did not rise means the request never landed: retry once, then treat the reviewer as unavailable and mark the exit not reviewed.
 
 Copilot posts **one review per request** and does not re-review on push. After a round of fixes, request again — that is what makes the next round, and it is why rounds are counted rather than assumed.
 
-**Drive it until converged, soft cap four rounds** (inside a `/ship` run the profile's `Cap:` governs instead). Converged = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **degraded** rather than push a fifth round.
+**Drive it until reviewed, soft cap four rounds** (inside a `/ship` run the profile's `Cap:` governs instead). Reviewed = the latest round returns nothing actionable, every thread from all rounds is dispositioned, and CI is green. A round 4 that is still substantive is a shape problem more rounds won't fix — stop and mark the exit **not reviewed** rather than push a fifth round.
 
 **Triage every comment.** Copilot does not know this repo's constraints: verify every nit against the **pinned** dependency versions, harden rather than rip out capability, and reject known non-issues with a one-line reason. Record a disposition per comment.
 
@@ -88,10 +88,10 @@ Copilot is a second pair of eyes. **The gate** is a deliberate self-review (`cod
 
 - **Issues** live in GitHub Issues on `Gharib89/aiworx-excalidraw-plugin`, driven with `gh`. Command recipes, the number space PRs share with issues, and the wayfinder map/child conventions: `docs/agents/issue-tracker.md`.
 - **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. The **assignee** is the claim: an assigned open issue is taken, and a `/ship` run that stops blocked hands it back to `ready-for-human`. `docs/agents/triage-labels.md`.
-- **Domain** is single-context — `CONTEXT.md` and `docs/adr/` at the repo root. How a skill should read them before exploring, and what to do when its output contradicts an ADR: `docs/agents/domain.md`.
+- **Domain** is single-context — `GLOSSARY.md` and `docs/adr/` at the repo root. How a skill should read them before exploring, and what to do when its output contradicts an ADR: `docs/agents/domain.md`.
 
 ### Ship
 
 `/ship` drives one issue to a merge-ready PR. This repo's ship profile: `docs/agents/ship.md`. Without that file ship refuses: run `/setup-skills`.
 
-Every skill under `.claude/skills/` is a derived copy, never edited in place; `skills-lock.json` records each one's source. `ship` and `cloud-ship` come from `Gharib89/skills`; the skills ship composes come from `mattpocock/skills` and `upstash/context7`. Refresh a skill by re-running its install line at project scope (never `-g`). Ship's refresh chains its preflight, so a profile the refreshed ship no longer reads is reported now, not on the next `/ship`: `npx skills add Gharib89/skills --skill ship --skill cloud-ship --agent claude-code -y && .claude/skills/ship/scripts/preflight.sh <any open issue number>`.
+Every skill under `.claude/skills/` is a derived copy, never edited in place: it changes at its source and is refreshed here; `skills-lock.json` records each one's source. `ship`, `cloud-ship`, `setup-skills` and `update-skills` come from `Gharib89/skills`; the skills ship and setup-skills compose come from `mattpocock/skills`, `upstash/context7` and `humanlayer/skills`, each at the pin of the skill that composes it. `/update-skills` refreshes them all in one PR. By hand, refresh a skill by re-running its install line at project scope, without `-g`. Ship's refresh chains its preflight, so a profile the refreshed ship no longer reads is reported now, not on the next `/ship`: `npx skills add Gharib89/skills --skill ship --skill cloud-ship --skill setup-skills --skill update-skills --agent claude-code -y && .claude/skills/ship/scripts/preflight.sh none`.

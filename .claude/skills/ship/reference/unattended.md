@@ -9,68 +9,66 @@ the flag.
 ## What the flag changes
 
 1. **Isolation is the clone.** `isolate ... --in-place`: fetch, branch from
-   `origin/HEAD` in the current checkout, no worktree, no carried files. The
-   sandbox clone is disposable and already isolated.
+   `origin/HEAD` in the current checkout, no worktree, no carried files.
 2. **A blocked stop hands back.** Every stop in SKILL.md's table that reads
-   "attended: ask" becomes `manage-issue <issue> handback "<reason>"`: unassign,
-   drop `ready-for-agent`, add `ready-for-human`, comment the reason
-   (for a `hand-off`, the exact command the human would have run). The run
-   then returns with the reason. A fire either reaches merge-ready or hands the
-   issue back; it never leaves an issue claimed and spinning. Admission is
-   narrower too: `ready-for-human` stops `ready-for-human: attended only`.
+   "attended: ask" becomes `manage-issue <issue> handback "<reason>"`; for a
+   `hand-off`, the reason carries the exact command the human would have run.
+   The run then returns with the reason: a fire either reaches merge-ready or
+   hands the issue back, and leaves no issue claimed and spinning. Admission is
+   narrower too: `ready-for-human` is the stop `ready-for-human: attended only`.
 3. **The merge gate posts and returns.** `comment-pr` with the uncompressed
-   summary, then return with the PR link. No waiting, no polling, no merge. The
-   claim holds; the open PR is what keeps later fires off the issue.
+   summary, then return with the PR link. The claim holds; the open PR is what
+   keeps later fires off the issue.
 
-Before any of it, **`tooling --install`**: the cloud sandbox image has `jq`,
-`curl` and `git` but not the host's CLI, and only the host adapter knows what
-that is and how it installs (GitHub: `apt-get install -y gh`, the one route
-the sandbox proxy passes). Core in every repo, never a profile `Bootstrap:`
-line. Still missing afterwards: stop `host-unreachable`, exactly as preflight
-would. Never run `gh auth status` to check the token: behind the sandbox proxy
-it reports the working token as invalid; preflight's `user` and repo reads are
-the proof.
+Before any of it, **`prepare --unattended`**, which in this lane runs whether
+or not the run is in a cloud sandbox, so a local `ship --unattended` still
+reproduces a fire. Its first step is `tooling --install`: the sandbox image has
+`jq`, `curl` and `git` but not the host's CLI, and only the host adapter knows
+what that is and how it installs (GitHub: `apt-get install -y gh`, the one route
+the sandbox proxy passes). Its second is the profile's `## Cloud lane`
+`Bootstrap:`. Read the token through preflight's `user` and repo reads, which
+are the proof; `gh auth status` reports the working token as invalid behind the
+sandbox proxy.
 
-Two sandbox facts the run meets and neither is a failure. Review-thread state
-is GraphQL, which the proxy blocks, so `poll-pr` reports `threads:
-"unavailable"` and a reviewer that opened threads exits `degraded: unreachable`
-and proceeds to the merge gate. Remote ref deletion is blocked both ways, which
-costs nothing here: the lane returns at the merge gate and `merge` plus
-`cleanup` run attended from a human's machine.
+Two sandbox facts the run meets, neither a failure. The proxy refuses GitHub
+GraphQL, where review-thread state lives; the GitHub adapter switches to REST
+routes on that refusal, so the thread mechanics work as they do outside the
+sandbox, and `threads: "unavailable"` means the read failed on both paths.
+Remote ref deletion is blocked both ways, which costs nothing: the lane returns
+at the merge gate, and `merge`, `cleanup` and the tracker commands run from a
+human's machine.
 
-Unchanged: `defer-to-ci` is the only verification disposition that proceeds
-(`hand-off` and `blocked` hand back); a degraded reviewer exit still proceeds
-to the merge gate on green CI and never hands back on its own; the local gate's
-`unavailable` hands back with `local gate unavailable: <gates>` and never opens
-the PR. Compose skills with an explicit unattended signal (`code-review`, `tdd`
-and any reviewer helper); they cannot infer the absence of a human.
+Unchanged: `defer-to-ci` is the only verification disposition that proceeds,
+and an `unexercised` result proceeds with nothing to hand back for; a `not
+reviewed` reviewer still proceeds to the merge gate on green CI; the local
+gate's `unavailable` hands back with `local gate unavailable: <gates>`, the PR
+unopened. Compose skills with an explicit unattended signal (`code-review`,
+`tdd` and any reviewer helper); they cannot infer the absence of a human.
 
 ## The lane with no issue: `ship --unattended`
 
 With no `<issue>`, ship runs the whole unattended lane before phase 0. It
-writes nothing to the tracker until the claim in phase 1; the four stops below
+writes nothing to the tracker until the claim in phase 1; the stops below
 leave no trace on any issue.
 
-0. **Tooling.** `tooling --install`; still missing: stop `host-unreachable`.
-1. **Bootstrap.** If the profile's `## Cloud lane` names a `Bootstrap:`, run it
-   before anything can be claimed. Non-zero exit: stop `bootstrap-failed`.
-   This is sandbox-image repair for the repo's own stack, distinct from
-   `## Worktree`'s `Bootstrap:`, which runs in every lane after isolate.
+1. **Prepare.** `prepare --unattended`, both steps before anything can be
+   claimed: `failed: "tooling"` is `host-unreachable`, `failed: "bootstrap"` is
+   `bootstrap-failed`. This `Bootstrap:` is sandbox-image repair for the repo's
+   own stack, distinct from `## Worktree`'s, which runs in every lane after
+   isolate.
 2. **PR cap.** `list-prs --open`; at or above the profile's `PR cap:` (default
    3, `none` disables), stop `pr-queue-full`. One operator's merge-review queue
    is the bottleneck, not the backlog.
-3. **Select.** `select`: the oldest-created open issue labelled `ready-for-agent`,
-   with no assignee and no open blocker, walking candidates ascending
-   until one passes. No candidate: stop `nothing-ready`, the one clean no-op.
-   The host's blocker query exists and failed: stop `blockers-unavailable`;
-   shipping a dependent issue out of order builds a PR on unmerged work, so
-   never guess order.
-4. **Run** phases 0 to 9 on the selected issue as `ship <issue> --unattended`.
+3. **Select.** `select`: the oldest open `ready-for-agent` issue with no
+   assignee and no open blocker. No candidate: stop `nothing-ready`, the one
+   clean no-op. The host's blocker query exists and failed: stop
+   `blockers-unavailable`, because shipping a dependent issue out of order
+   builds a PR on unmerged work.
+4. **Run** phases 0 to 9 on the selected issue as `ship <issue> --unattended`,
+   skipping `prepare`, which is done.
 5. **Report**: the PR link and the merge summary's location, or the stop
-   reason verbatim (ship's own reasons pass through unchanged, including
-   `host-unreachable` from preflight).
+   reason verbatim.
 
 The repo is derived from the clone's `origin` remote; no repo name is passed
-anywhere. The `cloud-ship` sibling is this lane's only caller from a routine:
-it invokes the `ship` skill with `--unattended` through the Skill tool and
-relays step 5 verbatim, never calling a mechanic by path.
+anywhere. `cloud-ship` invokes the `ship` skill with `--unattended` through the
+Skill tool and relays step 5 verbatim, leaving every mechanic to ship.

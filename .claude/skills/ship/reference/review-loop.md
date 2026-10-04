@@ -1,123 +1,176 @@
-# Phase 7: driving every reviewer to convergence
+# Phase 7: a bounded, best-effort pass per reviewer
 
-The profile's `## Reviewers` lists zero or more reviewers. Each has the login(s)
-it posts under, a `Trigger:`, `Gating:`, an optional `Instructions:` file, and
-per trigger: `Request:` and `Cap:` (on-request), `Resolve:` (on-push). The
-**trigger fixes the loop, convergence and cap**; the bot's brand fixes nothing.
-Zero reviewers: the phase-4 self-review plus green CI is the review gate; skip
-this phase. Phase-4 self-review plus green CI is the gate in every other case
-too; reviewer rounds are a second pair of eyes.
+## Contents
 
-A reviewer re-reads the **whole PR** each round: treat every round's output as
-a fresh read of the committed tree, not a conversation.
+- [The round](#the-round)
+- [Reading a round](#reading-a-round)
+- [Triage, fix, reply](#triage-fix-reply)
+- [The exit](#the-exit)
+- [Fallbacks](#fallbacks)
+- [Worked examples](#worked-examples)
 
-## Shared mechanics
+The review gate is phase 4's self-review plus green CI; the reviewers under the
+profile's `## Reviewers` are a second pair of eyes on top of it. So phase 7 is
+best-effort: ask each reviewer for a round, wait a bounded time, triage whatever
+landed, and report what happened. A reviewer that answers nothing costs one
+bounded wait, not an investigation. Preflight has already refused the malformed
+blocks. Zero reviewers: skip the phase. A reviewer re-reads the **whole PR**
+each round: treat each round as a fresh read of the committed tree.
 
-- **Poll with `poll-pr <pr> --await-review <login>`**, inline, bounded,
-  foreground. It returns one JSON: head sha, mergeable, checks, reviews keyed
-  to the **current head** (a review on an older commit does not count) with
-  `substantive`, threads with resolved state, and `reviewer_blocked`.
-  `done: false` means the window closed first: re-run to extend, never a
-  background monitor. The poll is the landing signal only; before triage, read
-  the round's review body and threads from the same payload.
-- **A round is a review with a body.** A reviewer's reply to one thread posts
-  as a review row of its own (current head, empty body), so answering round N
-  manufactures rows that look like round N+1 arriving. Only `substantive: true`
-  counts; hold any hand check to that bar.
-- **Triage, don't apply**, at the judgment tier, with phase 4's definition:
-  harden rather than rip out capability, verify nits against the pinned
-  versions, reject known non-issues with a one-line reason. The two rejection
-  rails apply: check repo-existence claims against `origin/HEAD`, and judge a
-  claim separately from the evidence it cites. Check the reviewer's
-  `Instructions:` file when a finding contradicts it (a host may truncate that
-  file; cite it when declining). A valid finding outside the issue is an
-  adjacent find: file it, and disposition the thread with the link. That is
-  also the honest answer to a gating reviewer.
-- **Batch fixes into one push per round**, then reply on every thread
-  (`fixed in <sha>`, or the decline and its reason). Every push spends review
-  quota and CI minutes, and an on-push reviewer's round.
-- **Per-reviewer accountability.** Each reviewer gets its own block in the
-  merge summary and its own line in the PR body's `## Review` section
-  (`update-pr-body` at phase-7 exit): `converged`,
-  `converged, override needed`, or `degraded: <reason>`, plus the round count.
+## The round
 
-## By trigger
+The block's `Trigger:` fixes how a round starts; the brand fixes nothing.
 
-### `auto-once`
+- **`on-request`**: `request-review <pr> --reviewer <name>`, then poll with
+  `--since` its `requested_at`. The block's `Request:` picks the transport (the
+  host's own request call, or a PR comment of the phrase for a comment-triggered
+  workflow), and the mechanic reads the request back off the host; one that does
+  not read back exits 1, and the reviewer is `not reviewed: never-queued`, with
+  no poll. Under the host's own request call, round 1 first polls `--since`
+  `open-pr`'s `created_at` at `--timeout 0`: a round the host opened unbidden
+  with the PR (a Copilot ruleset, `review_on_push: false`) that has landed is
+  round 1, and the request is sent only where none has.
+- **`auto-once`**: nothing to request; poll once with `--since` `open-pr`'s
+  `created_at`. That one round is all there is.
+- **`on-push`**: every push earns a round; poll with no `--since`, which counts
+  a round only on the current head.
 
-Fires once on PR creation; nothing to request and **never re-requested**. Wait
-for it to land with `poll-pr --await-review <login>`; if a round arrives before
-you poll, that is the round. Triage it once, push the fixes, reply on each
-thread. **Converged** when every thread is dispositioned. A later push does not
-bring it back; a lint or flake fix after convergence needs nothing from it.
+Per round: start it, `poll-pr <pr> --reviewer <name> [--since <iso>] --brief`
+inline, triage what landed, push the fixes once, reply. The next round starts
+only while the latest round's fixes changed the tree and `Cap:` has rounds left.
+The poll takes its bound from the block, and a window that closed is the answer
+rather than a reason to re-poll, except after a `conflict`, which says nothing
+about the reviewer: resolve it (phase 8) and poll again.
 
-### `on-push`
+**`Cap:`** is the budget on rounds ship starts: a number, or `None.` for an
+uncapped loop; `auto-once` delivers one round whatever it reads, and under
+`on-push` the number ends ship's engagement while the reviewer may carry on. A
+round at the cap is dispositioned in full and ends the loop; say whether it was
+still landing real findings, which tells the human whether the budget was
+right. Small lane: at most one requested round. A lint or flake fix after the
+loop ends earns no new request; an on-push reviewer re-reads it on its own, so
+disposition that round, which opens no further one.
 
-Re-reviews every push; rounds are free and uncapped. After each push, wait for
-a review **landed on the current head**; silence on the head is never quiet.
-Triage, batch-fix, push, reply on each thread. Once **every** thread carries a
-disposition, and only then, use the reviewer's `Resolve:` mechanism
-(`resolve-thread`, or the comment the profile names) to resolve them.
-**Converged** when a review has landed on the current head with nothing
-actionable and every thread is dispositioned and resolved. A fix pushed after
-convergence gets re-read on its own: wait for quiet on the new head again.
-When `poll-pr` reports `threads: unavailable`, this reviewer's exit is
-`degraded: unreachable` and the run proceeds; the other triggers read reviews
-and comments, which stay readable.
+## Reading a round
 
-### `on-request`
+`poll-pr` returns the reviewer's rounds, each graded `substantive`, threads with
+resolved state, `landed_by` naming the rule that admitted a round, `refused_by`
+a quota or rate-limit notice admitted in its place, `reviewer_run` for a comment
+transport, `reviewer_blocked` a quota notice the rule did not admit (cite it in
+a trailing clause, never as the reason), and `not_reviewed`, the cause the poll
+observed where no round was admitted.
 
-Nothing arrives until asked. `request-review <pr> <login>` issues the request
-and **reads it back** from the host's own record (the mechanic knows that the
-login you request and the login you read back can differ, and that an empty
-requested-reviewers list proves nothing). One request yields one round; the
-reviewer does not re-review on push, so each round after the first is a new
-request against the corrected tree. Loop: request, poll, triage, batch-fix,
-push, reply on each thread, request again. **Converged** when the latest round
-has nothing actionable and every thread from all rounds is dispositioned.
-**Cap** is the profile's `Cap:`, required, no default: a round at the cap that
-is still substantive is a shape problem more rounds will not fix; exit
-`degraded: cap-hit` and leave the call to the human. Small lane: exactly one
-round. A lint or flake fix after convergence earns no new request.
+- **`--brief` is how a round is read**: one `rounds[]` row per round, its body
+  cut to the lead line and finding items, and one row per OPEN thread, the run's
+  own replies dropped.
+- **A body or `lead` ending `...[truncated]` has not been read.** Re-poll with
+  `--brief --full <id>` for that round or thread before triage. Pass every id
+  you will triage in one comma-separated `--full` list, so each thread is read
+  whole.
+- **Findings live in the body as well as in threads**, and a reviewer's reply to
+  one thread posts as a bodiless review row that looks like the next round
+  arriving: only `substantive: true` counts.
+- **The since rule needs a timed round.** An Azure DevOps vote carries no time,
+  so a reviewer whose only signal is a vote reads `silent` under it; its
+  threads are stamped and land normally.
+- **A comment transport's window is its workflow run**, the one `Workflow:`
+  names, held open while the run is going. Run no `update-pr-title` between that
+  request and its poll: the run is matched by the PR's title.
+- **A poll waits for the expected head**, the worktree's `HEAD` on the PR's
+  branch or `--sha`. `not_reviewed: unreachable` with a `head_sha` that is not
+  that head means the host never showed the push: confirm it landed, then poll
+  again.
 
-## Degraded exits: fixed vocabulary, per reviewer
+## Triage, fix, reply
 
-Degraded means the reviewer did not finish its job; it proceeds to the merge
-gate on green CI and never hands back on its own, in either lane. The human
-reads the reason and decides.
+- **Triage, don't apply**, at the judgment tier, with phase 4's definition and
+  its two rejection rails. Check the reviewer's `Instructions:` file when a
+  finding contradicts it, and cite it when declining. A valid finding outside
+  the issue is an adjacent find.
+- **Batch fixes into one push per round.** A fix to a rule goes to every copy of
+  that rule in the same batch: grep the phrase before you push and read each
+  hunk back.
+- **Reply in the thread**: `reply-thread <pr> <thread> --body-file` for every
+  `replied: false` thread, `fixed in <sha>` or the decline and its reason. Once
+  every thread carries a reply, run the block's `Resolve:` per thread; `Resolve:
+  None.` means the findings are answered with `comment-pr`, which also answers a
+  body finding with no thread. A finding about the PR body is fixed through the
+  writes [pr-body.md](pr-body.md) names.
+- **Write each round to the Run file as you disposition it**, one line per
+  finding with its disposition, and one per round whose `reviewer_run.denied`
+  is numeric, with the run URL: the exit's counts come from them.
 
-| Reason | Detection |
-|---|---|
-| `never-queued` | on-request: no request event on the host's record after one retry. Do not spend a second poll window on it. |
-| `blocked` | queued, then a quota or rate-limit comment from the reviewer (`reviewer_blocked` non-null), and the poll window closed. Non-null with `done: false` means waiting, not missing. |
-| `silent` | queued, no review on the current head within the bounded wait. |
-| `infra-error` | a review whose body is only an error notice with zero comments, twice. Not feedback. |
-| `cap-hit` | on-request cap reached with the latest round still substantive. |
-| `unreachable` | no host path to the reviewer from this environment, or thread state could not be read (`threads: unavailable`). |
+## The exit
 
-## Gating reviewer with a declined finding
+Each reviewer exits with one of:
 
-A `Gating: yes` reviewer can hold the merge on a finding you decline. Every
-thread dispositioned, the declined finding cited with evidence, build still
-red: the exit is `converged, override needed`. Not degraded, because the
-reviewer ran; the human overrides the policy or accepts the finding at the
-merge gate.
+- `reviewed`: at least one round landed and was dispositioned. A later round
+  that did not land is a trailing clause, not a different exit.
+- `not reviewed: <reason>`: no round landed, or one did and its threads could
+  not be read (`unreachable`): triage that one off its body and answer it with
+  `comment-pr`. The reason is `not_reviewed` off the last poll, or
+  `never-queued` off `request-review`'s exit 1, and never one you infer: a human
+  saying a reviewer "can't review" is a claim to check against the poll. The
+  header of `scripts/poll-pr.sh` lists what each cause means.
+- `not invoked: <primary> reviewed`: a fallback whose primary reviewed.
+
+`not reviewed` proceeds to the merge gate on green CI and is reported there. A
+`Gating: yes` reviewer holding the merge on a finding you declined still exits
+`reviewed`; the merge summary cites the declined finding with its evidence as
+the override the human decides on.
+
+One line per reviewer goes in the PR body's `## Review` section and the merge
+summary, in this shape:
+
+```
+- <reviewer>: <exit>, <n> rounds, <raised> findings: <accepted> accepted, <declined> declined, <filed> filed
+- <fallback>: not invoked: <primary> reviewed
+```
+
+A `not reviewed` reviewer with no rounds states its exit alone. A trailing
+clause is added only where the counts leave something out: a cap that ran out
+mid-findings, the primary's reason on a fallback that ran, a round that did not
+land after one that did, or `<N> denied calls (run <url>[, run <url>…])`, N
+summing the numeric `reviewer_run.denied` over the rounds, each non-zero round's
+run URL listed, and nothing added for a total of 0 or no numeric count.
+
+At exit, from the Run file and never from the body the write replaces, one
+`update-pr-body <pr> --section <name> --body-file <path>` per section, each
+file carrying its section rebuilt entire: `"Special things to note"` where the
+rounds grew the deviations log, `"Needs attention"` where a round filed or
+linked an issue or met a Ship defect, and `Review` last, so `read-pr` reads all
+three back at once.
+
+## Fallbacks
+
+A reviewer whose `Fallback-for:` names another stands in for it, on the runs
+where that primary exits `not reviewed` (ADR 0002); preflight holds it to
+on-request, since a reviewer that fires on every push cannot be withheld. Drive
+every non-fallback reviewer to its exit first, because a fallback's only input
+is how its primary exited.
+
+- Primary `not reviewed: <any reason>`: drive the fallback as an ordinary
+  on-request reviewer under its own `Cap:`. Its exit is its own, and its `##
+  Review` line and merge-summary block both name the primary's reason, the only
+  record of why a second reviewer was paid for.
+- Primary `reviewed`: do not request it; it exits `not invoked: <primary>
+  reviewed`, so a reader sees the reviewer exists.
+- Nothing is a fallback for a fallback: a chain is one deep.
 
 ## Worked examples
 
 Brand-level detail lives in the host adapters; these show the mapping only.
 
-- **GitHub Copilot as `on-request`**: request per round, cap from the
-  profile. Two identities behind one reviewer: the request names one login,
-  the review posts under another, and the check run a third; the mechanics
-  match each surface to its own name. Copilot enabled as an automatic review
-  by a repository ruleset is `auto-once` instead.
+- **GitHub Copilot as `on-request`**: requested under one login, reviewing under
+  another, its check run under a third; the mechanics match each surface to its
+  own name. The `copilot_code_review` rule's `review_on_push` fixes the trigger
+  (`true` is `on-push`). Out of quota, the host queues nothing and the request
+  does not read back: `not reviewed: never-queued`.
 - **CodeRabbit as `on-push`**: reviews every push; `Resolve:` is its resolve
-  comment, posted once after every thread carries a reply.
-- **Claude Code on GitHub Actions as `on-push`**: reviews every push through a
-  workflow; no thread-resolution mechanism, so `Resolve:` reads `None.` and
-  convergence rests on dispositioned threads and a quiet head.
+  comment, posted once every thread carries a reply.
+- **Claude Code on GitHub Actions as an `on-request` fallback**: a comment of
+  its phrase starts a workflow run posting under `claude[bot]`; a run that
+  failed reads `not reviewed: infra-error` with its URL on `reviewer_run`.
 - **Claude Code on Azure Pipelines as `on-push`, `Gating: yes`**: a build
-  validation policy that fails the build on a critical finding; threads are
-  Azure DevOps PR threads with `fixed | closed` status; a declined critical is
-  `converged, override needed`.
+  validation policy that fails the build on a critical finding; a declined
+  critical is `reviewed`, cited at the merge gate as the override needed.

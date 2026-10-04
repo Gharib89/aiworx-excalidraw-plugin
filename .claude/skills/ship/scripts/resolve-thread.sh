@@ -7,9 +7,15 @@
 # exit: 0 resolved · 1 not resolved · 2 usage
 set -uo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh" || { printf '{"error":"cannot source _lib.sh"}\n'; exit 2; }
-pr=${1:?usage: resolve-thread <pr> <thread-id>}; thread=${2:?usage: resolve-thread <pr> <thread-id>}
+usage='usage: resolve-thread <pr> <thread-id>'
+ship_help "$usage" "$@"
+ship_args "$usage" "pr arg" "$@"
+pr=$1; thread=$2
 [ $# -eq 2 ] || ship_tooling "unknown flag: $3"
 ship_load_host
-out=$(host_pr_resolve_thread "$pr" "$thread") || ship_fail "resolve call failed"
+# A failed call keeps the adapter's reason where it named one ("no such
+# thread"), in the same {error} shape a bare failure answers with.
+out=$(host_pr_resolve_thread "$pr" "$thread") \
+  || ship_fail "$(jq -r '.detail // empty' <<<"$out" 2>/dev/null | grep . || echo "resolve call failed")"
 jq --argjson pr "$pr" --arg t "$thread" '{pr: $pr, thread: $t} + .' <<<"$out"
 [ "$(jq -r .resolved <<<"$out")" = true ]

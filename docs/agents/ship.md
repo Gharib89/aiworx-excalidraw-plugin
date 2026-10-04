@@ -1,8 +1,8 @@
 # Ship profile
 
-Schema: 1
+Schema: 3
 
-Every repo-specific fact `/ship` needs, one section per axis. Fourteen `##` headings, always present and in this order; a defaulted axis reads `None.` or `Default.`, never an omitted heading. Facts sit on `Label:` lines; the prose under a heading explains and never carries a fact. Vocabulary: the `ship` skill's source repo, `Gharib89/skills`, `CONTEXT.md`.
+Every repo-specific fact `/ship` needs, one section per axis. Fourteen `##` headings, always present and in this order; a defaulted axis reads `None.` or `Default.`, never an omitted heading. Facts sit on `Label:` lines; the prose under a heading explains and never carries a fact. Vocabulary: the `ship` skill's source repo, `Gharib89/skills`, `GLOSSARY.md`.
 
 ## Host
 
@@ -43,9 +43,11 @@ One workflow, `.github/workflows/ci.yml`, `pull_request` and `push` on `main`. N
 Login: `Copilot` on the `review_requested` timeline event, `copilot-pull-request-reviewer[bot]` on the review it posts
 Trigger: on-request
 Request: `request-review` mechanic (POST `requested_reviewers` with `copilot-pull-request-reviewer[bot]`; read the round back off the issue timeline, never off `requested_reviewers`, which is always empty for Copilot)
+Workflow: None.
 Cap: 2
 Resolve: None.
 Gating: no
+Fallback-for: None.
 Instructions: None.
 
 A round takes two to four minutes and Copilot never re-reviews on push: every round is requested. It does not know this repo's pinned dependency versions; verify each finding against them before acting. CLAUDE.md `## Code review` carries the hand-driven recipe for sessions outside `/ship`.
@@ -89,8 +91,8 @@ File as an issue labelled `needs-triage`.
 
 ## Docs sync
 
-Targets: README.md, skills/excalidraw-diagram/, CONTEXT.md, examples/ (regenerated, never edited; `git diff examples/` shows whether a change reached a picture)
-Agent-facing: skills/excalidraw-diagram/, CLAUDE.md, CONTEXT.md, docs/agents/, .claude/skills/
+Targets: README.md, skills/excalidraw-diagram/, GLOSSARY.md, examples/ (regenerated, never edited; `git diff examples/` shows whether a change reached a picture)
+Agent-facing: skills/excalidraw-diagram/, CLAUDE.md, GLOSSARY.md, docs/agents/, .claude/skills/
 
 CLAUDE.md `## Keep docs in sync with code` explains each target.
 

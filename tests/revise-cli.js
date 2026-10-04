@@ -158,7 +158,7 @@ function mangledCopy(dir) {
 }
 
 // A bound label dragged off its arrow is re-centered onto the path by design
-// (CONTEXT.md, **Bound label**) — but it used to happen silently, so the run read
+// (GLOSSARY.md, **Bound label**) — but it used to happen silently, so the run read
 // as a no-op and cost a full debug cycle. The report is the signal.
 //
 // The fixture's second arrow lists no boundElements entry for its label. restore

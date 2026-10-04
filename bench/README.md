@@ -2,7 +2,7 @@
 
 **Frozen.** Once a baseline run exists for a brief, its `prompt.md` body is never edited — a needed change is a new slug, and the old one is retired with a note here. Editing a brief in place silently invalidates every earlier run. The frontmatter is harness configuration (model, turns, tools, the brief's `preset`) and may move.
 
-This directory holds the **benchmark corpus** (see `CONTEXT.md` › Benchmark): the fixed set of **briefs** every change to the skill or tools is judged on, before against after. It is not a plugin surface and not part of CI — a **bench run** is manual, local, needs an API key, Chrome, and roughly $10–20.
+This directory holds the **benchmark corpus** (see `GLOSSARY.md` › Benchmark): the fixed set of **briefs** every change to the skill or tools is judged on, before against after. It is not a plugin surface and not part of CI — a **bench run** is manual, local, needs an API key, Chrome, and roughly $10–20.
 
 ## Layout
 
@@ -53,7 +53,7 @@ The **baseline** is the run under the version the corpus was frozen at.
 
 ## Grading
 
-`advisories.json` scores the rubric's measured half. The other half — Tier A's advisory-free rows, rule 11's focal assignment, and all of Tier B — is judgment, and a **grade** (`CONTEXT.md` › Benchmark) is one brief's verdict on it, from a grader that never authored the picture. Grading the authoring session's own read-back would be marking your own homework, and it reports nothing at all on a run that skipped the read-back.
+`advisories.json` scores the rubric's measured half. The other half — Tier A's advisory-free rows, rule 11's focal assignment, and all of Tier B — is judgment, and a **grade** (`GLOSSARY.md` › Benchmark) is one brief's verdict on it, from a grader that never authored the picture. Grading the authoring session's own read-back would be marking your own homework, and it reports nothing at all on a run that skipped the read-back.
 
 ```bash
 bench/grade.sh                      # every brief in the current version's run

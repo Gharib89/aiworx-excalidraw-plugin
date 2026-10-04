@@ -1045,7 +1045,7 @@ export async function reviseDiagram({ file, svg = true, quiet = false }) {
   const data = readExcalidrawDocument(file);
   return withExcalidraw(async (ex) => {
     // Where every bound arrow label sat before the round-trip. restore re-centers
-    // one onto its arrow's path on every pass — house behaviour (CONTEXT.md,
+    // one onto its arrow's path on every pass — house behaviour (GLOSSARY.md,
     // **Bound label**) — but silently: an author who dragged a label off the line
     // got output identical to a no-op revise, the move undone with no signal.
     // Reading the positions now is the only chance; restore has already moved
